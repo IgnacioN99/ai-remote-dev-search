@@ -165,7 +165,7 @@ async function main(): Promise<number> {
 }
 
 main()
-  .then((code) => process.exit(code))
+  .then((code) => { process.exitCode = code })
   .catch((e) => {
     process.stderr.write(
       JSON.stringify({
@@ -173,5 +173,5 @@ main()
         code: "INTERNAL_ERROR",
       }) + "\n",
     )
-    process.exit(1)
+    process.exitCode = 1
   })

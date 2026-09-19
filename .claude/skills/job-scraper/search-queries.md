@@ -1,81 +1,152 @@
 # Search Queries for Job Scraper
 
-<!-- SETUP: Customize these queries based on your skills, target roles, and location -->
+<!-- SETUP: Customized for Ignacio Flores - Ruby on Rails backend/full-stack developer, Argentina (remote global) -->
 
 ## Installed portal CLIs (primary for `/scrape`)
 
-`/scrape` discovers every portal skill under `.agents/skills/*/SKILL.md` and runs its CLI first. Shipped country-agnostic CLIs include `linkedin-search` and `freehire-search`; Danish demos and any skill you add with `/add-portal` are included the same way. You do **not** need a matching `site:` line below for those CLIs to run.
+`/scrape` discovers every portal skill under `.agents/skills/*/SKILL.md` and runs its CLI first. Active tech & remote CLIs include `linkedin-search`, `silverdev-search`, `getonbrd-search`, `remotive-search`, `remoteok-search`, `weworkremotely-search`, `freehire-search`, and `company-careers-search`.
 
-The `site:` query templates in this file are the **WebSearch fallback** — for portals without a CLI, company career pages, or when a CLI fails.
+### Key Company Slugs for `company-careers-search`:
+- **Stripe** (`--company stripe`): Global financial infrastructure, world's leading Ruby shop (Sorbet, high-scale APIs).
+- **Anthropic** (`--company anthropic`): AI safety & research lab (Claude, Claude Code).
+- **OpenAI** (`--company openai`): Frontier models & infrastructure.
+- **Perplexity** (`--company perplexity`): AI search, evaluation, and agent orchestration.
+- **ARQ Finance** (`--company arq`): Cross-border fintech / digital banking (formerly DolarApp), payments & crypto rails on Ashby.
+- **Despegar** (`--company despegar`): Top Argentine tech employer; SOFIA AI platform and Flights backend.
+- **GitLab** (`--company gitlab`): 100% remote-global Ruby on Rails architecture.
 
-**Language scope:** write every query category in every language listed in your CLAUDE.md Languages table (typically 1-2, sometimes more). A posting requiring a language you have *not* declared, as a job condition, is excluded before scoring; a posting requiring a *higher level* than you declared in a language you *do* work in is flagged for your own judgment, not excluded — see `04-job-evaluation.md`'s Language Gate, the single source of truth for this rule. Translate each category's keywords rather than machine-translating word-for-word (e.g. "Frontend Developer" -> "Desarrollador Frontend", not a literal word-for-word translation) if you work in more than one language.
+The `site:` query templates in this file are the **WebSearch fallback** — for portals without a CLI, company career pages, or direct applications.
+
+**Language scope:** queries are written in **English and Spanish** (the two working languages in CLAUDE.md). A posting requiring a language you have not declared as a job condition is excluded before scoring; a posting requiring a higher level than declared (e.g. "fluent English" vs declared B1) is flagged for your judgment, not excluded — see `04-job-evaluation.md`'s Language Gate.
 
 ## Search Sites
 
-Primary (your market's job boards - scaffold one with `/add-portal`):
-- **[YOUR_JOB_BOARD]** - your market's largest general job board
-- **linkedin.com/jobs** - LinkedIn job listings (filter: [YOUR_COUNTRY] / [YOUR_CITY]); also covered by `linkedin-search` CLI
-- **[YOUR_INDUSTRY_JOB_BOARD]** - a niche/industry board for your field (optional)
-- **[YOUR_ADDITIONAL_JOB_BOARD]** - another major board for your market (optional)
+Primary (Argentina + remote-global tech job boards):
+- **getonbrd.com** - Get on Board (premier LatAm tech & remote board; covered by `getonbrd-search` CLI)
+- **silver.dev/jobs** - Silver.dev (curated LatAm -> US startups with USD salaries; covered by `silverdev-search` CLI)
+- **linkedin.com/jobs** - LinkedIn job listings (remote + Argentina; covered by `linkedin-search` CLI)
+- **ar.computrabajo.com** - Computrabajo Argentina (covered by `computrabajo-search` CLI)
+- **bumeran.com.ar** - Bumeran Argentina (covered by `bumeran-search` CLI)
+- **zonajobs.com.ar** - ZonaJobs Argentina (covered by `zonajobs-search` CLI)
 
-Secondary (company career pages via Google):
-- Direct Google searches with `site:` filters for known target companies
+Remote-global boards & Direct Portals:
+- **remotive.com** - Remotive (global remote tech & direct clients; covered by `remotive-search` CLI)
+- **remoteok.com** - Remote OK (global remote tech; covered by `remoteok-search` CLI)
+- **weworkremotely.com** - We Work Remotely (global remote; covered by `weworkremotely-search` CLI)
+- **nousresearch.com/careers** - Nous Research (open-source AI lab; direct email to recruiting@nousresearch.com)
+- **lemoncash.teamtailor.com** - Lemon Cash (crypto/fintech)
+- **cocos-capital.recruitee.com** - Cocos Capital (fintech brokerage)
+- **careers-meli.mercadolibre.com** - Mercado Libre (corporate portal; flagged low priority due to guardias)
+- **uala.com.ar** - Ualá (fintech portal; flagged caution due to layoffs)
+- **revolut.com/careers** - Revolut (global fintech; remote RevFlex & LinkedIn)
+- **uber.com/careers** - Uber (global tech platform; corporate careers & LinkedIn)
+
+Secondary (company career pages via Google / direct ATS):
+- Direct Google searches with `site:` filters for known target companies and specialized Rails consultancies
 
 ## Query Categories
 
-Queries are grouped by priority. Write **each category in every language from your Languages table** (see Language scope above). Combine each query with your location terms (e.g. your city, region, or metro area) where the site supports it.
+Queries are grouped by priority. Each category is written in English and Spanish.
 
-### Priority 1: [YOUR_PRIMARY_ROLE_TYPE]
+### Priority 1: Backend / Ruby on Rails (primary role)
 
-These match your strongest and most desired career direction.
-
-```
-site:[YOUR_JOB_BOARD] "[YOUR_PRIMARY_JOB_TITLE]" [YOUR_CITY]
-site:[YOUR_JOB_BOARD] "[YOUR_KEY_SKILL]" [YOUR_CITY]
-site:linkedin.com/jobs "[YOUR_PRIMARY_JOB_TITLE]" [YOUR_COUNTRY]
-```
-
-### Priority 2: [YOUR_DOMAIN_EXPERTISE]
-
-These match your domain expertise.
+These match the strongest, most desired career direction.
 
 ```
-site:[YOUR_JOB_BOARD] [YOUR_DOMAIN_KEYWORD_1] [YOUR_CITY] OR [YOUR_REGION]
-site:[YOUR_JOB_BOARD] [YOUR_DOMAIN_KEYWORD_2] [YOUR_COUNTRY]
-site:linkedin.com/jobs [YOUR_DOMAIN_KEYWORD_1] [YOUR_CITY] [YOUR_COUNTRY]
+site:linkedin.com/jobs "Ruby on Rails" developer remote
+site:getonbrd.com "Ruby on Rails" OR "ruby developer"
+site:remoteok.com "Ruby on Rails" OR "backend developer"
+site:weworkremotely.com ruby rails backend
+site:ar.computrabajo.com "Ruby on Rails" desarrollador
+site:linkedin.com/jobs "desarrollador backend" "Ruby on Rails" Argentina
+site:bumeran.com.ar "backend" "Ruby on Rails"
+site:zonajobs.com.ar "Ruby on Rails" OR "desarrollador backend"
 ```
 
-### Priority 3: [YOUR_ADJACENT_ROLE_TYPE]
+### Priority 1.5: AI-Native & Modernized Rails (high leverage)
 
-Adjacent roles you could pivot into.
+Roles seeking Rails engineers who leverage AI coding assistants (Claude Code, Cursor) or build LLM/AI integrations (pgvector, LangChain.rb, embeddings).
 
 ```
-site:[YOUR_JOB_BOARD] "[YOUR_ADJACENT_TITLE_1]" [YOUR_KEY_SKILL] [YOUR_CITY]
-site:[YOUR_JOB_BOARD] "[YOUR_ADJACENT_TITLE_2]" [YOUR_KEY_SKILL] [YOUR_CITY]
+site:linkedin.com/jobs "Ruby on Rails" AND ("AI" OR "LLM" OR "Cursor" OR "Claude" OR "agents") remote
+site:getonbrd.com "Ruby on Rails" ("inteligencia artificial" OR "AI" OR "LLM")
+site:weworkremotely.com "rails" ("AI" OR "LLM" OR "vector")
+site:remoteok.com "ruby" AI remote
 ```
 
-### Priority 4: Broader Technical / Consulting
+### Priority 2: Full-stack (domain expertise)
+
+These match full-stack web development.
+
+```
+site:linkedin.com/jobs "full stack developer" "Ruby on Rails" remote
+site:remoteok.com "full stack" react rails
+site:getonbrd.com "full stack" ruby
+site:ar.computrabajo.com "desarrollador full stack" rails OR react
+site:bumeran.com.ar "full stack" react
+```
+
+### Priority 3: React / TypeScript frontend (adjacent)
+
+Adjacent roles the candidate can pivot into.
+
+```
+site:linkedin.com/jobs "react developer" typescript remote
+site:getonbrd.com react typescript
+site:ar.computrabajo.com "desarrollador react" OR "desarrollador frontend"
+site:zonajobs.com.ar react typescript
+```
+
+### Priority 4: Broader technical
 
 Wider net for general technical roles.
 
 ```
-site:[YOUR_JOB_BOARD] [YOUR_KEY_SKILL] developer [YOUR_CITY]
-site:linkedin.com/jobs "[YOUR_KEY_SKILL] developer" [YOUR_CITY]
-site:[YOUR_JOB_BOARD] "technical consultant" [YOUR_DOMAIN] [YOUR_CITY]
+site:linkedin.com/jobs ruby developer remote Argentina
+site:ar.computrabajo.com desarrollador ruby OR rails
+site:getonbrd.com "software engineer" ruby OR rails
+site:remoteok.com postgresql developer
+```
+
+### Priority 5: Target company career pages & FinTechs (WebSearch fallback)
+
+Company career pages and portals **not** covered by the standard ATS backend of `company-careers-search`. These queries keep `/scrape` covering them via web search:
+
+```
+site:careers.google.com "software engineer" OR "backend engineer"
+site:careers.microsoft.com "software engineer" OR "backend"
+site:revolut.com/careers "software engineer" OR "backend" OR "site reliability"
+site:uber.com/careers "software engineer" OR "backend"
+site:nousresearch.com/careers OR "nous research" "engineer"
+"Lemon Cash" OR "lemon.me" "trabaja" OR "careers" OR "backend"
+"Cocos Capital" "empleos" OR "trabaja" OR "desarrollador"
+site:careers-meli.mercadolibre.com "backend" OR "software engineer"
+site:uala.com.ar "empleo" OR "trabaja" OR "software"
+site:oportunidades.ypf.com tecnología OR datos OR sistemas OR software
+"Tiendanube" OR "Nuvemshop" "Ruby on Rails" OR "backend developer"
+"OmbuLabs" OR "FastRuby.io" "Ruby on Rails" OR "Rails upgrade"
+"WyeWorks" "Ruby on Rails" developer OR engineer
+"Apply Digital" "Ruby on Rails" developer
+site:linkedin.com/jobs ("Brubank" OR "Naranja X") ("backend" OR "software") Argentina
+site:linkedin.com/jobs ("Revolut" OR "Uber") ("software" OR "backend" OR "engineer") Argentina
 ```
 
 ## Location Filter
 
-When evaluating results, verify the job location is within reasonable commute distance from your home. Define acceptable areas:
-- [YOUR_CITY] and surrounding areas
-- [ACCEPTABLE_AREA_1]
-- [ACCEPTABLE_AREA_2]
-- [BORDERLINE_AREA] (borderline - ~X min by transit)
-- [TOO_FAR_AREA] (too far)
+Remote is the priority. When evaluating results, verify location against this ladder:
+
+- **Ideal:** Remote Global / Worldwide, direct clients in the US, Europe, UK, and Canada (contractor USD/EUR), or top-tier "en blanco" employment in Argentina (La Plata / Buenos Aires / CABA / remote)
+- **Acceptable:** Remote within LATAM, or on-site anywhere in Argentina
+- **Borderline:** On-site outside Argentina (relocation) — only for offers well above baseline
+- **Excluded:** Roles requiring mandatory physical presence outside Argentina without relocation support, or US roles legally restricted to US Citizens / Green Card holders (strict W2 only with no C2C or international contractor option)
+
+**"En blanco" vs Contractor note:**
+- Remote-global / contractor direct client baseline: USD 3000–$6000+/month.
+- Formal, registered employment in Argentina ("en blanco" with obra social, aguinaldo, vacaciones, aportes) justifies a lower salary floor (USD 2300–2700/month or equivalent).
 
 ## Language Filter
 
-Your working languages and levels are in CLAUDE.md's Languages table. When filtering scraped results, apply `04-job-evaluation.md`'s Language Gate: a posting requiring a language you haven't declared at all is excluded; a posting requiring a higher level than you declared in a language you do work in is not excluded, flag it clearly instead (see `job-scraper/SKILL.md`'s Step 3 "Quick Fit Assessment" for how the flag surfaces in `/scrape` output). Postings simply *written* in a language you don't work in, that don't require it on the job, are fine.
+Working languages: Spanish (native), English (Fluent / Professional working proficiency — confident spoken and written communication for direct client interaction, technical debates, and distributed engineering teams). Postings requiring fluent or professional English are fully within scope and prioritized for international client engagements.
 
 ## Date Filter
 

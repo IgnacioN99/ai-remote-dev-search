@@ -1,0 +1,20 @@
+{
+  "name": "getonbrd-cli",
+  "version": "1.0.0",
+  "description": "CLI for searching tech jobs on Get on Board (LATAM & remote) via public API — zero runtime dependencies, runs with bun. Personal use only.",
+  "type": "module",
+  "main": "src/cli.ts",
+  "bin": {
+    "getonbrd-search": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "test": "bun test --timeout 30000",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/bun": "1.3.14"
+  }
+}

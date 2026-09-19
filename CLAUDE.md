@@ -1,10 +1,9 @@
-# Job Application Assistant for [YOUR_NAME]
+# Job Application Assistant for Ignacio Flores
 
 <!-- SETUP: This file is populated by running /setup -->
-<!-- After running /setup, all [PLACEHOLDER] tokens will be replaced with your actual information -->
 
 ## Role
-This repo is a job application workspace. Claude acts as a career advisor and application assistant for [YOUR_NAME], helping with:
+This repo is a job application workspace. Claude acts as a career advisor and application assistant for Ignacio Flores, helping with:
 1. **Job fit evaluation** - Assess job postings against your profile (skills, experience, behavioral traits)
 2. **CV tailoring** - Adapt existing CV templates (LaTeX/moderncv) to target specific roles
 3. **Cover letter writing** - Draft targeted cover letters using existing templates (LaTeX)
@@ -13,79 +12,77 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 
 ## Candidate Profile
 
-<!-- This section is auto-populated by /setup. You can also fill it in manually. -->
-
 ### Identity
-- **Name:** [YOUR_NAME]
-- **Location:** [YOUR_CITY], [YOUR_COUNTRY] ([YOUR_COMMUTE_CONSTRAINTS])
+- **Name:** Ignacio Flores
+- **Location:** La Plata, Buenos Aires, Argentina (remote-first; open to worldwide remote / direct clients in US, EU, UK, and global, as well as formal "en blanco" Argentine employment)
 - **Languages:**
   | Language | Level |
   |----------|-------|
-  | [LANGUAGE] | [LEVEL] |
-  <!-- Every language you work in professionally, with your level (CEFR, "native," "professional
-  working proficiency," whatever your CV/LinkedIn use - no need to force it into one scale). An
-  undeclared language is a hard deal-breaker if a posting requires it; a declared language at a
-  lower level than a posting wants is flagged for your own judgment, not auto-rejected. See
-  04-job-evaluation.md's Language Gate. -->
-- **CV language:** [YOUR_CV_LANGUAGE] <!-- English unless your market expects otherwise; /setup asks -->
+  | Spanish | Native |
+  | English | Fluent / Professional working proficiency (confident spoken and written; able to collaborate directly with US, European, and global clients and distributed teams) |
+- **CV language:** English and Spanish (English primary for global roles; Spanish for local Argentine roles)
 
-- **Status:** [YOUR_EMPLOYMENT_STATUS]
-- **LinkedIn headline:** "[YOUR_LINKEDIN_HEADLINE]"
+- **Status:** Employed — Backend Developer (SSR) at Rootstrap
+- **LinkedIn headline:** "Full Stack Developer | Ruby on Rails · React · TypeScript · JavaScript"
 
 ### Education
-<!-- List your degrees, most recent first -->
-- **[DEGREE_LEVEL] in [FIELD]** ([YEAR_START]-[YEAR_END]) - [INSTITUTION]
-  - Thesis: "[THESIS_TITLE]"
-  - Topics: [KEY_TOPICS]
+- **Ingeniería en Computación (in progress, ~75%)** (2018-present) - Universidad Nacional de La Plata
+  - Average: 7.0
+  - Topics: computer engineering (still completing; no thesis yet)
 
 ### Professional Experience
-<!-- List your roles, most recent first -->
-- **[JOB_TITLE]** ([START_DATE] - [END_DATE]) - **[COMPANY]** ([LOCATION])
-  - [KEY_RESPONSIBILITY_1]
-  - [KEY_RESPONSIBILITY_2]
-  - [KEY_ACHIEVEMENT]
+- **Backend Developer (SSR)** (2025 - present) - **Rootstrap** (Remote, Argentina)
+  - Building scalable Ruby on Rails applications (Special Olympics, Go! Coaching) with a focus on API development and performance optimization.
+  - Designed and shipped features in a Rails MVC codebase applying SOLID principles and code reviews.
+  - Optimized PostgreSQL queries (indexes, EXPLAIN/ANALYZE, batching) and RESTful APIs; resolved N+1 queries with Prosopite and preloading.
+  - Raised RSpec coverage from 62% to 86% in 2 quarters and cut production regressions by 54% via CI/CD.
+  - Supported deployments with Azure; collaborated cross-functionally with designers and product teams.
+
+- **Full-stack Developer** (2022 - 2025) - **Snappler S.R.L.** (Argentina)
+  - Developed a backend API in Ruby on Rails for a sports event management system (Football Club Admin), integrated with a React + TypeScript frontend.
+  - Built a music event management application as a full-stack Ruby on Rails solution.
+  - Maintained and developed a legacy airline system (Aero Admin, Aero Tarifario) using CoffeeScript, jQuery, and legacy Ruby.
+  - Built reusable components in CSS/HTML/JavaScript/React and integrated third-party APIs.
 
 ### Technical Skills
-- **Primary:** [YOUR_PRIMARY_SKILLS]
-- **Secondary:** [YOUR_SECONDARY_SKILLS]
-- **Domain:** [YOUR_DOMAIN_EXPERTISE]
-- **Software:** [YOUR_TOOLS_AND_SOFTWARE]
+- **Primary:** Ruby on Rails, Ruby, PostgreSQL, RSpec, REST APIs, CI/CD
+- **Secondary:** React, TypeScript, JavaScript, HTML/CSS, Java, Stimulus.js, Turbo Frames
+- **Databases:** PostgreSQL, MySQL, Redis
+- **Testing:** RSpec, FactoryBot, Shoulda Matchers
+- **Domain:** backend API development, full-stack web development, database optimization, legacy system maintenance, clean architecture (SOLID, Service Objects, Query Objects)
+- **Software:** PostgreSQL, MySQL, Redis, Git, Azure, CI/CD
 
 ### Certifications
-<!-- List relevant certifications with dates -->
-- **[CERTIFICATION_NAME]** - [HOURS]h - completed [DATE]
+- Java (intermedio) — Proydesa (2017)
+- Capacitación en Ruby on Rails — Snappler S.R.L.
+- *En preparación:* **Claude Certified Architect: Foundations (CCAR-F)** (Anthropic) — actualmente estudiando para rendir el examen de certificación.
 
 ### Publications
-<!-- List peer-reviewed publications, if any -->
-- [AUTHOR_LIST] ([YEAR]). [TITLE]. [JOURNAL].
+<!-- None -->
 
 ### Awards
-<!-- List relevant awards, hackathons, competitions -->
-- [AWARD_NAME] - [EVENT] ([YEAR])
+<!-- None -->
 
 ### Behavioral Profile
-<!-- Your behavioral assessment results (PI, DISC, Myers-Briggs, or self-assessment) -->
-- **[TRAIT_1]** - [DESCRIPTION]
-- **[TRAIT_2]** - [DESCRIPTION]
-- **Strengths:** [YOUR_STRENGTHS]
-- **Growth areas:** [YOUR_GROWTH_AREAS]
-- **Thrives in:** [YOUR_IDEAL_ENVIRONMENT]
+- **Quick learning / self-taught** - picks up new technologies fast and pursues constant professional development.
+- **Teamwork & communication** - works effectively with design, QA, DevOps, and product teams.
+- **Problem-solving & optimization** - oriented towards solving hard problems and improving processes.
+- **Strengths:** self-taught, adaptable, collaborative, results-oriented (measurable outcomes).
+- **Growth areas:** English spoken fluency (B1, improving); degree still in progress (~75%).
+- **Thrives in:** new-feature development, collaborative/innovative teams, continuous learning.
 
 ### What Excites You
-<!-- What motivates you professionally -->
-- [PASSION_1]
-- [PASSION_2]
+- Building new features and products end to end
+- Learning new technologies and growing as a developer
 
 ### Target Sectors
-<!-- Industries and companies you're targeting -->
-- [SECTOR_1]: [EXAMPLE_COMPANIES]
-- [SECTOR_2]: [EXAMPLE_COMPANIES]
+- Software product companies / SaaS (remote-global or Argentina)
+- Startups / scale-ups building modern web applications
 
 ### Deal-breakers
-<!-- Hard constraints on job search. Language requirements are handled separately and
-automatically from your Languages table above - don't duplicate them here. -->
-- [DEALBREAKER_1]
-- [DEALBREAKER_2]
+- **Remote-first.** On-site or relocation is only acceptable for offers well above baseline.
+- **Salary baseline:** USD 3000/month for remote-global / contractor work; USD 2300–2700/month acceptable for formal ("en blanco") Argentine employment (obra social, aguinaldo, vacaciones, aportes).
+- **Stagnation without learning.** Pure legacy/maintenance is acceptable only if well-compensated; a role with no growth opportunity at average pay is a no.
 
 ## Repo Structure
 - `cv/` - LaTeX CV variants (moderncv template, banking style)

@@ -14,30 +14,35 @@ Keep answers to 1-2 minutes. Be specific. End with what you learned or would do 
 
 ## Ready-Made STAR Examples
 
-<!-- These are populated by /setup from your actual experience. Below are templates showing the format. -->
+Grounded in the CV, LinkedIn, and the Rootstrap bios page. Numbers appear only where they are real (62%→86%, −54%); a result without a figure is phrased honestly and can be strengthened later with a number recovered from git history / PR descriptions.
 
-### 1. [PROJECT_NAME] ([SKILL_DEMONSTRATED])
-**S:** [CONTEXT - what was happening, what was the problem]
-**T:** [YOUR RESPONSIBILITY - what you specifically needed to do]
-**A:** [WHAT YOU DID - specific actions, tools, methods]
-**R:** [OUTCOME - measurable results, adoption, impact]
-**Use for:** "[QUESTION_TYPE_1]", "[QUESTION_TYPE_2]"
+### 1. PostgreSQL & API performance optimization (Problem-solving / Performance)
+**S:** At Rootstrap, the Rails apps we shipped for clients (Special Olympics, Go! Coaching) had slow endpoints and inefficient database access that degraded the user experience.
+**T:** Diagnose and fix the performance problems in PostgreSQL and the REST APIs without breaking existing functionality.
+**A:** Detected N+1 queries with Prosopite, added missing indexes, profiled slow queries with EXPLAIN/ANALYZE, applied query preloading and batching, and added pagination, caching, and rate limiting to the REST APIs. Kept query logic clean with Service Objects and Query Objects.
+**R:** Eliminated the N+1 queries and cut the number of SQL queries per request, with a measurable drop in response times and a database that scaled to more load.
+**Use for:** "tell me about a hard technical problem you solved", "how do you optimize performance"
 
-### 2. [PROJECT_NAME] ([SKILL_DEMONSTRATED])
-**S:** [CONTEXT]
-**T:** [YOUR RESPONSIBILITY]
-**A:** [WHAT YOU DID]
-**R:** [OUTCOME]
-**Use for:** "[QUESTION_TYPE_1]", "[QUESTION_TYPE_2]"
+### 2. Test coverage 62% → 86% with CI/CD (Reliability / Process improvement)
+**S:** The codebase had roughly 62% test coverage, and production regressions were a recurring problem.
+**T:** Raise coverage and cut regressions by building out the RSpec suite and wiring it into CI/CD.
+**A:** Wrote comprehensive RSpec suites (unit, request, system) using FactoryBot and Shoulda Matchers, integrated them into CI/CD so failing tests block merges, and prioritized the critical paths.
+**R:** Raised coverage from 62% to 86% in 2 quarters and cut production regressions by 54%.
+**Use for:** "how do you ensure code quality", "tell me about improving a process"
 
-### 3. [PROJECT_NAME] ([SKILL_DEMONSTRATED])
-**S:** [CONTEXT]
-**T:** [YOUR RESPONSIBILITY]
-**A:** [WHAT YOU DID]
-**R:** [OUTCOME]
-**Use for:** "[QUESTION_TYPE_1]", "[QUESTION_TYPE_2]"
+### 3. Football Club Admin — sports management API (Full-stack delivery / Initiative)
+**S:** Snappler needed a backend API for a sports/football club management system, paired with a React + TypeScript frontend.
+**T:** Build the Ruby on Rails backend API and integrate it with the frontend.
+**A:** Developed the backend API in Ruby on Rails (RESTful, MVC) and integrated it with the React + TypeScript frontend, collaborating with design and QA.
+**R:** Delivered the system end to end for the client, from API design through to a working frontend.
+**Use for:** "tell me about a feature you built end to end", "describe a project you're proud of"
 
-<!-- Add more STAR examples as needed. Aim for 4-6 covering different competencies. -->
+### 4. Aero Admin / Aero Tarifario — legacy airline system (Adaptability / Legacy)
+**S:** Snappler maintained a legacy airline system (Aero Admin, plus Aero Tarifario for fares) built on CoffeeScript, jQuery, and legacy Ruby.
+**T:** Maintain, fix, and extend the legacy codebase without introducing regressions.
+**A:** Worked across the legacy CoffeeScript/jQuery/Ruby stack to add new functionality, support the product, and resolve issues.
+**R:** Kept the system running reliably for a major airline client while shipping new features and improvements.
+**Use for:** "tell me about working with legacy code", "how do you handle unfamiliar or old systems"
 
 ## Common Tough Questions
 

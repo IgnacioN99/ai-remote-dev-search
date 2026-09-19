@@ -202,7 +202,13 @@ async function main(): Promise<number> {
 }
 
 main()
-  .then((code) => process.exit(code))
+  .then((code) => {
+    // Do NOT call process.exit() here: stdout writes to a pipe are asynchronous,
+    // and exiting immediately truncates a large JSON payload (the ~64KB pipe
+    // buffer flushes only after this tick). Setting exitCode lets the event loop
+    // drain stdout before the process terminates.
+    process.exitCode = code
+  })
   .catch((e) => {
     process.stderr.write(
       JSON.stringify({
@@ -210,5 +216,5 @@ main()
         code: "INTERNAL_ERROR",
       }) + "\n",
     )
-    process.exit(1)
+    process.exitCode = 1
   })

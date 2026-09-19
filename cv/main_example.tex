@@ -1,8 +1,5 @@
-%% Example CV - [YOUR_NAME]
-%% Comprehensive overview of all competencies, experience, and achievements.
-%% Use as a master reference when tailoring role-specific CVs.
-%%
-%% SETUP: Run /setup to populate this with your actual information.
+%% CV - Ignacio Flores
+%% Comprehensive master reference. Use as source when tailoring role-specific CVs.
 %% Compile with: lualatex main_example.tex
 %% (pdflatex often fails on modern MiKTeX with fontawesome5 font-expansion errors.)
 
@@ -13,29 +10,27 @@
 % Force both first and last name AND section headings to render in moderncv
 % blue (color1). Default banking on lualatex+MiKTeX leaves these black, which
 % looks inconsistent with the rest of the blue accent scheme.
-\renewcommand*{\firstnamestyle}[1]{{\fontsize{34}{36}\bfseries\upshape\color{color1}#1}}
-\renewcommand*{\lastnamestyle}[1]{{\fontsize{34}{36}\bfseries\upshape\color{color1}#1}}
 \renewcommand*{\sectionstyle}[1]{{\sectionfont\color{color1}#1}}
 
 \usepackage[utf8]{inputenc}
-\usepackage{hyperref}
-\hypersetup{
+\AtBeginDocument{\hypersetup{
     colorlinks=true,
     linkcolor=blue,
     filecolor=magenta,
     urlcolor=blue,
-    pdftitle={[YOUR_NAME] - CV},
+    pdftitle={Ignacio Flores - CV},
     pdfpagemode=FullScreen,
-}
+}}
 \usepackage[scale=0.80]{geometry}
 \usepackage{import}
+\usepackage{needspace}
 
 % personal data
-\name{[First]}{[Last]}
-\address{[Your Address, City, Country]}{}{}
-\phone[mobile]{[+XX XXXXXXXXXX]}
-\email{[your.email@example.com]}
-\extrainfo{\href{[https://linkedin.com/in/your-profile]}{LinkedIn}, \href{[https://github.com/your-username]}{GitHub}}
+\name{Ignacio}{Flores}
+\address{La Plata, Buenos Aires, Argentina}{}{}
+\phone[mobile]{+54 9 11 6176-6801}
+\email{inifl99@gmail.com}
+\extrainfo{\href{https://www.linkedin.com/in/ignaciofl}{LinkedIn}, \href{https://github.com/IgnacioN99}{GitHub}}
 
 \begin{document}
 
@@ -46,7 +41,7 @@
 % ============================================================
 
 \vspace{6pt}
-\small{[Write a 3-5 line profile statement tailored to the role you're applying for. Focus on what makes you uniquely qualified. Example: "Data scientist with a PhD in [field] and X years of industry experience. Combines deep domain expertise in [domain] with strong applied machine learning and Python development skills. Experienced in developing end-to-end ML pipelines, from data ingestion to stakeholder-facing dashboards."]}
+\small{Backend developer with 4+ years building and optimizing Ruby on Rails applications. Focused on API development, PostgreSQL performance, and test coverage (62\% to 86\%) that cuts production regressions. Combines full-stack experience (Rails + React + TypeScript) with a self-taught drive to keep learning.}
 
 % ============================================================
 %     CORE COMPETENCIES
@@ -56,15 +51,15 @@
 \vspace{1pt}
 \begin{itemize}
 
-\item \textbf{[Skill Category 1]}: [Specific skills, frameworks, tools. Be concrete.]
+\item \textbf{Backend development}: Ruby on Rails, REST APIs, MVC architecture, SOLID principles.
 
-\item \textbf{[Skill Category 2]}: [Specific skills, frameworks, tools.]
+\item \textbf{Databases \& performance}: PostgreSQL, MySQL, Redis, indexing, EXPLAIN/ANALYZE, N+1 query elimination, query optimization.
 
-\item \textbf{[Skill Category 3]}: [Specific skills, frameworks, tools.]
+\item \textbf{Testing \& reliability}: RSpec (unit/request/system), FactoryBot, Shoulda Matchers, CI/CD, raising coverage from 62\% to 86\%.
 
-\item \textbf{[Skill Category 4]}: [Domain expertise, methods, approaches.]
+\item \textbf{Frontend}: React, TypeScript, JavaScript, HTML/CSS, Stimulus.js, Turbo Frames.
 
-\item \textbf{[Skill Category 5]}: [Tools, platforms, software.]
+\item \textbf{Tools \& platforms}: Git, Azure, PostgreSQL.
 
 \end{itemize}
 
@@ -77,31 +72,26 @@
 \begin{itemize}
 
 % --- Most Recent Role ---
-\item{\cventry{[YYYY-Present]}{[Job Title]}{[Company]}{[City, Country]}{}{\vspace{1pt}
+\needspace{5\baselineskip}
+\item{\cventry{2025-Present}{Backend Developer (SSR)}{Rootstrap}{Remote, Argentina}{}{\vspace{1pt}
 \begin{itemize}
-    \item [Achievement or responsibility 1 - be specific, use numbers where possible]
-    \item [Achievement or responsibility 2]
-    \item [Achievement or responsibility 3]
-    \item [Achievement or responsibility 4]
+    \item Building scalable Ruby on Rails applications (Special Olympics, Go! Coaching) with a strong focus on API development and performance optimization.
+    \item Designed and shipped features in a Rails MVC codebase applying SOLID principles and code reviews to keep modules loosely coupled and testable.
+    \item Optimized PostgreSQL queries (indexes, EXPLAIN/ANALYZE, batching) and RESTful APIs with pagination, caching, and rate limiting; resolved N+1 queries with Prosopite and query preloading.
+    \item Raised RSpec coverage from 62\% to 86\% in 2 quarters and cut production regressions by 54\% via CI/CD.
+    \item Supported deployments with Azure; collaborated cross-functionally with designers and product teams.
 \end{itemize}}}
 
 \vspace{3pt}
 
 % --- Previous Role ---
-\item{\cventry{[YYYY-YYYY]}{[Job Title]}{[Company]}{[City, Country]}{}{\vspace{1pt}
+\needspace{5\baselineskip}
+\item{\cventry{2022-2025}{Full-stack Developer}{Snappler S.R.L.}{Argentina}{}{\vspace{1pt}
 \begin{itemize}
-    \item [Achievement or responsibility 1]
-    \item [Achievement or responsibility 2]
-    \item [Achievement or responsibility 3]
-\end{itemize}}}
-
-\vspace{3pt}
-
-% --- Earlier Role ---
-\item{\cventry{[YYYY-YYYY]}{[Job Title]}{[Company]}{[City, Country]}{}{\vspace{1pt}
-\begin{itemize}
-    \item [Achievement or responsibility 1]
-    \item [Achievement or responsibility 2]
+    \item Developed a backend API in Ruby on Rails for a sports event management system (Football Club Admin), integrated with a React + TypeScript frontend.
+    \item Built a music event management application as a full-stack Ruby on Rails solution.
+    \item Maintained and developed a legacy airline system (Aero Admin, Aero Tarifario) using CoffeeScript, jQuery, and legacy Ruby.
+    \item Built reusable components in CSS/HTML/JavaScript/React and integrated third-party APIs.
 \end{itemize}}}
 
 \end{itemize}
@@ -114,14 +104,9 @@
 \vspace{1pt}
 \begin{itemize}
 
-\item{\cventry{[YYYY-YYYY]}{[Degree] in [Field]}{[Institution]}{[City, Country]}{}{\vspace{1pt}
-Thesis: ``[Thesis Title].'' [Brief description of research focus.]
-}}
-
-\vspace{3pt}
-
-\item{\cventry{[YYYY-YYYY]}{[Degree] in [Field]}{[Institution]}{[City, Country]}{}{\vspace{1pt}
-[Brief description or key topics.]
+\needspace{5\baselineskip}
+\item{\cventry{2018-Present}{Ingenier\'ia en Computaci\'on}{Universidad Nacional de La Plata}{La Plata, Argentina}{}{\vspace{1pt}
+In progress, currently at 75\%. Average: 7.0.
 }}
 
 \end{itemize}
@@ -133,27 +118,7 @@ Thesis: ``[Thesis Title].'' [Brief description of research focus.]
 \section{Languages}
 \vspace{1pt}
 \begin{itemize}
-\item [Language 1] (native), [Language 2] (fluent), [Language 3] (intermediate).
-\end{itemize}
-
-% ============================================================
-%     PUBLICATIONS (optional)
-% ============================================================
-
-\section{Publications}
-\vspace{1pt}
-\begin{itemize}
-\item [Author(s)] ([Year]). [Title]. [Journal/Conference]. \href{[DOI_URL]}{DOI link}
-\end{itemize}
-
-% ============================================================
-%     HONORS AND AWARDS (optional)
-% ============================================================
-
-\section{Honors and Awards}
-\vspace{1pt}
-\begin{itemize}
-\item{\textbf{[Award Name]} -- [Event/Organization] ([Year]).}
+\item Spanish (native), English (B1 - excellent reading/comprehension, good spoken).
 \end{itemize}
 
 % ============================================================

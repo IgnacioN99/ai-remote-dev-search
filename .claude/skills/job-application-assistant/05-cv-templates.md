@@ -29,23 +29,20 @@ Expected output: `Output written on main_<company>_<role>.pdf (2 pages, ...)`. A
 \moderncvstyle{banking}
 \moderncvcolor{blue}
 
-% Force both first and last name AND section headings to render in moderncv
-% blue (color1). Default banking on lualatex+MiKTeX leaves these black, which
-% looks inconsistent with the rest of the blue accent scheme.
-\renewcommand*{\firstnamestyle}[1]{{\fontsize{34}{36}\bfseries\upshape\color{color1}#1}}
-\renewcommand*{\lastnamestyle}[1]{{\fontsize{34}{36}\bfseries\upshape\color{color1}#1}}
+% Force section headings to render in moderncv blue (color1). The
+% \firstnamestyle / \lastnamestyle overrides used on MiKTeX are NOT defined in
+% TeX Live's moderncv (v2.3.1), so they are omitted here — see "Color overrides".
 \renewcommand*{\sectionstyle}[1]{{\sectionfont\color{color1}#1}}
 
 \usepackage[utf8]{inputenc}
-\usepackage{hyperref}
-\hypersetup{
+\AtBeginDocument{\hypersetup{
     colorlinks=true,
     linkcolor=blue,
     filecolor=magenta,
     urlcolor=blue,
     pdftitle={[YOUR_NAME] - CV},
     pdfpagemode=FullScreen,
-}
+}}
 \usepackage[scale=0.77]{geometry}
 \usepackage{import}
 
@@ -72,7 +69,11 @@ Expected output: `Output written on main_<company>_<role>.pdf (2 pages, ...)`. A
 
 ### Color overrides
 
-The three `\renewcommand*` lines in the preamble are required on lualatex+MiKTeX. Without them the firstname, lastname, and section headings render in black even though `\moderncvcolor{blue}` is set, which looks inconsistent with the rest of the blue accent scheme (links, bullet markers, contact icons). The override forces all three to use `color1` (moderncv's accent colour, which becomes blue under `\moderncvcolor{blue}`). Both names render bold; if you prefer the firstname in regular weight, change the firstnamestyle override from `\bfseries` to `\mdseries`. Don't drop the override - on most modern installs the defaults render visibly wrong.
+The section-heading override `\renewcommand*{\sectionstyle}[1]{{\sectionfont\color{color1}#1}}` is required on lualatex to render headings in moderncv blue (color1) rather than black.
+
+**TeX Live vs MiKTeX — two different `\firstnamestyle`/`\lastnamestyle` stories.** On MiKTeX's newer moderncv, the first/last name render black unless you add `\renewcommand*{\firstnamestyle}` and `\renewcommand*{\lastnamestyle}` overrides. On TeX Live's moderncv **v2.3.1 (2022-02-21)** those two commands are **not defined at all**, so adding the overrides raises `! LaTeX Error: Command \firstnamestyle undefined`. Detect which you have with `grep ProvidesClass $(kpsewhich moderncv.cls)`. If v2.3.1 or older, omit the name overrides (keep only the `\sectionstyle` one); if newer (MiKTeX), add them back.
+
+**hyperref.** moderncv already loads hyperref at the end of the preamble via `\RequirePackage[unicode]{hyperref}`. Do **not** add a second `\usepackage{hyperref}` — that raises `! LaTeX Error: Option clash for package hyperref`. Configure it with `\hypersetup{...}` wrapped in `\AtBeginDocument{...}` so it runs after hyperref is loaded.
 
 ### Spacing inside itemize lists (important)
 
@@ -116,11 +117,14 @@ When the role sits outside your home domain, **lead with the domain-transfer arg
 **Create 2-3 profile statement templates for your main role types:**
 
 <!-- SETUP: These are populated based on your background -->
-**For [YOUR_PRIMARY_ROLE_TYPE] roles:**
-> [YOUR_PROFILE_STATEMENT_TEMPLATE_1]
+**For Backend Developer roles:**
+> Backend developer with 4+ years building and optimizing Ruby on Rails applications. Focused on API development, PostgreSQL performance (EXPLAIN/ANALYZE, N+1 elimination), and test coverage (62%→86%) that cuts production regressions. I ship clean, well-reviewed Rails code and collaborate closely with product and design teams.
 
-**For [YOUR_SECONDARY_ROLE_TYPE] roles:**
-> [YOUR_PROFILE_STATEMENT_TEMPLATE_2]
+**For Full-stack Developer roles:**
+> Full-stack developer with 4+ years across Ruby on Rails, React, and TypeScript. I have delivered event-management products end to end (Rails APIs + React frontends) and maintained a legacy airline system. I bring both backend depth and the frontend skill to take features from idea to production.
+
+**For Ruby on Rails Developer roles:**
+> Ruby on Rails developer with 4+ years in the ecosystem, from JR full-stack work to a current SSR backend role. Deep experience with RSpec/CI-CD, PostgreSQL tuning, and REST API design, delivering measurable reliability gains.
 
 Statements labeled *[Used for: <company>_<role>]* were extracted from archived application drafts by `/setup` Path A. They are **phrasing references, never fact sources**: when drafting from one, every factual claim still comes from `01-candidate-profile.md` - a past tailored draft does not vouch for its own accuracy.
 

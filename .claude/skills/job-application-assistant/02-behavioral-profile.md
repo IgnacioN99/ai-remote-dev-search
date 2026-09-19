@@ -4,51 +4,51 @@ framework_version: 1.0.0
 
 # Behavioral Profile
 
-<!-- SETUP: This file is populated by running /setup -->
-<!-- You can use results from PI, DISC, Myers-Briggs, StrengthsFinder, or a self-assessment -->
-
 ## Overview
-[YOUR_NAME]'s behavioral assessment identifies them as a **[PROFILE_TYPE]** pattern. [1-2 SENTENCE_SUMMARY].
+Ignacio Flores's profile reflects a **self-taught, quick-learning builder** who is most engaged when shipping new features in a collaborative, learning-oriented team. Enthusiastic and committed, with a strong problem-solving and process-optimization orientation.
 
 ## Core Behavioral Drives
 
 | Drive | Level | Meaning |
 |-------|-------|---------|
-| [DRIVE_1] | [LEVEL] | [DESCRIPTION] |
-| [DRIVE_2] | [LEVEL] | [DESCRIPTION] |
-| [DRIVE_3] | [LEVEL] | [DESCRIPTION] |
-| [DRIVE_4] | [LEVEL] | [DESCRIPTION] |
+| Learning & growth | High | Constant interest in professional development; self-taught profile |
+| Collaboration | High | Effective teamwork and communication with multidisciplinary teams |
+| Problem-solving | High | Orientation towards problem solving and process optimization |
+| Innovation | Medium-High | Eager to be part of innovative teams; builds new solutions |
 
 ## Strongest Behaviors
-- **[BEHAVIOR_1]:** [DESCRIPTION]
-- **[BEHAVIOR_2]:** [DESCRIPTION]
-- **[BEHAVIOR_3]:** [DESCRIPTION]
+- **Quick learning and adaptation to new technologies:** self-taught profile; picks up new stacks fast (Ruby on Rails, React, TypeScript). *[Inferred from LinkedIn About / CV - review before relying on this]*
+- **Effective teamwork and communication:** works closely with design, QA, DevOps, and product teams. *[Inferred from LinkedIn About / CV - review before relying on this]*
+- **Problem-solving and optimization:** focuses on process optimization and resolving hard issues (e.g., N+1 query elimination, coverage improvement).
 
 ## How You Work Best
-- [ENVIRONMENT_PREFERENCE_1]
-- [ENVIRONMENT_PREFERENCE_2]
-- [ENVIRONMENT_PREFERENCE_3]
+- Developing new features rather than pure maintenance (though open to maintenance when well-compensated)
+- In collaborative, multidisciplinary, innovative teams
+- With room to keep learning and growing
 
 ## Growth Areas (frame positively in applications)
-- **[AREA_1]:** [HOW_TO_FRAME_IT_POSITIVELY]
-- **[AREA_2]:** [HOW_TO_FRAME_IT_POSITIVELY]
+- **English spoken fluency (B1):** actively improving; reading/comprehension already strong.
+- **Degree in progress (~75%):** frame as current, ongoing formal training rather than a gap.
 
 ## Mapping to Job Posting Language
 
 When a job posting mentions these keywords, it's a **strong behavioral fit**:
-- [KEYWORD_OR_PHRASE_THAT_MATCHES_YOUR_STYLE]
-- [ANOTHER_KEYWORD]
+- collaborative, team player, cross-functional
+- problem-solving, optimization
+- self-starter, autonomous, quick learner
+- growth-oriented, innovation, learning culture
 
 When a job posting mentions these, flag as **potential friction** (not deal-breaker):
-- [KEYWORD_OR_PHRASE_THAT_MIGHT_CLASH]
-- [ANOTHER_KEYWORD]
+- maintenance-heavy, primarily legacy
+- siloed teams, little cross-functional work
+- slow-moving, no room to grow
 
 ## Management Style Preferences
-- [WHAT_MANAGEMENT_STYLE_WORKS_FOR_YOU]
-- [WHAT_DOESN'T_WORK]
+- **Works well with:** clear goals, autonomy, cross-functional collaboration, feedback through code reviews.
+- **Doesn't work well with:** micromanagement, no learning opportunities, stagnation.
 
 ## Using This in Applications
-- **Cover letters:** [HOW_TO_WEAVE_IN_BEHAVIORAL_STRENGTHS]
-- **CV:** [WHAT_TO_EMPHASIZE]
-- **Interviews:** [WHAT_STAR_EXAMPLES_TO_USE]
-- **Don't overstate:** [WHAT_NOT_TO_CLAIM]
+- **Cover letters:** emphasize self-taught trajectory, quick learning, and concrete results (62%→86% coverage, -54% regressions).
+- **CV:** lead with measurable outcomes and new-feature delivery.
+- **Interviews:** use STAR examples around PostgreSQL optimization, RSpec/CI-CD, and event-management features.
+- **Don't overstate:** English level (keep honest), degree (still in progress).
