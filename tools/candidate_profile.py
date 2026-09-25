@@ -46,6 +46,8 @@ class CandidateProfile:
         vacations: str = "None scheduled",
         salary_contractor_usd: str = "USD $3,500-$6,000+/mo",
         salary_local_net: str = "Competitive local salary",
+        salary_baseline_usd_contractor: str = "",
+        salary_baseline_argentina_net: str = "",
         languages: Optional[Dict[str, str]] = None,
         education: Optional[List[str]] = None,
         experience: Optional[List[Dict[str, Any]]] = None,
@@ -55,6 +57,7 @@ class CandidateProfile:
         target_roles: Optional[List[str]] = None,
         seniority: Optional[List[str]] = None,
         employers: Optional[List[str]] = None,
+        **kwargs: Any,
     ):
         self.name = name.strip()
         self.role = role.strip()
@@ -66,8 +69,8 @@ class CandidateProfile:
         self.github = github.strip()
         self.notice_period = notice_period.strip()
         self.vacations = vacations.strip()
-        self.salary_contractor_usd = salary_contractor_usd.strip()
-        self.salary_local_net = salary_local_net.strip()
+        self.salary_contractor_usd = (salary_baseline_usd_contractor or salary_contractor_usd).strip()
+        self.salary_local_net = (salary_baseline_argentina_net or salary_local_net).strip()
         self.languages = languages or {"English": "Professional"}
         self.education = education or []
         self.experience = experience or []
