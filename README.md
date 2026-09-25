@@ -175,6 +175,64 @@ python3 tools/multi_scrape_runner.py
 
 ---
 
+## 🔌 Recommended MCP Servers & Integrations
+
+To unlock the full autonomous power of `ai-remote-dev-search` with AI agent runtimes (Claude Code, Google Antigravity, Cursor, Cline, Codex), connect these Model Context Protocol (MCP) servers:
+
+### 1. Browser Automation (Playwright MCP)
+* **Purpose:** Enables autonomous parsing of JavaScript-heavy job boards (Lever, Greenhouse, Workday, Ashby), extracting screening questions, and executing form submissions.
+* **Configuration:**
+  ```json
+  {
+    "mcpServers": {
+      "playwright": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-playwright"]
+      }
+    }
+  }
+  ```
+
+### 2. Google Workspace & Gmail MCP
+* **Purpose:** Automates status updates directly from your inbox. Detects recruiter messages, interview invitations, and rejection notices to sync the tracking state automatically.
+* **Configuration:**
+  ```json
+  {
+    "mcpServers": {
+      "google-workspace": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-google-workspace"]
+      }
+    }
+  }
+  ```
+
+### 3. Notion Tracker MCP
+* **Purpose:** Provides a visual Kanban board and relational database sync of all active applications, response times, and interview stages.
+* **Usage:** Built-in workflow via `/notion-sync` or dedicated Notion database integrations.
+
+### 4. Fetch & Web Research MCP
+* **Purpose:** Token-efficient extraction of company culture, recent news, and salary benchmarks from tech forums and community boards without bloating your active context window.
+* **Configuration:**
+  ```json
+  {
+    "mcpServers": {
+      "fetch": {
+        "command": "uvx",
+        "args": ["mcp-server-fetch"]
+      }
+    }
+  }
+  ```
+
+### 5. Essential Local CLI Utilities
+* **[uv](https://docs.astral.sh/uv/):** Blazing-fast Python package and project runner (`uv run --with pytest pytest`).
+* **[Bun](https://bun.sh):** High-speed JavaScript/TypeScript runtime used by all 19 portal search CLIs under `.agents/skills/`.
+* **[Poppler Utilities](https://poppler.freedesktop.org/):** Provides `pdftotext` and `pdfinfo` for mechanical ATS text layer validation and page count enforcement (`tools/gate_application.py`).
+* **LaTeX Distribution:** `lualatex` (moderncv banking style) and `xelatex` (cover.cls) for ATS-compliant, deterministic PDF compilation.
+
+---
+
 ## 🔒 Privacy & Data Hygiene
 
 This framework is built with strict privacy guarantees:

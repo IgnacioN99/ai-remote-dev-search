@@ -138,5 +138,6 @@ client_secret*.json
 candidate_profile.json
 *.personal
 *.personal.md
+*.local.json
 
 
