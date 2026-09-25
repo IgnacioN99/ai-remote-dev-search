@@ -1,36 +1,19 @@
 ---
 name: remotive-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search remote developer jobs, tech
-  roles, or engineering positions on Remotive (remotive.com) — a leading global
-  remote-work job board with high transparency on USD compensation, timezone
-  flexibility, and direct client / startup hiring. Invoke it for searching open
-  positions, finding Ruby on Rails, backend, full-stack, or React roles globally
-  or in Americas/Worldwide timezones, checking USD salary ranges, or looking up a
-  specific Remotive posting. Trigger phrases: remotive, remotive jobs, remotive.com,
-  trabajo remoto en remotive, remote software jobs, global remote developer, USD remote jobs.
-context: fork
-enabled: true
-allowed-tools: Bash(bun run .agents/skills/remotive-search/cli/src/cli.ts *)
+description: >-
+  Search remote tech jobs on Remotive (remotive.com). Covers software development, frontend, backend, fullstack, AI, DevOps, data, product, QA, and tech roles worldwide. Triggers on: remotive, remotive jobs, remotive remote, remote software jobs on remotive.
 ---
 
 # Remotive Search Skill
 
-Search live remote developer and engineering job listings from **Remotive** (https://remotive.com), one of the world's most trusted platforms for global remote tech careers. Postings are in English; roles span worldwide remote, Americas timezones (ideal for Argentina/LatAm), and Europe. Many listings publish transparent **USD salary ranges** directly.
-
-Zero runtime dependencies — runs natively with `bun`.
-
-## ⚠️ Personal use only
-
-This consumes Remotive's official public API (`https://remotive.com/api/remote-jobs`). Keep **request volume low** and respectful.
+Search remote tech job listings from Remotive's public API (`https://remotive.com/api/remote-jobs`).
+Free, keyless, and zero runtime dependencies — runs directly with `bun`.
 
 ## When to use this skill
 
-- Search Remotive's software development openings by keyword or stack (Ruby, Rails, React, Backend, etc.)
-- Filter by recency (`--jobage <days>`)
-- Check USD salary ranges and candidate location requirements (e.g. `Worldwide`, `Americas, Europe`, `USA timezones`)
-- Fetch full job descriptions, tech tags, and application instructions
+- Search for remote software development, frontend, backend, AI, and fullstack positions
+- Filter by keywords (`--query` / `-q`), category (`--category`), recency (`--jobage`), or location
+- Retrieve full descriptions and salary ranges for active remote listings
 
 ## Commands
 
@@ -41,10 +24,12 @@ bun run .agents/skills/remotive-search/cli/src/cli.ts search [flags]
 ```
 
 Key flags:
-- `--query <text>` / `-q <text>` — keywords (e.g. `"ruby"`, `"rails"`, `"react"`, `"backend"`). Optional; omit to list latest software jobs.
-- `--jobage <days>` — only listings published within the last N days.
-- `--limit <n>` / `-n <n>` — max results to display (default: 20).
-- `--format json|table|plain` — default `json`.
+- `--query <text>` / `-q <text>` — keyword search across title, tags, description, and company name.
+- `--category <cat>` — category filter (e.g. `software-development`, `data`, `product`, `qa`).
+- `--jobage <days>` — filter postings published within the last N days.
+- `--limit <n>` / `-n <n>` — cap results emitted (default: 25).
+- `--location <text>` / `-l <text>` — candidate required location filter (e.g. `Worldwide`, `USA`).
+- `--format json|table|plain` — output format (default: `json`).
 
 ### Fetch full job detail
 
@@ -52,19 +37,30 @@ Key flags:
 bun run .agents/skills/remotive-search/cli/src/cli.ts detail <id|url> [--format json|plain]
 ```
 
-Accepts:
-- A numeric Remotive job ID: `2069746`
-- A full Remotive job URL: `https://remotive.com/remote-jobs/software-development/tech-lead-full-stack-rails-engineer-2069746`
+`id` is the numeric job ID from `search` results (e.g. `2069746`), or the full Remotive job URL.
 
-## Examples
+## Usage examples
 
 ```bash
-# Search for Rails roles
-bun run .agents/skills/remotive-search/cli/src/cli.ts search -q "rails" --format table
+# Search for software development roles
+bun run .agents/skills/remotive-search/cli/src/cli.ts search --category "software-development" --format table
 
-# Search backend roles from the last 14 days
-bun run .agents/skills/remotive-search/cli/src/cli.ts search -q "backend" --jobage 14 --format table
+# Search for React or fullstack positions
+bun run .agents/skills/remotive-search/cli/src/cli.ts search -q "fullstack" --format table
 
-# Get full job description and application details
+# Search for roles posted in the last 14 days
+bun run .agents/skills/remotive-search/cli/src/cli.ts search -q "engineer" --jobage 14 --format json
+
+# Fetch full details of a specific job
 bun run .agents/skills/remotive-search/cli/src/cli.ts detail 2069746 --format plain
 ```
+
+## Output formats
+
+| Format | Best for |
+|--------|----------|
+| `json` | Default — programmatic consumption by `/scrape` and `/rank` |
+| `table` | Quick human-readable summary |
+| `plain` | Inspecting a single job's full description |
+
+All errors are written to **stderr** as `{ "error": "...", "code": "..." }` and exit with code `1`.

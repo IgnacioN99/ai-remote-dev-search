@@ -83,7 +83,13 @@ documents/postings/**
 # in documents/applications/<company>_<role>/, covered above. Kept because
 # tools/security_guards.py pins it in REQUIRED_IGNORE_RULES.
 documents/interview/**
+documents/memory/**
 !documents/**/.gitkeep
+**/insights.jsonl
+
+# Candidate personal application exports (CVs and Cover Letters)
+cv/*_CV*.*
+cover_letters/*_CoverLetter*.*
 
 # Personal job search tracking
 job_search_tracker.csv
@@ -123,4 +129,13 @@ scratch/
 
 # Google Client Secrets
 client_secret*.json
+
+# Playwright MCP snapshots and traces
+.playwright-mcp/
+
+# Local personal candidate profiles
+candidate_profile.json
+*.personal
+*.personal.md
+
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-// Self-contained CLI for searching remote job listings on Remotive (remotive.com).
-// Runs with zero runtime dependencies via `bun`.
+// Remotive CLI — search remote tech jobs on Remotive public API (https://remotive.com/api/remote-jobs).
+// Keyless, public JSON, zero external runtime dependencies.
 
 import { runSearch, type SearchOpts } from "./commands/search.js"
 import { runDetail, type DetailOpts } from "./commands/detail.js"
@@ -10,15 +10,21 @@ interface Flags {
   [k: string]: string | boolean | string[]
 }
 
-const ALIAS: Record<string, string> = { q: "query", n: "limit", h: "help" }
-const KNOWN = new Set(["query", "jobage", "limit", "format", "help"])
+const ALIAS: Record<string, string> = {
+  q: "query",
+  n: "limit",
+  l: "location",
+  c: "category",
+  j: "jobage",
+}
 
 function parseFlags(argv: string[]): Flags {
   const flags: Flags = { _: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a.startsWith("--") || a.startsWith("-")) {
-      const key = ALIAS[a.replace(/^-+/, "")] ?? a.replace(/^-+/, "")
+      const name = a.replace(/^-+/, "")
+      const key = ALIAS[name] ?? name
       const next = argv[i + 1]
       if (next === undefined || next.startsWith("-")) {
         flags[key] = true
@@ -33,27 +39,57 @@ function parseFlags(argv: string[]): Flags {
   return flags
 }
 
-const HELP = `remotive-cli — search global remote developer jobs on Remotive (remotive.com)
+const HELP = `remotive-cli — search remote tech jobs on Remotive
 
 USAGE
   bun run src/cli.ts search [flags]
   bun run src/cli.ts detail <id|url> [--format json|plain]
 
 SEARCH FLAGS
-  --query, -q <text>   Keywords (e.g. "ruby", "rails", "backend", "full stack"). Optional;
-                       omit to list latest software development positions.
-  --jobage <days>      Filter listings published within the last N days.
-  --limit, -n <n>      Max results to display (default: 20).
-  --format <fmt>       json (default) | table | plain.
+  --query, -q <text>      Keywords (title, tags, description, company).
+  --category <cat>        Category filter (e.g. software-development, data, product, qa).
+  --jobage <days>         Posted within the last N days.
+  --limit, -n <n>         Results limit (client-side cap). Default: 25.
+  --location, -l <text>   Candidate required location (e.g. Worldwide, USA).
+  --format <fmt>          json (default) | table | plain.
+
+DETAIL
+  <id|url>                Job ID (numeric) or full Remotive job URL.
 
 EXAMPLES
-  bun run src/cli.ts search -q "ruby" --format table
-  bun run src/cli.ts search -q "rails" --limit 5 --format table
+  bun run src/cli.ts search --category "software-development" --format table
+  bun run src/cli.ts search -q "fullstack" --limit 10 --format table
+  bun run src/cli.ts search -q "engineer" --jobage 14 --format json
   bun run src/cli.ts detail 2069746 --format plain
-  bun run src/cli.ts detail https://remotive.com/remote-jobs/software-development/tech-lead-full-stack-rails-engineer-2069746 --format json
-
-Personal use only — uses Remotive's official public API.
 `
+
+const KNOWN_FLAGS: Record<string, Set<string>> = {
+  search: new Set([
+    "query",
+    "category",
+    "jobage",
+    "limit",
+    "location",
+    "format",
+    "help",
+    "h",
+  ]),
+  detail: new Set(["format", "help", "h"]),
+}
+
+function parseIntFlag(name: string, raw: string | boolean | string[]): number | null {
+  const val = typeof raw === "string" ? Number(raw.trim()) : NaN
+  if (!Number.isInteger(val) || val < 1) {
+    process.stderr.write(
+      JSON.stringify({
+        error: `--${name} must be a whole number of at least 1, got "${raw}"`,
+        code: "BAD_ARG",
+      }) + "\n",
+    )
+    return null
+  }
+  return val
+}
 
 async function main(): Promise<number> {
   const argv = process.argv.slice(2)
@@ -64,100 +100,74 @@ async function main(): Promise<number> {
     process.stdout.write(HELP)
     return 0
   }
+
   if (!cmd) {
     process.stdout.write(HELP)
     return 1
   }
 
-  if (cmd === "search") {
-    const unknown = Object.keys(flags).filter((k) => k !== "_" && !KNOWN.has(k))
-    if (unknown.length > 0) {
-      process.stderr.write(
-        JSON.stringify({ error: `Unknown flag "--${unknown[0]}"`, code: "BAD_FLAG" }) + "\n"
-      )
-      return 1
-    }
-
-    const fmt = (flags.format as string) || "json"
-    if (fmt !== "json" && fmt !== "table" && fmt !== "plain") {
+  const known = KNOWN_FLAGS[cmd]
+  if (known) {
+    for (const key of Object.keys(flags)) {
+      if (key === "_" || known.has(key)) continue
       process.stderr.write(
         JSON.stringify({
-          error: `Invalid --format "${fmt}". Must be json, table, or plain.`,
-          code: "BAD_FORMAT",
-        }) + "\n"
+          error: `unknown flag --${key} for '${cmd}' - flags are never silently ignored; see --help for supported flags`,
+          code: "UNKNOWN_FLAG",
+        }) + "\n",
       )
       return 1
     }
+  }
 
-    const parseIntFlag = (name: string, raw: string | boolean | string[]): number | null => {
-      const val = parseInt(raw as string, 10)
-      if (isNaN(val)) {
-        process.stderr.write(
-          JSON.stringify({ error: `--${name} must be a number, got "${raw}"`, code: "BAD_ARG" }) + "\n"
-        )
-        return null
+  if (cmd === "search") {
+    const fmt = (flags.format as string) || "json"
+
+    for (const name of ["jobage", "limit"] as const) {
+      if (flags[name] !== undefined) {
+        const v = parseIntFlag(name, flags[name])
+        if (v === null) return 1
+        flags[name] = String(v)
       }
-      return val
-    }
-
-    let jobage: number | undefined
-    if (flags.jobage !== undefined) {
-      const v = parseIntFlag("jobage", flags.jobage)
-      if (v === null) return 1
-      jobage = v
-    }
-
-    let limit: number | undefined
-    if (flags.limit !== undefined) {
-      const v = parseIntFlag("limit", flags.limit)
-      if (v === null) return 1
-      limit = v
     }
 
     const opts: SearchOpts = {
-      query: (flags.query as string) || undefined,
-      jobage,
-      limit,
-      format: fmt,
+      query: typeof flags.query === "string" ? flags.query : undefined,
+      category: typeof flags.category === "string" ? flags.category : undefined,
+      jobage: flags.jobage ? parseInt(flags.jobage as string, 10) : undefined,
+      location: typeof flags.location === "string" ? flags.location : undefined,
+      limit: flags.limit ? Math.max(1, parseInt(flags.limit as string, 10)) : 25,
+      format: (["json", "table", "plain"].includes(fmt) ? fmt : "json") as SearchOpts["format"],
     }
-
-    return await runSearch(opts)
+    return runSearch(opts)
   }
 
   if (cmd === "detail") {
-    const target = (flags._ as string[])[1]
-    if (!target) {
-      process.stderr.write(
-        JSON.stringify({ error: "Missing job ID or URL for detail command", code: "MISSING_ARG" }) + "\n"
-      )
+    const id = (flags._ as string[])[1]
+    if (!id) {
+      process.stderr.write(JSON.stringify({ error: "detail requires an <id|url>", code: "NO_ID" }) + "\n")
       return 1
     }
-
-    const fmt = (flags.format as string) || "plain"
-    if (fmt !== "json" && fmt !== "plain") {
-      process.stderr.write(
-        JSON.stringify({
-          error: `Invalid --format "${fmt}". Detail supports json or plain.`,
-          code: "BAD_FORMAT",
-        }) + "\n"
-      )
-      return 1
-    }
-
+    const fmt = (flags.format as string) || "json"
     const opts: DetailOpts = {
-      id: target,
-      format: fmt,
+      id,
+      format: (fmt === "plain" ? "plain" : "json") as DetailOpts["format"],
     }
-
-    return await runDetail(opts)
+    return runDetail(opts)
   }
 
-  process.stderr.write(
-    JSON.stringify({ error: `Unknown command "${cmd}"`, code: "UNKNOWN_COMMAND" }) + "\n"
-  )
+  process.stderr.write(JSON.stringify({ error: `Unknown command "${cmd}"`, code: "BAD_CMD" }) + "\n")
   return 1
 }
 
-main().then((code) => {
-  if (code !== 0) process.exit(code)
-})
+main()
+  .then((code) => process.exit(code))
+  .catch((e) => {
+    process.stderr.write(
+      JSON.stringify({
+        error: e instanceof Error ? e.message : String(e),
+        code: "INTERNAL_ERROR",
+      }) + "\n",
+    )
+    process.exit(1)
+  })

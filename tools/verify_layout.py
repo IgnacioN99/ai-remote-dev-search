@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""Measure a compiled CV or cover letter's page layout, instead of eyeballing it.
+"""Measure a compiled CV or cover letter's page layout, instead of eyeballing it.
 
 The compile-and-inspect loop in `05-cv-templates.md` and the verification checklist in
 CLAUDE.md already require the layout properties below. Nothing executes them: they are
@@ -304,7 +304,21 @@ def report(path: Path, pages: list[Page]) -> list[str]:
     return problems
 
 
+def _force_utf8_output() -> None:
+    """Write UTF-8 whatever the host's default encoding is.
+
+    A piped stdout on Windows defaults to the ANSI code page (cp1252 on most
+    Western installs), so printing a company, title or file name outside it
+    raised UnicodeEncodeError before the workflow saw any output.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)  # absent on a StringIO under test
+        if reconfigure:
+            reconfigure(encoding="utf-8")
+
+
 def main() -> int:
+    _force_utf8_output()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pdf", nargs="?", type=Path)
     args = ap.parse_args()

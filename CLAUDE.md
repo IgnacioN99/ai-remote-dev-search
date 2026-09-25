@@ -1,9 +1,10 @@
-# Job Application Assistant for Ignacio Flores
+# Job Application Assistant for [YOUR_NAME]
 
 <!-- SETUP: This file is populated by running /setup -->
+<!-- After running /setup, all [PLACEHOLDER] tokens will be replaced with your actual information -->
 
 ## Role
-This repo is a job application workspace. Claude acts as a career advisor and application assistant for Ignacio Flores, helping with:
+This repo is a job application workspace. Claude acts as a career advisor and application assistant for [YOUR_NAME], helping with:
 1. **Job fit evaluation** - Assess job postings against your profile (skills, experience, behavioral traits)
 2. **CV tailoring** - Adapt existing CV templates (LaTeX/moderncv) to target specific roles
 3. **Cover letter writing** - Draft targeted cover letters using existing templates (LaTeX)
@@ -12,90 +13,108 @@ This repo is a job application workspace. Claude acts as a career advisor and ap
 
 ## Candidate Profile
 
+<!-- This section is auto-populated by /setup. You can also fill it in manually. -->
+
 ### Identity
-- **Name:** Ignacio Flores
-- **Location:** La Plata, Buenos Aires, Argentina (remote-first; open to worldwide remote / direct clients in US, EU, UK, and global, as well as formal "en blanco" Argentine employment)
+- **Name:** [YOUR_NAME]
+- **Location:** [YOUR_CITY], [YOUR_COUNTRY] ([YOUR_COMMUTE_CONSTRAINTS])
 - **Languages:**
   | Language | Level |
   |----------|-------|
-  | Spanish | Native |
-  | English | Fluent / Professional working proficiency (confident spoken and written; able to collaborate directly with US, European, and global clients and distributed teams) |
-- **CV language:** English and Spanish (English primary for global roles; Spanish for local Argentine roles)
+  | [LANGUAGE] | [LEVEL] |
+  <!-- Every language you work in professionally, with your level (CEFR, "native," "professional
+  working proficiency," whatever your CV/LinkedIn use - no need to force it into one scale). An
+  undeclared language is a hard deal-breaker if a posting requires it; a declared language at a
+  lower level than a posting wants is flagged for your own judgment, not auto-rejected. See
+  04-job-evaluation.md's Language Gate. -->
+- **CV language:** [YOUR_CV_LANGUAGE] <!-- English unless your market expects otherwise; /setup asks -->
 
-- **Status:** Employed — Backend Developer (SSR) at Rootstrap
-- **LinkedIn headline:** "Full Stack Developer | Ruby on Rails · React · TypeScript · JavaScript"
+- **Status:** [YOUR_EMPLOYMENT_STATUS]
+- **LinkedIn headline:** "[YOUR_LINKEDIN_HEADLINE]"
 
 ### Education
-- **Ingeniería en Computación (in progress, ~75%)** (2018-present) - Universidad Nacional de La Plata
-  - Average: 7.0
-  - Topics: computer engineering (still completing; no thesis yet)
+<!-- List your degrees, most recent first -->
+- **[DEGREE_LEVEL] in [FIELD]** ([YEAR_START]-[YEAR_END]) - [INSTITUTION]
+  - Thesis: "[THESIS_TITLE]"
+  - Topics: [KEY_TOPICS]
 
 ### Professional Experience
-- **Backend Developer (SSR)** (2025 - present) - **Rootstrap** (Remote, Argentina)
-  - Building scalable Ruby on Rails applications (Special Olympics, Go! Coaching) with a focus on API development and performance optimization.
-  - Designed and shipped features in a Rails MVC codebase applying SOLID principles and code reviews.
-  - Optimized PostgreSQL queries (indexes, EXPLAIN/ANALYZE, batching) and RESTful APIs; resolved N+1 queries with Prosopite and preloading.
-  - Raised RSpec coverage from 62% to 86% in 2 quarters and cut production regressions by 54% via CI/CD.
-  - Supported deployments with Azure; collaborated cross-functionally with designers and product teams.
-
-- **Full-stack Developer** (2022 - 2025) - **Snappler S.R.L.** (Argentina)
-  - Developed a backend API in Ruby on Rails for a sports event management system (Football Club Admin), integrated with a React + TypeScript frontend.
-  - Built a music event management application as a full-stack Ruby on Rails solution.
-  - Maintained and developed a legacy airline system (Aero Admin, Aero Tarifario) using CoffeeScript, jQuery, and legacy Ruby.
-  - Built reusable components in CSS/HTML/JavaScript/React and integrated third-party APIs.
+<!-- List your roles, most recent first -->
+- **[JOB_TITLE]** ([START_DATE] - [END_DATE]) - **[COMPANY]** ([LOCATION])
+  - [KEY_RESPONSIBILITY_1]
+  - [KEY_RESPONSIBILITY_2]
+  - [KEY_ACHIEVEMENT]
 
 ### Technical Skills
-- **Primary:** Ruby on Rails, Ruby, PostgreSQL, RSpec, REST APIs, CI/CD
-- **Secondary:** React, TypeScript, JavaScript, HTML/CSS, Java, Stimulus.js, Turbo Frames
-- **Databases:** PostgreSQL, MySQL, Redis
-- **Testing:** RSpec, FactoryBot, Shoulda Matchers
-- **Domain:** backend API development, full-stack web development, database optimization, legacy system maintenance, clean architecture (SOLID, Service Objects, Query Objects)
-- **Software:** PostgreSQL, MySQL, Redis, Git, Azure, CI/CD
+- **Primary:** [YOUR_PRIMARY_SKILLS]
+- **Secondary:** [YOUR_SECONDARY_SKILLS]
+- **Domain:** [YOUR_DOMAIN_EXPERTISE]
+- **Software:** [YOUR_TOOLS_AND_SOFTWARE]
 
 ### Certifications
-- Java (intermedio) — Proydesa (2017)
-- Capacitación en Ruby on Rails — Snappler S.R.L.
-- *En preparación:* **Claude Certified Architect: Foundations (CCAR-F)** (Anthropic) — actualmente estudiando para rendir el examen de certificación.
+<!-- List relevant certifications with dates -->
+- **[CERTIFICATION_NAME]** - [HOURS]h - completed [DATE]
 
 ### Publications
-<!-- None -->
+<!-- List peer-reviewed publications, if any -->
+- [AUTHOR_LIST] ([YEAR]). [TITLE]. [JOURNAL].
 
 ### Awards
-<!-- None -->
+<!-- List relevant awards, hackathons, competitions -->
+- [AWARD_NAME] - [EVENT] ([YEAR])
 
 ### Behavioral Profile
-- **Quick learning / self-taught** - picks up new technologies fast and pursues constant professional development.
-- **Teamwork & communication** - works effectively with design, QA, DevOps, and product teams.
-- **Problem-solving & optimization** - oriented towards solving hard problems and improving processes.
-- **Strengths:** self-taught, adaptable, collaborative, results-oriented (measurable outcomes).
-- **Growth areas:** English spoken fluency (B1, improving); degree still in progress (~75%).
-- **Thrives in:** new-feature development, collaborative/innovative teams, continuous learning.
+<!-- Your behavioral assessment results (PI, DISC, Myers-Briggs, or self-assessment) -->
+- **[TRAIT_1]** - [DESCRIPTION]
+- **[TRAIT_2]** - [DESCRIPTION]
+- **Strengths:** [YOUR_STRENGTHS]
+- **Growth areas:** [YOUR_GROWTH_AREAS]
+- **Thrives in:** [YOUR_IDEAL_ENVIRONMENT]
 
 ### What Excites You
-- Building new features and products end to end
-- Learning new technologies and growing as a developer
+<!-- What motivates you professionally -->
+- [PASSION_1]
+- [PASSION_2]
 
 ### Target Sectors
-- Software product companies / SaaS (remote-global or Argentina)
-- Startups / scale-ups building modern web applications
+<!-- Industries and companies you're targeting -->
+- [SECTOR_1]: [EXAMPLE_COMPANIES]
+- [SECTOR_2]: [EXAMPLE_COMPANIES]
 
 ### Deal-breakers
-- **Remote-first.** On-site or relocation is only acceptable for offers well above baseline.
-- **Salary baseline:** USD 3000/month for remote-global / contractor work; USD 2300–2700/month acceptable for formal ("en blanco") Argentine employment (obra social, aguinaldo, vacaciones, aportes).
-- **Stagnation without learning.** Pure legacy/maintenance is acceptable only if well-compensated; a role with no growth opportunity at average pay is a no.
+<!-- Hard constraints on job search. Language requirements are handled separately and
+automatically from your Languages table above - don't duplicate them here. -->
+- [DEALBREAKER_1]
+- [DEALBREAKER_2]
 
 ## Repo Structure
 - `cv/` - LaTeX CV variants (moderncv template, banking style)
 - `cover_letters/` - LaTeX cover letters (custom cover.cls template)
+- `tools/` - Deterministic quality gates, drift detection, and memory ledger tools
+- `documents/memory/` - Append-only historical learnings ledger (`insights.jsonl`)
 - `.claude/skills/` - AI skill definitions for the application workflow
 - `.agents/skills/` - Job search CLI tools
 
+## Quality & Verification Commands
+- `python tools/doctor.py` - Diagnose toolchain health (LaTeX, Poppler, JS runtimes, state files)
+- `python tools/check_consistency.py [--fix]` - Audit and reconcile state drift across tracker, seen jobs, and archives
+- `python tools/prime_job.py <slug|url>` - Build deterministic token-budgeted brief (`brief.md`) anchored in candidate profile (SSOT)
+- `python tools/gate_application.py <slug>` - Pre-submit mechanical quality gate (ATS naming, page count, contact info, anti-hallucination)
+- `python tools/remember.py "<insight>" [--tags t1,t2] [--company c]` - Record append-only learnings into memory
+
 ## Workflow for New Job Applications
 1. User provides a job posting (URL or text)
-2. **Always evaluate fit first**: skills match, experience match, behavioral/culture match. Present this assessment to the user before proceeding.
-3. If good fit: create targeted CV (`cv/main_<company>_<role>.tex`) and cover letter (`cover_letters/cover_<company>_<role>.tex`)
-4. **Verify both documents** (see Verification Checklist below)
-5. Prepare interview talking points based on the role requirements and your strengths
+2. **Anchor Candidate Brief**: run `python tools/prime_job.py <slug|url>` to generate the deterministic `brief.md` context package with matching skills and historical insights.
+3. **Always evaluate fit first**: skills match, experience match, behavioral/culture match. Present this assessment to the user before proceeding.
+4. If good fit: create targeted CV (`cv/main_<company>_<role>.tex`) and cover letter (`cover_letters/cover_<company>_<role>.tex`)
+5. **Verify both documents** (see Verification Checklist below)
+6. **Pre-Submit Quality Gate**: Run `python tools/gate_application.py <slug>` to ensure ATS naming (`<CandidateName>_CV*.pdf`), 2-page CV, 1-page CL, extractable contacts, and zero hallucinated claims.
+7. Prepare interview talking points based on the role requirements and your strengths
+8. **Export & File Naming for Submission / Uploads:**
+   - Before uploading or sending any CV or cover letter to ATS portals or recruiters, create/copy the PDF with the professional format:
+     `<CandidateName>_CV.pdf` (or `<CandidateName>_CV_<Company>.pdf`)
+     `<CandidateName>_CoverLetter.pdf` (or `<CandidateName>_CoverLetter_<Company>.pdf`)
+   - **Never** upload files named with internal repo conventions (e.g. `main_<company>_<role>.pdf` or `cover_<company>_<role>.pdf`).
 
 **Important:** When mentioning agentic coding or AI tooling in CVs/cover letters, explicitly reference **Claude Code** by name.
 

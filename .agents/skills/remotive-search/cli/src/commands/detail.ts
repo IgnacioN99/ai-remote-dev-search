@@ -1,11 +1,11 @@
 import {
-  API_BASE,
-  htmlFetch,
-  jsonFetch,
-  parseDetailPage,
-  parseRemotiveJob,
+  apiGet,
+  cleanHtml,
+  extractId,
+  toResult,
   writeError,
-  type JobDetail,
+  type RemotiveJob,
+  type JobResult,
 } from "../helpers.js"
 
 export interface DetailOpts {
@@ -13,58 +13,66 @@ export interface DetailOpts {
   format: "json" | "plain"
 }
 
+export interface DetailResult extends JobResult {
+  fullDescription: string | null
+  tags: string[]
+  companyLogo?: string
+}
+
+function renderPlain(job: DetailResult): string {
+  const lines = [
+    job.title,
+    `${job.company ?? "—"} · ${job.location ?? "—"}`,
+    "",
+    job.date ? `Posted: ${job.date}` : "",
+    job.type ? `Type: ${job.type}` : "",
+    job.category ? `Category: ${job.category}` : "",
+    job.salary ? `Salary: ${job.salary}` : "",
+    job.tags && job.tags.length > 0 ? `Tags: ${job.tags.join(", ")}` : "",
+    "",
+    job.fullDescription || job.description || "(no description)",
+    "",
+    `URL: ${job.url}`,
+    `ID: ${job.id}`,
+  ].filter((l) => l !== "")
+
+  return lines.join("\n")
+}
+
 export async function runDetail(opts: DetailOpts): Promise<number> {
-  const input = opts.id.trim()
+  const idStr = extractId(opts.id)
+  if (!idStr) {
+    writeError(`Could not parse a job ID from "${opts.id}"`, "BAD_ID")
+    return 1
+  }
+  const numericId = parseInt(idStr, 10)
+
   try {
-    let job: JobDetail | null = null
+    const data = await apiGet()
+    const jobs = data.jobs || []
+    const foundJob = jobs.find((j) => j.id === numericId || String(j.id) === idStr)
 
-    // Case 1: Full URL
-    if (input.startsWith("http://") || input.startsWith("https://")) {
-      const html = await htmlFetch(input)
-      if (html) {
-        const slug = input.split("/").filter(Boolean).pop() || "unknown"
-        job = parseDetailPage(html, input, slug)
-      }
-    }
-
-    // Case 2: Numeric ID or check via API
-    if (!job) {
-      const idMatch = input.match(/\d+$/)
-      const targetId = idMatch ? idMatch[0] : input
-
-      const data = await jsonFetch(API_BASE)
-      if (data && Array.isArray(data.jobs)) {
-        const found = data.jobs.find((j: any) => String(j.id) === targetId || j.url.includes(input))
-        if (found) {
-          job = parseRemotiveJob(found)
-        }
-      }
-    }
-
-    if (!job) {
-      writeError(`Job not found for "${opts.id}"`, "NOT_FOUND")
+    if (!foundJob) {
+      writeError(`Job not found for ID "${opts.id}"`, "NOT_FOUND")
       return 1
     }
 
-    if (opts.format === "plain") {
-      const lines = [
-        job.title,
-        `${job.company || "—"} · ${job.location || "—"} · ${job.date || "—"}${job.salary ? ` · ${job.salary}` : ""}`,
-        job.jobType ? `Employment: ${job.jobType}` : "",
-        job.tags && job.tags.length > 0 ? `Tags: ${job.tags.join(", ")}` : "",
-        "",
-        job.description ? `DESCRIPTION:\n${job.description}\n` : "",
-        `URL: ${job.url}`,
-        job.applyUrl ? `Apply: ${job.applyUrl}` : "",
-      ].filter((l) => l !== "")
-      process.stdout.write(lines.join("\n") + "\n")
-    } else {
-      process.stdout.write(JSON.stringify(job, null, 2) + "\n")
+    const base = toResult(foundJob)
+    const detailResult: DetailResult = {
+      ...base,
+      fullDescription: cleanHtml(foundJob.description) || base.description,
+      tags: foundJob.tags || [],
+      companyLogo: foundJob.company_logo_url || foundJob.company_logo,
     }
 
+    if (opts.format === "plain") {
+      process.stdout.write(renderPlain(detailResult) + "\n")
+    } else {
+      process.stdout.write(JSON.stringify(detailResult, null, 2) + "\n")
+    }
     return 0
-  } catch (err: any) {
-    writeError(err.message || String(err), "DETAIL_FAILED")
+  } catch (e) {
+    writeError(e instanceof Error ? e.message : String(e), "DETAIL_FAILED")
     return 1
   }
 }

@@ -1,47 +1,67 @@
-# Remotive URL Reference
+# Remotive API Reference
 
-Remotive (https://remotive.com) is a remote-work job board and community focused on tech, software development, design, and marketing.
+The endpoints, parameters, and response shapes for the Remotive remote job board.
+This file documents the API contract and parsing details for future maintenance.
 
-## Endpoints
+## Endpoint
 
-### 1. Public API Endpoint
+- **Base URL:** `https://remotive.com/api/remote-jobs`
+- **Method:** `GET`
+- **Authentication:** None (public JSON API, keyless)
+- **Status:** Verified live (HTTP 200)
 
-```http
-GET https://remotive.com/api/remote-jobs?category=software-dev&search={query}
-```
+## Parameters
 
-- Public API requiring no API keys.
-- Query parameters:
-  - `category`: `software-dev` (default for engineering roles).
-  - `search`: Free text search keywords.
-  - `limit`: Integer cap on returned items.
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `category` | string | Optional category filter slug (e.g. `software-development`, `data`, `product`) |
+| `search` | string | Optional search keyword parameter |
+| `limit` | integer | Optional limit parameter |
 
-Response JSON format:
-```json
+Note: Remotive provides an unauthenticated feed of remote job listings. The response includes full HTML descriptions, tags, and location requirements. The CLI performs client-side keyword, category, recency, and location filtering to guarantee exact matching and limit control.
+
+## Response Structure
+
+```jsonc
 {
+  "0-legal-notice": "...",
   "00-warning": "...",
-  "job-count": 15,
+  "job-count": 16,
+  "total-job-count": 16,
   "jobs": [
     {
       "id": 2069746,
-      "url": "https://remotive.com/remote-jobs/software-development/tech-lead-full-stack-rails-engineer-2069746",
-      "title": "Tech Lead Full-Stack Rails Engineer",
+      "url": "https://remotive.com/remote-jobs/software-development/...",
+      "title": "Senior Fullstack Engineer",
       "company_name": "Mitre Media",
+      "company_logo": "https://remotive.com/job/2069746/logo",
       "category": "Software Development",
-      "tags": ["api", "docker", "postgresql", "react", "ror", "ruby/rails"],
+      "tags": ["rails", "api", "ai"],
       "job_type": "full_time",
-      "publication_date": "2026-09-14T20:33:27",
-      "candidate_required_location": "USA, Canada, USA timezones",
-      "salary": "$170k - $200k",
-      "description": "<p>Full job HTML...</p>"
+      "publication_date": "2026-09-14T09:30:00",
+      "candidate_required_location": "Worldwide",
+      "salary": "$160,000 - $200,000",
+      "description": "<p>Job description HTML...</p>",
+      "company_logo_url": "https://remotive.com/job/2069746/logo"
     }
   ]
 }
 ```
 
-### 2. Job Detail Page (HTML)
+## Normalization Mapping
 
-```http
-GET https://remotive.com/remote-jobs/software-development/{slug}
-```
-Embeds `<script type="application/ld+json">` with schema.org `JobPosting` containing full metadata and structured description.
+| Contract Field | Source Field | Processing |
+|----------------|--------------|------------|
+| `id` | `id` | Stringified numeric ID |
+| `site` | `"remotive"` | Fixed string |
+| `title` | `title` | Decoded string |
+| `company` | `company_name` | Decoded string |
+| `location` | `candidate_required_location` | String, or `"Worldwide / Remote"` if empty |
+| `type` | `job_type` | Job type string (e.g. full_time, contract) |
+| `salary` | `salary` | Raw or formatted salary string |
+| `url` | `url` | Remotive posting URL |
+| `apply_url` | `url` | Remotive application URL |
+| `date` | `publication_date` | Sliced to `YYYY-MM-DD` |
+| `description` | `description` | HTML stripped and formatted to clean readable prose |
+| `category` | `category` | Remotive category string |
+| `tags` | `tags` | String array |

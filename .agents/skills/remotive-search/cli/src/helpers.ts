@@ -1,5 +1,12 @@
-export const API_BASE = "https://remotive.com/api/remote-jobs"
-export const PAGE_SIZE = 20
+// Data source: Remotive public remote jobs API (GET https://remotive.com/api/remote-jobs)
+// No authentication required — public, keyless JSON endpoint.
+
+export const DEFAULT_API_URL = "https://remotive.com/api/remote-jobs"
+
+export function apiUrl(): string {
+  const raw = (process.env.REMOTIVE_API_URL ?? "").trim()
+  return raw || DEFAULT_API_URL
+}
 
 export function writeError(error: string, code: string): void {
   process.stderr.write(JSON.stringify({ error, code }) + "\n")
@@ -7,189 +14,170 @@ export function writeError(error: string, code: string): void {
 
 const UA = "Mozilla/5.0 (compatible; remotive-search-cli/1.0)"
 
-/** Fetch JSON with exponential backoff on 429/5xx. */
-export async function jsonFetch(url: string): Promise<any> {
-  const maxRetries = 4
-  let delay = 500
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": UA,
-          Accept: "application/json",
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout(15000),
-      })
-      if (response.status === 429 || response.status >= 500) {
-        if (attempt === maxRetries) {
-          throw new Error(`Request failed: ${response.status} ${response.statusText}`)
-        }
-        const jitter = Math.floor(Math.random() * 300)
-        await new Promise((r) => setTimeout(r, delay + jitter))
-        delay = Math.min(delay * 2, 4000)
-        continue
-      }
-      if (response.status === 404) return null
-      if (!response.ok) {
-        throw new Error(`Request failed: ${response.status} ${response.statusText}`)
-      }
-      return await response.json()
-    } catch (err: any) {
-      if (attempt === maxRetries) throw err
-      await new Promise((r) => setTimeout(r, delay))
-      delay = Math.min(delay * 2, 4000)
-    }
-  }
-  throw new Error("Request failed after max retries")
+export interface RemotiveJob {
+  id: number
+  url: string
+  title: string
+  company_name: string
+  company_logo?: string
+  category?: string
+  tags?: string[]
+  job_type?: string
+  publication_date?: string
+  candidate_required_location?: string
+  salary?: string
+  description?: string
+  company_logo_url?: string
 }
 
-/** Fetch HTML with exponential backoff on 429/5xx. */
-export async function htmlFetch(url: string): Promise<string> {
-  const maxRetries = 4
-  let delay = 500
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": UA,
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout(15000),
-      })
-      if (response.status === 429 || response.status >= 500) {
-        if (attempt === maxRetries) {
-          throw new Error(`Request failed: ${response.status} ${response.statusText}`)
-        }
-        const jitter = Math.floor(Math.random() * 300)
-        await new Promise((r) => setTimeout(r, delay + jitter))
-        delay = Math.min(delay * 2, 4000)
-        continue
-      }
-      if (response.status === 404) return ""
-      if (!response.ok) {
-        throw new Error(`Request failed: ${response.status} ${response.statusText}`)
-      }
-      return await response.text()
-    } catch (err: any) {
-      if (attempt === maxRetries) throw err
-      await new Promise((r) => setTimeout(r, delay))
-      delay = Math.min(delay * 2, 4000)
-    }
-  }
-  throw new Error("Request failed after max retries")
+export interface RemotiveResponse {
+  "job-count"?: number
+  "total-job-count"?: number
+  jobs?: RemotiveJob[]
 }
 
-export interface JobCard {
+export interface JobResult {
   id: string
+  site: "remotive"
   title: string
   company: string | null
   location: string | null
-  date: string | null
-  epoch: number | null
-  remote: boolean
+  type: string | null
   salary: string | null
   url: string
+  apply_url: string
+  date: string | null
+  description: string | null
   category: string | null
   tags: string[]
 }
 
-export interface JobDetail extends JobCard {
-  description: string | null
-  applyUrl: string | null
-  jobType: string | null
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
 }
 
-export function stripHtml(html: string | null | undefined): string {
-  if (!html) return ""
-  return html
-    .replace(/<br\s*[\/]?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<li>/gi, "• ")
-    .replace(/<[^>]+>/g, "")
+/**
+ * Fetch Remotive jobs API with exponential backoff on 429/5xx.
+ */
+export async function apiGet(params: Record<string, string | number> = {}): Promise<RemotiveResponse> {
+  const query = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") {
+      query.set(k, String(v))
+    }
+  }
+  const qStr = query.toString()
+  const url = qStr ? `${apiUrl()}?${qStr}` : apiUrl()
+
+  const maxRetries = 6
+  let delay = 500
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let response: Response
+    try {
+      response = await fetch(url, {
+        headers: { "User-Agent": UA, Accept: "application/json" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      })
+    } catch (e) {
+      throw new Error(
+        `could not reach the Remotive API at ${apiUrl()} (${e instanceof Error ? e.message : String(e)})`,
+      )
+    }
+
+    if (response.status === 429 || response.status >= 500) {
+      if (attempt === maxRetries) {
+        throw new Error(`Remotive API request failed: ${response.status} ${response.statusText}`)
+      }
+      await sleep(delay + Math.floor(Math.random() * 500))
+      delay = Math.min(delay * 2, 8000)
+      continue
+    }
+
+    if (response.status === 404) {
+      throw new Error(`Remotive API endpoint not found: 404 ${response.statusText}`)
+    }
+
+    if (!response.ok) {
+      throw new Error(`Remotive API request failed: ${response.status} ${response.statusText}`)
+    }
+
+    const data = (await response.json().catch(() => null)) as RemotiveResponse | null
+    if (!data) {
+      throw new Error("Remotive API returned unparseable JSON")
+    }
+    return data
+  }
+  throw new Error("Remotive API request failed after retries")
+}
+
+function numericEntity(cp: number): string {
+  return cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : ""
+}
+
+export function decodeHtmlEntities(text: string): string {
+  return text
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&#x2f;/gi, "/")
+    .replace(/&#47;/g, "/")
+    .replace(/&#(\d+);/g, (_, dec) => numericEntity(parseInt(dec, 10)))
+    .replace(/&#[xX]([0-9a-fA-F]+);/g, (_, hex) => numericEntity(parseInt(hex, 16)))
     .replace(/&nbsp;/g, " ")
+}
+
+export function cleanHtml(html: string | null | undefined): string | null {
+  if (!html) return null
+  const initialDecoded = decodeHtmlEntities(html)
+  const withBreaks = initialDecoded
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|li|ul|ol|div|h\d)>/gi, "\n")
+  const text = decodeHtmlEntities(withBreaks.replace(/<[^>]+>/g, " "))
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
+  return text || null
 }
 
-export function parseRemotiveJob(item: any): JobDetail {
-  const epoch = item.publication_date ? new Date(item.publication_date).getTime() : null
-  const date = epoch ? new Date(epoch).toISOString().slice(0, 10) : null
-  const loc = item.candidate_required_location || "Worldwide"
+export function extractId(input: string): string | null {
+  const trimmed = input.trim()
+  // Numeric string directly
+  if (/^\d+$/.test(trimmed)) return trimmed
 
-  let title = item.title || ""
-  title = title.replace(/^\[Hiring\]\s*/i, "")
-  if (item.company_name && title.includes(`@${item.company_name}`)) {
-    title = title.replace(new RegExp(`\\s*@${item.company_name}.*$`, "i"), "").trim()
-  }
+  // In URL: /remote-jobs/.../id or /job/2069746/
+  const m = trimmed.match(/\/(\d{5,})(?:[\/?#]|$)/) || trimmed.match(/job[s]?\/.*?-(\d{5,})(?:[\/?#]|$)/)
+  if (m) return m[1]
 
-  return {
-    id: String(item.id),
-    title,
-    company: item.company_name || null,
-    location: loc.toLowerCase().includes("remote") ? loc : `Remote (${loc})`,
-    date,
-    epoch,
-    remote: true,
-    salary: item.salary && item.salary.trim() !== "" ? item.salary.trim() : null,
-    url: item.url,
-    category: item.category || null,
-    tags: Array.isArray(item.tags) ? item.tags : [],
-    description: stripHtml(item.description),
-    applyUrl: item.url,
-    jobType: item.job_type || null,
-  }
-}
-
-export function parseDetailPage(html: string, url: string, fallbackId: string): JobDetail | null {
-  if (!html) return null
-
-  // Check JSON-LD
-  const lds = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)]
-  for (const ld of lds) {
-    try {
-      const obj = JSON.parse(ld[1])
-      if (obj["@type"] === "JobPosting") {
-        let title = obj.title || fallbackId
-        title = title.replace(/^\[Hiring\]\s*/i, "")
-        const company = obj.hiringOrganization?.name || null
-        if (company && title.includes(`@${company}`)) {
-          title = title.replace(new RegExp(`\\s*@${company}.*$`, "i"), "").trim()
-        }
-
-        const dateStr = obj.datePosted || null
-        const epoch = dateStr ? new Date(dateStr).getTime() : null
-        const date = epoch ? new Date(epoch).toISOString().slice(0, 10) : null
-
-        return {
-          id: fallbackId,
-          title,
-          company,
-          location: "Remote (Global)",
-          date,
-          epoch,
-          remote: true,
-          salary: null,
-          url,
-          category: "Software Development",
-          tags: [],
-          description: stripHtml(obj.description),
-          applyUrl: url,
-          jobType: obj.employmentType || null,
-        }
-      }
-    } catch {
-      // Continue searching
-    }
-  }
+  const numMatch = trimmed.match(/\b(\d{5,})\b/)
+  if (numMatch) return numMatch[1]
 
   return null
+}
+
+export function toResult(job: RemotiveJob): JobResult {
+  const id = String(job.id)
+  const location = job.candidate_required_location?.trim() || "Worldwide / Remote"
+  const date = job.publication_date ? job.publication_date.slice(0, 10) : null
+
+  return {
+    id,
+    site: "remotive",
+    title: decodeHtmlEntities(job.title || "(untitled)"),
+    company: job.company_name ? decodeHtmlEntities(job.company_name) : null,
+    location,
+    type: job.job_type ? job.job_type.replace(/_/g, " ") : null,
+    salary: job.salary?.trim() || null,
+    url: job.url,
+    apply_url: job.url,
+    date,
+    description: cleanHtml(job.description),
+    category: job.category || null,
+    tags: job.tags || [],
+  }
 }
