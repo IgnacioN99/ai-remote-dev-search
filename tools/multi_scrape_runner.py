@@ -267,12 +267,19 @@ def main():
         ("linkedin-search", ["bun", "run", ".agents/skills/linkedin-search/cli/src/cli.ts", "search", "--query", f"Senior {q_role}", "--remote"]),
         ("linkedin-search", ["bun", "run", ".agents/skills/linkedin-search/cli/src/cli.ts", "search", "--query", "Full Stack", "--remote"]),
 
+        # RemoteOK
+        ("remoteok-search", ["bun", "run", ".agents/skills/remoteok-search/cli/src/cli.ts", "search", "--query", q_pri]),
+        ("remoteok-search", ["bun", "run", ".agents/skills/remoteok-search/cli/src/cli.ts", "search", "--query", "Ruby on Rails"]),
+        ("remoteok-search", ["bun", "run", ".agents/skills/remoteok-search/cli/src/cli.ts", "search", "--query", "Full Stack"]),
+
         # Target Company Careers
         ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "stripe", "--query", q_pri]),
+        ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "gitlab", "--query", q_pri]),
         ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "despegar", "--query", q_role]),
         ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "arq"]),
         ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "anthropic"]),
         ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "perplexity"]),
+        ("company-careers-search", ["bun", "run", ".agents/skills/company-careers-search/cli/src/cli.ts", "search", "--company", "openai"]),
 
         # Argentine Boards
         ("bumeran-search", ["bun", "run", ".agents/skills/bumeran-search/cli/src/cli.ts", "search", "--query", q_pri]),
@@ -445,6 +452,67 @@ def main():
             "breakdown": new_by_portal,
             "jobs": new_jobs_found
         }, f, indent=2, ensure_ascii=False)
+
+    # Generate Markdown Summary according to SKILL.md Step 5
+    import urllib.parse
+    fit_order = {"high": 0, "medium": 1, "low": 2}
+    sorted_jobs = sorted(new_jobs_found.values(), key=lambda j: (fit_order.get(j.get("fit", "low"), 3), -j.get("rank_score", 0)))
+
+    high_count = sum(1 for j in sorted_jobs if j.get("fit") == "high")
+    med_count = sum(1 for j in sorted_jobs if j.get("fit") == "medium")
+    low_count = sum(1 for j in sorted_jobs if j.get("fit") == "low")
+
+    md_lines = []
+    md_lines.append(f"## New Job Matches - {TODAY}\n")
+    md_lines.append(f"Found {len(sorted_jobs)} new positions ({high_count} high, {med_count} medium, {low_count} low match).\n")
+    md_lines.append("skipped (disabled): jobbank-search, jobdanmark-search, jobindex-search, jobnet-search\n")
+    md_lines.append("fallback (websearch): weworkremotely-search\n")
+
+    if sorted_jobs:
+        md_lines.append("| # | Fit | Title | Company | Location | Deadline | URL |")
+        md_lines.append("|---|-----|-------|---------|----------|----------|-----|")
+        for idx, j in enumerate(sorted_jobs, 1):
+            fit_cap = j.get("fit", "low").capitalize()
+            title_disp = j.get("title", "")
+            comp = j.get("company", "")
+            loc = j.get("location", "Remote")
+            dl = j.get("deadline") or "Not stated"
+            url = j.get("url", "")
+            md_lines.append(f"| {idx} | {fit_cap} | {title_disp} | {comp} | {loc} | {dl} | [Link]({url}) |")
+
+        if high_count > 0:
+            md_lines.append("\n### High-Match Highlights\n")
+            for idx, j in enumerate(sorted_jobs, 1):
+                if j.get("fit") != "high":
+                    continue
+                md_lines.append(f"**{idx}. {j.get('title')} at {j.get('company')}**")
+                md_lines.append(f"- **Match rationale**: {j.get('evaluation_note')}")
+                if j.get("salary"):
+                    md_lines.append(f"- **Compensation**: {j.get('salary')}")
+                md_lines.append(f"- **Key requirements/location**: {j.get('location')}")
+                md_lines.append("")
+
+        if high_count + med_count > 0:
+            md_lines.append("### Referral & Networking Contacts (High & Medium Fit)\n")
+            for idx, j in enumerate(sorted_jobs, 1):
+                if j.get("fit") not in ["high", "medium"]:
+                    continue
+                comp = j.get("company", "")
+                title_words = " ".join(j.get("title", "").split()[:3])
+                recruiter_q = urllib.parse.quote_plus(f"{comp} recruiter")
+                peer_q = urllib.parse.quote_plus(f"{comp} {title_words}")
+                recruiter_url = f"https://www.linkedin.com/search/results/people/?keywords={recruiter_q}&origin=GLOBAL_SEARCH_HEADER"
+                peer_url = f"https://www.linkedin.com/search/results/people/?keywords={peer_q}&origin=GLOBAL_SEARCH_HEADER"
+                md_lines.append(f"- **{j.get('company')}** ({j.get('title')}): [Recruiter Search]({recruiter_url}) | [Peer Search]({peer_url})")
+
+        md_lines.append("\n---\n")
+        md_lines.append("> Want me to evaluate any of these in detail? Just give me the number(s).\n")
+    else:
+        md_lines.append("\nNo new matching positions discovered in this run that pass recency (last 14 days) and deduplication against seen vacancies.\n")
+
+    summary_md = "\n".join(md_lines)
+    with open("tools/new_jobs_summary.md", "w", encoding="utf-8") as f:
+        f.write(summary_md)
 
     # STRICT PRESERVATION RULE: Update seen_jobs.json safely
     # Load fresh copy of seen_jobs.json

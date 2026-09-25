@@ -26,16 +26,16 @@ The agent dynamically loads the candidate profile from `CLAUDE.md`, `01-candidat
 ## 2. Inviolable Operating Principles (Deterministic Verification Framework)
 
 ### A. The Claims Verifier Invariant (Anti-Hallucination Law)
-- **Zero Fabrication:** Every bullet point in a CV, Cover Letter, or screening form MUST map to verifiable facts in `CLAUDE.md`, `01-candidate-profile.md`, or `documents/cv/cv_ingles.md`.
-- **Precedent:** Fabricating or inflating experience (e.g. claiming 5 years in Rust, Golang, or K8s architecture when Ignacio is Rails/Postgres SSR) leads to immediate disqualification during technical interviews.
-- If a vacancy requires a technology Ignacio does not master: emphasize container familiarity with Docker, strong backend fundamentals, and rapid ramp-up with Claude Code. **NEVER claim proficiency in unverified tools.**
+- **Zero Fabrication:** Every bullet point in a CV, Cover Letter, or screening form MUST map to verifiable facts in `CLAUDE.md`, `01-candidate-profile.md`, or the candidate's verified profile sources.
+- **Precedent:** Fabricating or inflating experience (e.g. claiming 5 years in an unverified stack or specialized architecture not present in the candidate's record) leads to immediate disqualification during technical interviews.
+- If a vacancy requires a technology the candidate does not master: emphasize adjacent foundational skills, container familiarity with Docker, strong computer science fundamentals, and rapid ramp-up with AI-assisted tooling. **NEVER claim proficiency in unverified tools.**
 
 ### B. The Hole Rule (Autonomous Action vs. Human Gate)
 For any form question or decision, sort it strictly by one question: *Would a human's answer change what gets submitted?*
 1. **NO, and nothing critical rests on it:** Resolve autonomously from candidate profile (name, phone, location, work history).
 2. **NO, the verified candidate profile (SSOT) already answers it:** Record the derivation and proceed.
 3. **YES $\rightarrow$ STOP and trigger Human Gate:**
-   - Compensation offers or requirements outside the target range (USD <$3,500).
+   - Compensation offers or requirements outside the candidate's target baseline.
    - Visa sponsorship, work authorization, or in-person relocation.
    - Non-compete clauses or legally binding certifications.
    - Mandatory disclosure of AI tool usage if explicitly prohibited by the employer.
@@ -43,8 +43,8 @@ For any form question or decision, sort it strictly by one question: *Would a hu
 
 ### C. The ATS Export Invariant
 - **PROHIBITED:** Never upload files named with internal repository prefixes (`main_*.pdf` or `cover_*.pdf`).
-- **Precedent:** ATS parsers (Greenhouse, Workday, Lever) parse the filename to assign candidate records; uploading `main_despegar.pdf` tags the candidate as "Main Despegar" or fails indexing.
-- **MANDATORY:** Always export as `cv/IgnacioFlores_CV.pdf` (or `IgnacioFlores_CV_<Company>.pdf`) and `cover_letters/IgnacioFlores_CoverLetter.pdf`.
+- **Precedent:** ATS parsers (Greenhouse, Workday, Lever) parse the filename to assign candidate records; uploading `main_<company>.pdf` tags the candidate with internal repo names or fails indexing.
+- **MANDATORY:** Always export using candidate format: `cv/<CandidateName>_CV.pdf` (or `<CandidateName>_CV_<Company>.pdf`) and `cover_letters/<CandidateName>_CoverLetter.pdf`.
 
 ---
 

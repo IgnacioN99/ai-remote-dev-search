@@ -23,8 +23,8 @@ To prevent duplication and configuration drift across different AI agent framewo
    - This keeps the main session context clean, preventing token bloat so that candidate profile evaluation, CV tailoring, and direct user interaction retain full context window capacity.
 5. **PDF Naming for Applications & ATS Uploads:**
    - Before uploading or emailing PDFs to any recruiter, employer, or ATS platform (Greenhouse, Lever, Zoho Recruit, Ashby, Workday, etc.), always export/name the files using the candidate format:
-     `IgnacioFlores_CV.pdf` (or `IgnacioFlores_CV_<Company>.pdf`)
-     `IgnacioFlores_CoverLetter.pdf` (or `IgnacioFlores_CoverLetter_<Company>.pdf`)
+     `<CandidateName>_CV.pdf` (or `<CandidateName>_CV_<Company>.pdf`)
+     `<CandidateName>_CoverLetter.pdf` (or `<CandidateName>_CoverLetter_<Company>.pdf`)
    - Never upload files named with internal repo conventions (e.g. `main_<company>_<role>.pdf` or `cover_<company>_<role>.pdf`).
 6. **Autonomous Job Application Subagent (`job-application-agent`):**
    - Defined under [.claude/agents/job-application-agent.md](.claude/agents/job-application-agent.md).

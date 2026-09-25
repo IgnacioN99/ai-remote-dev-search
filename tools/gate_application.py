@@ -102,9 +102,9 @@ def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional
     comp = slug.split("_")[0]
     comp_clean = re.sub(r"[^a-z0-9]", "", comp.lower())
 
-    cand_clean = profile.clean_name if profile else "IgnacioFlores"
+    cand_clean = profile.clean_name if profile else "Candidate"
     # Also support searching for general Candidate_CV or last name
-    name_prefixes = [cand_clean, "IgnacioFlores"]
+    name_prefixes = [cand_clean]
     if profile and profile.name:
         parts = profile.name.split()
         if len(parts) >= 2:
@@ -188,11 +188,11 @@ def evaluate_gate(
         except Exception:
             profile = None
 
-    cand_name = profile.name if profile else "Ignacio Flores"
-    cand_clean = profile.clean_name if profile else "IgnacioFlores"
-    cand_email = (profile.email if profile and profile.email else "inifl99@gmail.com").lower()
-    cand_phone_digits = profile.phone_digits if profile and profile.phone_digits else "61766801"
-    cand_employers = [e.lower() for e in profile.employers] if (profile and profile.employers) else ["rootstrap", "snappler"]
+    cand_name = profile.name if profile else "Candidate Name"
+    cand_clean = profile.clean_name if profile else "Candidate"
+    cand_email = (profile.email if profile and profile.email else "").lower()
+    cand_phone_digits = profile.phone_digits if profile and profile.phone_digits else ""
+    cand_employers = [e.lower() for e in profile.employers] if (profile and profile.employers) else []
     cand_name_parts = cand_name.lower().split()
 
     folder = find_application_folder(target)

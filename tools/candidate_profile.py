@@ -83,7 +83,7 @@ class CandidateProfile:
 
     @property
     def clean_name(self) -> str:
-        """Sanitized name for ATS filenames, e.g. 'IgnacioFlores'."""
+        """Sanitized name for ATS filenames, e.g. 'JaneDoe'."""
         cleaned = re.sub(r"[^A-Za-z0-9]", "", self.name)
         return cleaned or "Candidate"
 
@@ -142,7 +142,7 @@ def parse_profile_from_markdown(content: str) -> CandidateProfile:
         if m:
             name = m.group(1).strip()
     if not name:
-        name = "Ignacio Flores"
+        name = "Candidate Name"
 
     # Identity fields
     location = _extract_field(content, r"^-\s+\*\*(?:Location\s*(?:/\s*Address)?):\*\*\s*(.+)$", "Remote")
@@ -199,7 +199,7 @@ def parse_profile_from_markdown(content: str) -> CandidateProfile:
 
     # Experience parse
     experience = []
-    # Match experience blocks e.g. - **Backend Developer (SSR)** (2025 - present) - **Rootstrap**
+    # Match experience blocks e.g. - **Senior Software Engineer** (2024 - present) - **Tech Innovations Inc.**
     exp_blocks = re.findall(
         r"-\s+\*\*([^\*]+)\*\*\s*\(([^\)]+)\)\s*-\s*\*\*([^\*]+)\*\*(.*?)(?=\n-\s+\*\*|\n###|\n##|\Z)",
         content,
@@ -219,28 +219,25 @@ def parse_profile_from_markdown(content: str) -> CandidateProfile:
     if not experience:
         experience = [
             {
-                "role": "Backend Developer (SSR)",
-                "company": "Rootstrap",
-                "period": "2025 - present",
-                "location": "Remote, Argentina",
+                "role": "Senior Software Engineer",
+                "company": "Tech Innovations Inc.",
+                "period": "2024 - present",
+                "location": "Remote",
                 "bullets": [
-                    "Building scalable Ruby on Rails APIs and services with high performance and modular architecture.",
-                    "Applied SOLID principles, service objects, and code reviews in Rails MVC codebases.",
-                    "PostgreSQL query optimization (indexes, EXPLAIN/ANALYZE, batching) and resolved N+1 queries using Prosopite and query preloading.",
-                    "Raised RSpec test coverage from 62% to 86% in 2 quarters and cut production regressions by 54% in CI/CD pipelines.",
-                    "Supported deployments on Azure; worked closely in cross-functional agile teams.",
+                    "Architected and deployed high-throughput backend services and REST/gRPC APIs.",
+                    "Optimized database queries, indexes, and caching strategies, reducing endpoint latency.",
+                    "Expanded automated test suites in CI/CD pipelines, increasing coverage and deployment confidence.",
                 ],
             },
             {
-                "role": "Full-stack Developer",
-                "company": "Snappler S.R.L.",
-                "period": "2022 - 2025",
-                "location": "Argentina",
+                "role": "Software Engineer",
+                "company": "CloudScale Solutions",
+                "period": "2021 - 2024",
+                "location": "Remote",
                 "bullets": [
-                    "Developed a backend API in Ruby on Rails for a sports event management system with a React + TypeScript frontend.",
-                    "Built a music event management application as a full-stack Ruby on Rails solution.",
-                    "Maintained and developed legacy airline systems using CoffeeScript, jQuery, and Ruby.",
-                    "Built reusable components in CSS/HTML/JavaScript/React and integrated third-party APIs.",
+                    "Developed backend business logic and integrated frontend applications.",
+                    "Collaborated cross-functionally with product and design teams in agile sprints.",
+                    "Maintained automated test coverage and documentation across services.",
                 ],
             },
         ]
@@ -253,12 +250,11 @@ def parse_profile_from_markdown(content: str) -> CandidateProfile:
             employers.append(c)
 
     languages = {
-        "Spanish": "Native",
-        "English": "Professional Working Proficiency (B1-B2)",
+        "English": "Professional Working Proficiency",
+        "Spanish": "Working Proficiency",
     }
     education = [
-        "Ingeniería en Computación (in progress, ~75%) - Universidad Nacional de La Plata (2018-present)",
-        "Java (intermedio) - Proydesa (2017)",
+        "B.S. in Computer Science (or equivalent practical engineering experience)",
     ]
 
     return CandidateProfile(
@@ -318,13 +314,13 @@ def load_candidate_profile(root: Optional[Path] = None) -> CandidateProfile:
 
     # Default fallback
     return CandidateProfile(
-        name="Ignacio Flores",
-        phone="+54 9 11 6176-6801",
-        email="inifl99@gmail.com",
-        location="La Plata, Buenos Aires, Argentina",
-        employers=["Rootstrap", "Snappler"],
-        primary_skills=["Ruby on Rails", "Ruby", "PostgreSQL", "RSpec", "REST APIs", "CI/CD"],
-        secondary_skills=["React", "TypeScript", "JavaScript", "Redis"],
+        name="Candidate Name",
+        phone="+1 555 123 4567",
+        email="candidate@example.com",
+        location="Remote",
+        employers=["Tech Innovations Inc.", "CloudScale Solutions"],
+        primary_skills=["Backend", "REST APIs", "SQL", "CI/CD"],
+        secondary_skills=["Docker", "Cloud", "Git"],
     )
 
 

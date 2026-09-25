@@ -61,7 +61,7 @@ def test_filtering_by_tag_company_query(tmp_path: Path):
     ledger = tmp_path / "insights.jsonl"
     record_insight("Perry Street values dry-monads", tags=["ruby", "dry-monads"], company="perry-street-software", memory_file=ledger)
     record_insight("Despegar uses SOFIA travel AI", tags=["python", "ai"], company="despegar", memory_file=ledger)
-    record_insight("Rootstrap Rails microservices", tags=["ruby", "rails"], company="rootstrap", memory_file=ledger)
+    record_insight("TechCorp microservices architecture", tags=["backend", "distributed"], company="techcorp", memory_file=ledger)
 
     # Filter by company
     res_comp = get_active_insights(memory_file=ledger, company="despegar")

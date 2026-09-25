@@ -73,7 +73,7 @@ def mock_workspace(tmp_path: Path):
     acme_dir.mkdir()
     (acme_dir / "job_posting.md").write_text("Acme rails posting", encoding="utf-8")
     (acme_dir / "outcome.md").write_text("Applied", encoding="utf-8")
-    (acme_dir / "IgnacioFlores_CV.pdf").write_text("mock pdf", encoding="utf-8")
+    (acme_dir / "Candidate_CV.pdf").write_text("mock pdf", encoding="utf-8")
 
     return {
         "tracker": tracker_file,
@@ -100,7 +100,7 @@ def test_detects_orphan_application_folder(mock_workspace):
     orphan_dir.mkdir()
     (orphan_dir / "job_posting.md").write_text("Orphan job", encoding="utf-8")
     (orphan_dir / "outcome.md").write_text("Drafted", encoding="utf-8")
-    (orphan_dir / "IgnacioFlores_CV.pdf").write_text("mock pdf", encoding="utf-8")
+    (orphan_dir / "Candidate_CV.pdf").write_text("mock pdf", encoding="utf-8")
 
     report = audit_consistency(
         tracker_path=mock_workspace["tracker"],
@@ -154,7 +154,7 @@ def test_reconciliation_heals_drift(mock_workspace):
     orphan_dir.mkdir()
     (orphan_dir / "status.md").write_text("Role: Sr Rails Dev\nStatus: drafted\nPosting URL: https://example.com/bn", encoding="utf-8")
     (orphan_dir / "job_posting.md").write_text("Posting text", encoding="utf-8")
-    (orphan_dir / "IgnacioFlores_CV.pdf").write_text("mock", encoding="utf-8")
+    (orphan_dir / "Candidate_CV.pdf").write_text("mock", encoding="utf-8")
 
     # 2. Add state drift in seen_jobs
     with open(mock_workspace["seen"], "r", encoding="utf-8") as f:

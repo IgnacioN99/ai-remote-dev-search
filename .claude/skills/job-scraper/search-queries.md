@@ -1,6 +1,6 @@
 # Search Queries for Job Scraper
 
-<!-- SETUP: Customized for Ignacio Flores - Ruby on Rails backend/full-stack developer, Argentina (remote global) -->
+<!-- SETUP: Customized by running /setup based on your target role and technical skills -->
 
 ## Installed portal CLIs (primary for `/scrape`)
 
@@ -133,20 +133,16 @@ site:linkedin.com/jobs ("Revolut" OR "Uber") ("software" OR "backend" OR "engine
 
 ## Location Filter
 
-Remote is the priority. When evaluating results, verify location against this ladder:
+Remote is the default priority for distributed engineering roles. When evaluating results, verify location against candidate preferences:
 
-- **Ideal:** Remote Global / Worldwide, direct clients in the US, Europe, UK, and Canada (contractor USD/EUR), or top-tier "en blanco" employment in Argentina (La Plata / Buenos Aires / CABA / remote)
-- **Acceptable:** Remote within LATAM, or on-site anywhere in Argentina
-- **Borderline:** On-site outside Argentina (relocation) — only for offers well above baseline
-- **Excluded:** Roles requiring mandatory physical presence outside Argentina without relocation support, or US roles legally restricted to US Citizens / Green Card holders (strict W2 only with no C2C or international contractor option)
-
-**"En blanco" vs Contractor note:**
-- Remote-global / contractor direct client baseline: USD 3000–$6000+/month.
-- Formal, registered employment in Argentina ("en blanco" with obra social, aguinaldo, vacaciones, aportes) justifies a lower salary floor (USD 2300–2700/month or equivalent).
+- **Ideal:** Fully Remote Global / Worldwide, compatible with candidate timezones, or local hybrid roles within preferred commute range.
+- **Acceptable:** Regional remote (e.g. Americas / EMEA / APAC depending on candidate profile) or on-site roles within commute area.
+- **Borderline:** On-site roles requiring international relocation — only for verified high-impact opportunities with sponsorship.
+- **Excluded:** Roles requiring mandatory physical presence outside candidate eligibility or country restrictions without visa/relocation support.
 
 ## Language Filter
 
-Working languages: Spanish (native), English (Fluent / Professional working proficiency — confident spoken and written communication for direct client interaction, technical debates, and distributed engineering teams). Postings requiring fluent or professional English are fully within scope and prioritized for international client engagements.
+Compare vacancy language requirements against the Languages table configured in `CLAUDE.md` / `01-candidate-profile.md`. Postings matching declared working proficiencies are prioritized.
 
 ## Date Filter
 

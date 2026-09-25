@@ -47,59 +47,55 @@ try:
 except Exception:
     # Canonical fallback if profile tool is unavailable
     CANDIDATE_FACTS = {
-        "name": "Ignacio Flores",
-        "location": "La Plata, Buenos Aires, Argentina (Postal Code: 1900)",
-        "citizenship": "Argentine (no US/EU passport; remote contractor B2B globally authorized without visa)",
-        "phone": "+54 9 11 6176-6801 (Mobile: 1161766801)",
-        "email": "inifl99@gmail.com",
-        "linkedin": "https://www.linkedin.com/in/ignaciofl",
-        "github": "https://github.com/IgnacioN99",
-        "notice_period": "2 weeks (14-15 days)",
-        "vacations": "2026-12-26 to 2027-01-06",
-        "salary_baseline_usd_contractor": "Min USD $3,500/month (Target: $3,500-$6,000+/mo | Annual: $42,000-$45,000 | Hourly: $22-$25/hr)",
-        "salary_baseline_argentina_net": "USD $2,300-$2,700/month net (formal 'en blanco', obra social, aguinaldo)",
+        "name": "Candidate Name",
+        "location": "Remote",
+        "citizenship": "Authorized for remote contractor B2B engagements",
+        "phone": "+1 555 123 4567",
+        "email": "candidate@example.com",
+        "linkedin": "https://www.linkedin.com/in/candidate",
+        "github": "https://github.com/candidate",
+        "notice_period": "2 weeks",
+        "vacations": "None scheduled",
+        "salary_baseline_usd_contractor": "USD $3,500-$6,000+/month",
+        "salary_baseline_argentina_net": "Competitive local salary",
         "languages": {
-            "Spanish": "Native",
-            "English": "Professional Working Proficiency (B1-B2; strong technical writing/reading, functional spoken for standups/teamwork)",
+            "English": "Professional Working Proficiency",
+            "Spanish": "Working Proficiency",
         },
         "education": [
-            "Ingeniería en Computación (in progress, ~75%, avg 7.0) - Universidad Nacional de La Plata (2018-present)",
-            "Java (intermedio) - Proydesa (2017)",
+            "B.S. in Computer Science (or equivalent practical engineering experience)",
         ],
         "experience": [
             {
-                "role": "Backend Developer (SSR)",
-                "company": "Rootstrap",
-                "period": "2025 - present",
-                "location": "Remote, Argentina",
+                "role": "Senior Software Engineer",
+                "company": "Tech Innovations Inc.",
+                "period": "2024 - present",
+                "location": "Remote",
                 "bullets": [
-                    "Building scalable Ruby on Rails APIs and services with high performance and modular architecture.",
-                    "Applied SOLID principles, service objects, and code reviews in Rails MVC codebases.",
-                    "PostgreSQL query optimization (indexes, EXPLAIN/ANALYZE, batching) and resolved N+1 queries using Prosopite and query preloading.",
-                    "Raised RSpec test coverage from 62% to 86% in 2 quarters and cut production regressions by 54% in CI/CD pipelines.",
-                    "Supported deployments on Azure; worked closely in cross-functional agile teams.",
+                    "Architected and deployed high-throughput backend services and REST/gRPC APIs.",
+                    "Optimized database queries, indexes, and caching strategies, reducing endpoint latency.",
+                    "Expanded automated test suites in CI/CD pipelines, increasing coverage and deployment confidence.",
                 ],
             },
             {
-                "role": "Full-stack Developer",
-                "company": "Snappler S.R.L.",
-                "period": "2022 - 2025",
-                "location": "Argentina",
+                "role": "Software Engineer",
+                "company": "CloudScale Solutions",
+                "period": "2021 - 2024",
+                "location": "Remote",
                 "bullets": [
-                    "Built Ruby on Rails backend APIs for sports event management, integrated with React + TypeScript frontend.",
-                    "Developed full-stack event management solutions in Ruby on Rails.",
-                    "Maintained and modernized legacy airline system (Aero Admin, Aero Tarifario) in CoffeeScript, jQuery, and legacy Ruby.",
-                    "Created reusable frontend components in React, TypeScript, HTML/CSS and integrated external REST APIs.",
+                    "Developed backend business logic and integrated frontend applications.",
+                    "Collaborated cross-functionally with product and design teams in agile sprints.",
+                    "Maintained automated test coverage and documentation across services.",
                 ],
             },
         ],
         "skills_primary": [
-            "Ruby on Rails", "Ruby", "PostgreSQL", "RSpec", "REST APIs", "CI/CD"
+            "Backend", "REST APIs", "SQL", "CI/CD"
         ],
         "skills_secondary": [
-            "React", "TypeScript", "JavaScript", "HTML/CSS", "Java", "Stimulus.js", "Turbo Frames", "Redis", "MySQL", "Git", "Azure", "Claude Code"
+            "Docker", "Cloud", "Git", "AI Tooling"
         ],
-        "ai_policy": "Explicitly reference Claude Code when discussing agentic engineering or AI-assisted development.",
+        "ai_policy": "Explicitly reference AI-assisted engineering tools when discussing agentic engineering.",
     }
 
 KNOWN_TECH_STACKS = [
@@ -312,7 +308,7 @@ def build_deterministic_brief(
 
     doc: List[str] = []
     doc.append(f"# Deterministic Application Brief: {company} — {title}")
-    doc.append("> Frozen context package for agentic tailoring. Token-budgeted & ground-truth anchored.")
+    doc.append("> Frozen context package for agentic tailoring. Token-budgeted & SSOT anchored.")
     doc.append("")
 
     # Section 1: Vacancy Metadata
@@ -328,11 +324,13 @@ def build_deterministic_brief(
     # Section 2: Hard Constraints & Candidate Rules
     doc.append("## 2. Hard Constraints & Deal-Breakers (Candidate Rules)")
     doc.append(f"- **Candidate:** {CANDIDATE_FACTS['name']} ({CANDIDATE_FACTS['location']})")
+    doc.append(f"- **Contact:** {CANDIDATE_FACTS.get('email', '')} | {CANDIDATE_FACTS.get('phone', '')}")
     doc.append(f"- **Authorization:** {CANDIDATE_FACTS['citizenship']}")
     doc.append(f"- **Availability / Notice Period:** {CANDIDATE_FACTS['notice_period']}")
     doc.append(f"- **Contractor Baseline (USD):** {CANDIDATE_FACTS['salary_baseline_usd_contractor']}")
-    doc.append(f"- **Argentina Baseline (Net):** {CANDIDATE_FACTS['salary_baseline_argentina_net']}")
-    doc.append(f"- **Languages:** Spanish ({CANDIDATE_FACTS['languages']['Spanish']}), English ({CANDIDATE_FACTS['languages']['English']})")
+    doc.append(f"- **Local Baseline (Net):** {CANDIDATE_FACTS.get('salary_baseline_argentina_net', '')}")
+    lang_str = ", ".join(f"{k} ({v})" for k, v in CANDIDATE_FACTS.get("languages", {}).items())
+    doc.append(f"- **Languages:** {lang_str}")
     doc.append(f"- **AI Reference Policy:** {CANDIDATE_FACTS['ai_policy']}")
     doc.append("")
 
@@ -360,10 +358,10 @@ def build_deterministic_brief(
 
     # Section 5: Key Tailoring Angles
     doc.append("## 5. Key Tailoring Angles (STAR Evidence Points)")
-    doc.append("1. **Backend Scalability & Performance:** Highlight PostgreSQL optimization (indexes, EXPLAIN/ANALYZE, batching) and solving N+1 queries with Prosopite at Rootstrap.")
-    doc.append("2. **Engineering Rigor & Quality:** Emphasize raising RSpec test coverage from 62% to 86% and cutting regressions by 54% in automated CI/CD.")
-    doc.append("3. **Full-stack & API Integration:** Feature Rails backend APIs integrated with React and TypeScript frontends (Snappler sports event management).")
-    doc.append("4. **AI-Native Engineering:** Position use of **Claude Code** for accelerated feature delivery, refactoring, and deterministic verification.")
+    doc.append("1. **Backend Scalability & Performance:** Highlight database query optimization (indexing, query planning, connection pooling) and low-latency API architecture.")
+    doc.append("2. **Engineering Rigor & Quality:** Emphasize test-driven automation in CI/CD pipelines, high coverage, and preventing regressions in production.")
+    doc.append("3. **Full-stack & API Integration:** Feature decoupled backend service contracts integrated with modern web frontend clients.")
+    doc.append("4. **AI-Native Engineering:** Position use of modern agentic coding tools for accelerated feature delivery, refactoring, and deterministic verification.")
     doc.append("")
 
     # Section 6: Relevant Memory & Insights

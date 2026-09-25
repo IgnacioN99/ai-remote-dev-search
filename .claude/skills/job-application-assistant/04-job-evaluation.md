@@ -96,12 +96,12 @@ Does the role and company culture match the behavioral profile?
 **Red flags to research:** Department disorganization, work dominated by maintenance over development, poor chemistry with leadership, toxic guardias, culture mismatches. Check r/devsarg, Glassdoor, Blind, Openqube, media coverage, and LinkedIn network contacts for insider perspective.
 
 ### 4. Location & Logistics (Pass/Fail + Notes)
-- **Remote (global):** PASS — preferred
-- **On-site within La Plata / Buenos Aires:** PASS
+- **Remote (global / timezone compatible):** PASS — preferred
+- **On-site within [TARGET_COMMUTE_CITY]:** PASS
 - **On-site elsewhere / relocation:** FLAG — acceptable only for offers well above baseline (see salary tiers in Life situation alignment)
 - **Frequent international travel:** FLAG (discuss with user)
 
-**Priority note — "en blanco" (formal Argentine employment):** a role that is formal, registered employment in Argentina (obra social, aguinaldo, vacaciones, aportes) is the top priority and justifies a lower salary floor (see Life situation alignment below). A contractor / remote-global role is acceptable but must clear the higher baseline.
+**Employment Type Priority:** Refer to your candidate profile preferences in `CLAUDE.md` / `01-candidate-profile.md` for target preferences regarding remote B2B contractor vs. formal local employment.
 
 ### 5. Career Alignment & Motivation (0-100)
 Does this role advance career goals and contain tasks that energize?
@@ -114,19 +114,19 @@ Does this role advance career goals and contain tasks that energize?
 | 0-39 | Dead end or backwards step |
 
 **Career goals:**
-- Grow as a backend / full-stack developer in Ruby on Rails
-- Secure formal ("en blanco") employment in Argentina (top priority) OR a well-compensated remote-global role
-- Continue learning and shipping new features in an innovative team
+- Grow in target role and primary stack as defined in `CLAUDE.md` / `01-candidate-profile.md`
+- Secure competitive remote-global or local target compensation
+- Continue shipping high-impact features in an innovative, collaborative engineering team
 
 **Motivation filter:** Evaluate not just whether you *can* do the tasks, but whether the tasks will *energize* you. Consider:
 - Tasks that energize: developing new features, solving hard backend/performance problems, optimizing queries and APIs, working with a modern stack, learning new technologies
-- Tasks that drain: pure legacy maintenance (accepted if well-compensated), stagnation without learning
-- Non-task factors: remote-first, formal employment with benefits (obra social), innovative culture, autonomy, code-review feedback
+- Tasks that drain: pure legacy maintenance without modernization, stagnation without learning
+- Non-task factors: remote-first, transparent culture, autonomy, code-review feedback
 
-**Life situation alignment:** Consider personal constraints:
-- **Security**: baseline USD 3000/month for remote-global / contractor work; USD 2300–2700/month acceptable for formal ("en blanco") Argentine employment (obra social, aguinaldo, vacaciones, aportes offset the lower number).
-- **Flexibility**: remote-first; open to on-site/relocation only for offers well above baseline.
-- **Professional development**: finishing degree (~75% through Ingeniería en Computación); values learning and growth.
+**Life situation alignment:** Consider personal constraints configured in `CLAUDE.md`:
+- **Security**: align with your configured compensation baselines (`[SALARY_BASELINE_CONTRACTOR_USD]` / `[SALARY_BASELINE_LOCAL_NET]`).
+- **Flexibility**: remote-first; open to on-site/relocation only for exceptional opportunities.
+- **Professional development**: values learning, high-velocity engineering, and career advancement.
 
 ### 6. Salary Benchmark (Optional)
 

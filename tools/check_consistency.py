@@ -36,6 +36,26 @@ TRACKER_CSV = ROOT_DIR / "job_search_tracker.csv"
 SEEN_JOBS_JSON = ROOT_DIR / "job_scraper" / "seen_jobs.json"
 APPLICATIONS_DIR = ROOT_DIR / "documents" / "applications"
 
+try:
+    from candidate_profile import load_candidate_profile
+except ImportError:
+    try:
+        from tools.candidate_profile import load_candidate_profile
+    except ImportError:
+        load_candidate_profile = None
+
+
+def get_candidate_clean_name(repo_root: Optional[Path] = None) -> str:
+    """Returns candidate's clean name from verified profile, defaulting to 'Candidate'."""
+    if load_candidate_profile:
+        try:
+            prof = load_candidate_profile(repo_root or ROOT_DIR)
+            if prof and prof.clean_name:
+                return prof.clean_name
+        except Exception:
+            pass
+    return "Candidate"
+
 
 def slugify(text: str) -> str:
     """Normalize text into an alphanumeric slug."""
@@ -209,15 +229,16 @@ def audit_consistency(
         if not has_outcome and folder_status not in ["drafted"]:
             missing_in_folder.append("outcome.md (or status.md)")
 
+        cand_clean = get_candidate_clean_name(repo_root)
         has_cv_pdf = any(
-            name.endswith(".pdf") and ("IgnacioFlores_CV" in name or name.startswith("main_"))
+            name.endswith(".pdf") and (f"{cand_clean}_CV" in name or name.endswith("_CV.pdf") or name.startswith("main_"))
             for name in files
         ) or any([
             (repo_root / "cv" / f"main_{folder_name}.pdf").exists(),
-            (repo_root / "cv" / "IgnacioFlores_CV.pdf").exists(),
+            (repo_root / "cv" / f"{cand_clean}_CV.pdf").exists(),
         ])
         if not has_cv_pdf:
-            missing_in_folder.append("compiled CV PDF (IgnacioFlores_CV.pdf)")
+            missing_in_folder.append(f"compiled CV PDF ({cand_clean}_CV.pdf)")
 
         if missing_in_folder:
             report["missing_application_files"].append({
@@ -390,12 +411,13 @@ def reconcile_drift(
             if row_status in ["standby"]:
                 row_status = "drafted"
 
+            cand_clean = get_candidate_clean_name(repo_root)
             cv_file = f"cv/main_{folder_name}.tex"
             cl_file = f"cover_letters/cover_{folder_name}.tex"
             if not (repo_root / cv_file).exists():
-                cv_file = f"documents/applications/{folder_name}/IgnacioFlores_CV.pdf"
+                cv_file = f"documents/applications/{folder_name}/{cand_clean}_CV.pdf"
             if not (repo_root / cl_file).exists():
-                cl_file = f"documents/applications/{folder_name}/IgnacioFlores_CoverLetter.pdf"
+                cl_file = f"documents/applications/{folder_name}/{cand_clean}_CoverLetter.pdf"
 
             new_row = {
                 "date": date_str,

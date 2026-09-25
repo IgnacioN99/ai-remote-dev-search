@@ -5,50 +5,49 @@ framework_version: 1.0.0
 # Behavioral Profile
 
 ## Overview
-Ignacio Flores's profile reflects a **self-taught, quick-learning builder** who is most engaged when shipping new features in a collaborative, learning-oriented team. Enthusiastic and committed, with a strong problem-solving and process-optimization orientation.
+The candidate profile reflects a **collaborative, quick-learning software engineer** who thrives when shipping high-quality features in cross-functional, learning-oriented teams. Highly committed, with a systematic approach to problem solving, code quality, and process optimization.
 
 ## Core Behavioral Drives
 
 | Drive | Level | Meaning |
 |-------|-------|---------|
-| Learning & growth | High | Constant interest in professional development; self-taught profile |
-| Collaboration | High | Effective teamwork and communication with multidisciplinary teams |
-| Problem-solving | High | Orientation towards problem solving and process optimization |
-| Innovation | Medium-High | Eager to be part of innovative teams; builds new solutions |
+| Learning & growth | High | Constant commitment to technical improvement; quick to master new stacks |
+| Collaboration | High | Clear, transparent communication across engineering, product, and design |
+| Problem-solving | High | Systematic debugging, performance profiling, and root-cause resolution |
+| Reliability & Ownership | High | Takes end-to-end accountability for features from design through to production |
 
 ## Strongest Behaviors
-- **Quick learning and adaptation to new technologies:** self-taught profile; picks up new stacks fast (Ruby on Rails, React, TypeScript). *[Inferred from LinkedIn About / CV - review before relying on this]*
-- **Effective teamwork and communication:** works closely with design, QA, DevOps, and product teams. *[Inferred from LinkedIn About / CV - review before relying on this]*
-- **Problem-solving and optimization:** focuses on process optimization and resolving hard issues (e.g., N+1 query elimination, coverage improvement).
+- **Rapid technical adaptation:** Quickly adopts new programming languages, frameworks, and developer toolchains.
+- **Cross-functional teamwork:** Works effectively with design, QA, DevOps, and product managers in agile workflows.
+- **Performance & quality orientation:** Proactively identifies bottlenecks (e.g. database query optimization, automated test coverage, CI/CD pipeline reliability).
 
 ## How You Work Best
-- Developing new features rather than pure maintenance (though open to maintenance when well-compensated)
-- In collaborative, multidisciplinary, innovative teams
-- With room to keep learning and growing
+- Designing and shipping robust features with clear technical requirements.
+- In collaborative, innovative, and asynchronous/remote-friendly environments.
+- With continuous opportunities for technical depth and mentorship.
 
 ## Growth Areas (frame positively in applications)
-- **English spoken fluency (B1):** actively improving; reading/comprehension already strong.
-- **Degree in progress (~75%):** frame as current, ongoing formal training rather than a gap.
+- **Language / Communication:** Honest appraisal of language proficiencies; strong written technical communication.
+- **Formal Education:** Present ongoing formal studies or self-directed computer science fundamentals as active development.
 
 ## Mapping to Job Posting Language
 
 When a job posting mentions these keywords, it's a **strong behavioral fit**:
 - collaborative, team player, cross-functional
-- problem-solving, optimization
-- self-starter, autonomous, quick learner
-- growth-oriented, innovation, learning culture
+- problem-solving, optimization, performance
+- self-starter, autonomous, ownership, quick learner
+- growth-oriented, engineering culture, continuous delivery
 
 When a job posting mentions these, flag as **potential friction** (not deal-breaker):
-- maintenance-heavy, primarily legacy
-- siloed teams, little cross-functional work
-- slow-moving, no room to grow
+- siloed teams, absence of peer code review
+- purely manual release procedures without automation
+- micromanagement or unstructured delivery cycles
 
 ## Management Style Preferences
-- **Works well with:** clear goals, autonomy, cross-functional collaboration, feedback through code reviews.
-- **Doesn't work well with:** micromanagement, no learning opportunities, stagnation.
+- **Works well with:** clear milestones, autonomy, peer code reviews, transparent communication.
+- **Doesn't work well with:** micromanagement, lack of continuous learning, opaque decision-making.
 
 ## Using This in Applications
-- **Cover letters:** emphasize self-taught trajectory, quick learning, and concrete results (62%→86% coverage, -54% regressions).
-- **CV:** lead with measurable outcomes and new-feature delivery.
-- **Interviews:** use STAR examples around PostgreSQL optimization, RSpec/CI-CD, and event-management features.
-- **Don't overstate:** English level (keep honest), degree (still in progress).
+- **Cover letters:** emphasize technical agility, disciplined execution, and measurable outcomes.
+- **CV:** lead with high-impact achievements, performance improvements, and automated reliability.
+- **Interviews:** structure responses with clear STAR narratives (Situation, Task, Action, Result).

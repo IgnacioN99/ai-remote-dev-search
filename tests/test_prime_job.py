@@ -62,12 +62,11 @@ def test_build_deterministic_brief_contains_candidate_facts(tmp_path: Path):
     assert "## 5. Key Tailoring Angles" in brief
     assert "## 6. Relevant Memory & Insights" in brief
 
-    # Check candidate verified profile facts
-    assert "Ignacio Flores" in brief
-    assert "Rootstrap" in brief
-    assert "Snappler S.R.L." in brief
-    assert "Min USD $3,500/month" in brief
-    assert "Claude Code" in brief
+    # Check candidate profile facts present in brief
+    from tools.prime_job import CANDIDATE_FACTS
+    assert CANDIDATE_FACTS["name"] in brief
+    assert CANDIDATE_FACTS["email"] in brief
+    assert "Skills Match & Gaps Matrix" in brief
 
 
 def test_memory_insights_injected_into_brief(tmp_path: Path):
