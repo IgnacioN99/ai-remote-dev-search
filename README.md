@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/mascot/pip_flight_loop.gif" alt="Pip, the courier bird" width="200">
+</p>
+
 # AI Remote Dev Search
 
 *Autonomous Job Search, Tailored Applications & Invariant Quality Gates for Remote Software Developers Worldwide.*
@@ -292,7 +296,23 @@ ai-remote-dev-search/
 
 ## 🚀 Quick Start Guide
 
-### 1. Prerequisites
+### 1. Fork and clone
+
+```bash
+gh repo fork IgnacioN99/ai-remote-dev-search --clone
+cd ai-remote-dev-search
+```
+
+> [!IMPORTANT]
+> **A fork of this repo is always public** — GitHub does not allow private forks of
+> public repositories — and `/setup` (step 3 below) writes your personal data (name,
+> contact details, employment history, salary expectations) into **tracked** files.
+> If this copy is for your own job search rather than for contributing changes back,
+> use a **private repository** with this repo as `upstream` instead — the two-minute
+> recipe is in [SETUP.md section 8](SETUP.md#8-pulling-upstream-updates-into-your-fork),
+> and every update workflow works identically. Fork only to contribute.
+
+### 2. Prerequisites
 * **Python 3.10+** and [uv](https://docs.astral.sh/uv/)
 * **[Bun](https://bun.sh)** (or Node.js)
 * **LaTeX Distribution**: TeX Live / MacTeX / MikTeX (`lualatex` for moderncv, `xelatex` for cover.cls)
@@ -306,27 +326,21 @@ Verify your setup in 5 seconds:
 python3 tools/doctor.py
 ```
 
-### 2. Clone and Setup
-```bash
-git clone https://github.com/IgnacioN99/ai-remote-dev-search.git
-cd ai-remote-dev-search
-```
-
-Install CLI search dependencies:
+### 3. Install CLI search dependencies:
 ```bash
 for tool in himalayas-search torre-search waas-search entra-search remotive-search silverdev-search getonbrd-search freehire-search linkedin-search company-careers-search; do
   (cd .agents/skills/$tool/cli && bun install)
 done
 ```
 
-### 3. Configure Your Candidate Profile
+### 4. Configure Your Candidate Profile
 Edit [`CLAUDE.md`](CLAUDE.md) or run `/setup` inside Claude Code / Antigravity / Gemini CLI:
 * **Name & Contact Information**
 * **Primary & Secondary Tech Stack** (Go, Rust, Python, Node, React, Java, Rails, etc.)
 * **Verified Experience & Bullets**
 * **Target Compensation & Notice Period**
 
-### 4. Search & Apply
+### 5. Search & Apply
 ```bash
 # Scrape across 19 portals concurrently
 python3 tools/multi_scrape_runner.py

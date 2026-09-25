@@ -86,7 +86,7 @@ cv/main_example.tex. This scope covers skill files only.
 
 ### If scope includes `documents`:
 
-Use Glob to list all files present in `documents/cv/`, `documents/linkedin/`, `documents/diplomas/`, `documents/references/`, `documents/projects/`, `documents/postings/`, and `documents/applications/`. Present as:
+Use Glob to list all files present in `documents/cv/`, `documents/linkedin/`, `documents/diplomas/`, `documents/references/`, `documents/projects/`, `documents/postings/`, `documents/memory/`, and `documents/applications/`. Present as:
 
 ```
 ## Documents reset will delete:
@@ -107,6 +107,9 @@ documents/projects/
   - [filename] or "(empty)"
 
 documents/postings/
+  - [filename] or "(empty)"
+
+documents/memory/
   - [filename] or "(empty)"
 
 documents/applications/
@@ -251,6 +254,7 @@ rm -f documents/diplomas/*
 rm -f documents/references/*
 rm -f documents/projects/*
 rm -f documents/postings/*
+rm -f documents/memory/*
 rm -rf documents/applications/*/
 ```
 
