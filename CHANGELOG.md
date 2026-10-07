@@ -22,6 +22,13 @@ per-file diff commands.
   coverage is unchanged (the discovered list on `master` is exactly the six shipped portals).
   `/add-portal`'s Register step now says so. Thanks @ayobamiseun.
 
+### Removed
+
+- **Unused subagents `job-application-agent` and `gemini-research-expert`.** Neither was
+  referenced by any command, skill or doc; `/apply` runs the drafter-reviewer flow itself
+  and research uses the general-purpose agent. `.claude/agents/` now ships only
+  `framework-dev`.
+
 ### Fixed
 
 - **`/apply` archives the job posting while it still holds it** (#306). `/apply` drafted two
