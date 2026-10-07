@@ -16,8 +16,11 @@ Target repo:
 Privacy:
   Title and body are sanitized before anything leaves the machine or hits the
   offline queue: emails, phone numbers, URL query strings, LinkedIn handles,
-  salary/currency amounts, home paths (-> ~), every identity string from the
-  gitignored candidate_profile.json, and filled-in CLAUDE.md Identity values.
+  salary/currency amounts, home paths (-> ~, incl. WSL UNC paths), application
+  file names, every identity string from the gitignored candidate_profile.json,
+  filled-in CLAUDE.md Identity values, tracker companies/roles and
+  documents/applications/ folder names. Matching is accent-insensitive and
+  treats `_`/`-` as word separators. Queued entries are re-sanitized on --flush.
 
 Dedupe:
   The body carries `<!-- fp:<sha1> -->` (sha1 of kind|component|normalized
@@ -40,7 +43,8 @@ Usage:
 Exit codes:
   0  created, commented, queued, dry-run, or flush finished
   1  error (bad arguments, no resolvable origin, unreadable body file)
-  2  refused (target is upstream, or sanitizing left nothing to report)
+  2  refused (target is upstream, sanitizing left nothing to report, or
+     --body-file points under cv/, cover_letters/ or documents/)
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ import platform
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
@@ -61,6 +66,11 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 PENDING_FILE = ROOT_DIR / "documents" / "memory" / "pending_issues.jsonl"
 PROFILE_JSON = ROOT_DIR / "candidate_profile.json"
 CLAUDE_MD = ROOT_DIR / "CLAUDE.md"
+TRACKER_CSV = ROOT_DIR / "job_search_tracker.csv"
+APPLICATIONS_DIR = ROOT_DIR / "documents" / "applications"
+# --body-file may not point into these: an injected instruction could otherwise
+# exfiltrate a CV, cover letter or application notes into a public issue.
+PRIVATE_DIRS = ("cv", "cover_letters", "documents")
 SKILL_MD = ROOT_DIR / ".claude" / "skills" / "job-application-assistant" / "SKILL.md"
 
 ENV_REPO = "JOBSEARCH_ISSUES_REPO"
@@ -214,6 +224,21 @@ _GENERIC_TERMS = {
     "candidate name", "candidate", "software engineer", "competitive local salary",
     "global / remote contractor", "none scheduled",
 }
+# Words that show up in application slugs / tracker roles but identify nobody.
+# A company token or role equal to one of these is never added as a term.
+_GENERIC_SLUG_WORDS = {
+    "senior", "junior", "lead", "staff", "principal", "head", "chief", "intern", "sr", "jr",
+    "engineer", "engineering", "developer", "dev", "devops", "backend", "frontend", "fullstack",
+    "full", "stack", "software", "data", "scientist", "analyst", "manager", "architect",
+    "consultant", "specialist", "remote", "hybrid", "python", "java", "node", "react", "web",
+    "mobile", "cloud", "platform", "ml", "ai", "and", "the", "of", "for", "inc", "ltd", "llc",
+    "aps", "gmbh", "sa", "srl", "corp", "co", "group", "labs", "lab", "tech", "technologies",
+    "solutions", "systems", "digital", "global", "services", "consulting", "company", "io",
+    "team", "product", "application", "applications", "analytics", "partners", "ventures",
+    "studio", "studios", "networks", "media", "health", "bank", "capital", "holding", "holdings",
+    "international", "foundation", "agency", "software",
+}
+_GENERIC_TERMS |= _GENERIC_SLUG_WORDS
 
 
 def _walk_strings(value: Any, key: str = "", hinted: bool = False) -> Iterable[Tuple[str, str]]:
@@ -307,13 +332,81 @@ def load_claude_identity(claude_md: Path = CLAUDE_MD) -> List[str]:
     return values
 
 
+def strip_accents(text: str) -> str:
+    """"José Peña" -> "Jose Pena" (NFKD, combining marks dropped)."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _all_generic(value: str) -> bool:
+    words = [w for w in re.split(r"[\W_]+", value.lower()) if w]
+    return not words or all(w in _GENERIC_SLUG_WORDS or len(w) < 3 for w in words)
+
+
+def _company_tokens(company: str) -> List[str]:
+    """"Zentrix Analytics" -> ["Zentrix"]: a company also leaks through its parts."""
+    return [t for t in re.split(r"[\W_]+", company)
+            if len(t) >= 3 and t.lower() not in _GENERIC_SLUG_WORDS]
+
+
+def load_tracker_terms(tracker_path: Path = TRACKER_CSV) -> List[str]:
+    """Company (and non-generic role) values from the gitignored tracker CSV."""
+    import csv
+
+    try:
+        lines = [l for l in Path(tracker_path).read_text(encoding="utf-8-sig").splitlines() if l.strip()]
+    except OSError:
+        return []
+    terms: List[str] = []
+    try:
+        for row in csv.DictReader(lines):
+            row = {str(k or "").strip().lower(): (v or "") for k, v in row.items() if isinstance(v, str)}
+            company = row.get("company", "").strip()
+            if company and not _all_generic(company):
+                terms.append(company)
+                slug = re.sub(r"[^a-z0-9]+", "-", strip_accents(company).lower()).strip("-")
+                if slug:
+                    terms.append(slug)
+                terms.extend(_company_tokens(company))
+            role = row.get("role", "").strip()
+            if role and not _all_generic(role):
+                terms.append(role)
+    except csv.Error:
+        pass
+    return terms
+
+
+def load_application_terms(applications_dir: Path = APPLICATIONS_DIR) -> List[str]:
+    """Folder names under documents/applications/ (<company-slug>_<role-slug>).
+
+    Adds the full slug, the company part, and its non-generic hyphen tokens.
+    Role tokens are not added on their own: they are career words.
+    """
+    try:
+        names = [p.name for p in Path(applications_dir).iterdir() if p.is_dir()]
+    except OSError:
+        return []
+    terms: List[str] = []
+    for name in names:
+        if name.startswith("."):
+            continue
+        terms.append(name)
+        company = name.split("_", 1)[0]
+        if company and not _all_generic(company):
+            terms.append(company)
+            terms.append(company.replace("-", " "))
+            terms.extend(_company_tokens(company))
+    return terms
+
+
 def _sensitive_terms(strings: Iterable[str]) -> List[str]:
     terms = set()
     for raw in strings:
-        s = (raw or "").strip()
-        if len(s) < 3 or s.lower() in _GENERIC_TERMS or _PLACEHOLDER.fullmatch(s):
-            continue
-        terms.add(s)
+        base = unicodedata.normalize("NFC", (raw or "").strip())
+        for s in (base, strip_accents(base)):
+            if len(s) < 3 or s.lower() in _GENERIC_TERMS or _PLACEHOLDER.fullmatch(s):
+                continue
+            terms.add(s)
     return sorted(terms, key=len, reverse=True)
 
 
@@ -324,6 +417,24 @@ _PHONE = re.compile(
     r"(?<![\w.])\+\d[\d\s().-]{6,}\d(?!\w)"
     r"|(?<![\w.])\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?![\w-])"
 )
+# Unformatted runs ("1123456789") and space/hyphen groups ("011 15 1234-5678").
+# Dots and colons are not separators, so versions, IPs, ports and times survive;
+# the callback keeps anything under 9 digits and ISO dates.
+_PHONE_GROUPS = re.compile(
+    r"(?<![\w.:/#-])\d{10,15}(?![\w.])"
+    r"|(?<![\w.:/#-])\(?\d{2,5}\)?(?:[ -]\(?\d{2,5}\)?){1,5}(?![\w:.-])"
+)
+_PHONE_INTL = re.compile(r"(?<![\w.])\+\d[\d\s().-]{6,}\d(?!\w)")
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _phone_group(match: "re.Match[str]") -> str:
+    value = match.group(0)
+    if len(re.sub(r"\D", "", value)) < 9 or _ISO_DATE.search(value):
+        return value
+    return "[phone]"
+
+
 _NUM = r"\d(?:[\d.,]*\d)?"
 _CURRENCY_CODES = r"USD|EUR|GBP|DKK|SEK|NOK|CHF|ARS|BRL|MXN|CAD|AUD|INR|JPY|PLN|kr\.?"
 _MONEY = re.compile(
@@ -332,9 +443,20 @@ _MONEY = re.compile(
     rf"|\b{_NUM}\s?(?:[kKmM]\s?)?(?:{_CURRENCY_CODES})(?![A-Za-z])"
 )
 _SALARY_CONTEXT = re.compile(
-    rf"\b(salary|compensation|pay|wage|løn)(\s*[:=]?\s*){_NUM}(?:\s?[kK]\b)?", re.I
+    rf"\b(salary|compensation|pay|wage|løn|sueldo|salario)(\s*[:=]?\s*){_NUM}(?:\s?[kK]\b)?", re.I
+)
+# "4500usd", "4.500 pesos", "4500 dólares", "4500 per month", "4500 por mes"
+_MONEY_WORDS = re.compile(
+    rf"(?<![\w.]){_NUM}\s?(?:[kK]\s?)?(?:usd|eur|ars|d[oó]lares|dollars|pesos|euros)(?![^\W\d_])"
+    rf"|(?<![\w.]){_NUM}(?=\s?(?:[kK]\s?)?(?:/\s?(?:month|mo|mes)\b|(?:per|a|al|por)\s+(?:month|mes)\b))",
+    re.I,
+)
+_APP_FILE = re.compile(r"(?<![A-Za-z0-9])(main|cover)_[^\s/\\\"'`]+?\.(tex|pdf|log|aux)(?![\w.])")
+_ATS_FILE = re.compile(
+    r"(?<![^\s/\\\"'`(\[=:,;<>])[^\s/\\\"'`=:,;<>()\[\]]+?_(CV|CoverLetter)[^\s/\\\"'`=:,;<>()\[\]]*?\.pdf(?![\w.])"
 )
 _HOME_PATHS = [
+    re.compile(r"[\\/]{2}wsl(?:\.localhost|\$)[\\/]+[^\\/\s]+[\\/]+home[\\/]+[^\\/\s\"'`]+", re.I),
     re.compile(r"/mnt/[a-zA-Z]/Users/[^/\s\"'`]+", re.I),
     re.compile(r"\b[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s\"'`]+", re.I),
     re.compile(r"(?<![\w.\-])/home/[^/\s\"'`]+"),
@@ -345,18 +467,30 @@ _HOME_PATHS = [
 class Sanitizer:
     def __init__(self, extra_terms: Iterable[str] = ()) -> None:
         self.terms = _sensitive_terms(extra_terms)
+        # `_` and `-` count as separators, so "acme" is caught inside acme_dev.
         self._term_patterns = [
-            re.compile(r"(?<!\w)" + re.escape(t) + r"(?!\w)", re.IGNORECASE) for t in self.terms
+            re.compile(r"(?<![^\W_])" + re.escape(t) + r"(?![^\W_])", re.IGNORECASE) for t in self.terms
         ]
 
     @classmethod
-    def from_repo(cls, profile_path: Path = PROFILE_JSON, claude_md: Path = CLAUDE_MD) -> "Sanitizer":
-        return cls(load_profile_strings(profile_path) + load_claude_identity(claude_md))
+    def from_repo(cls, profile_path: Optional[Path] = None, claude_md: Optional[Path] = None,
+                  tracker_path: Optional[Path] = None,
+                  applications_dir: Optional[Path] = None) -> "Sanitizer":
+        # Defaults resolve at call time (not def time) so tests can redirect them.
+        return cls(
+            load_profile_strings(profile_path or PROFILE_JSON)
+            + load_claude_identity(claude_md or CLAUDE_MD)
+            + load_tracker_terms(tracker_path or TRACKER_CSV)
+            + load_application_terms(applications_dir or APPLICATIONS_DIR)
+        )
 
     def clean(self, text: str) -> str:
         if not text:
             return ""
-        out = text
+        out = unicodedata.normalize("NFC", text)
+        # Application file names carry company/role and the candidate's name.
+        out = _APP_FILE.sub(lambda m: f"{m.group(1)}_<company>_<role>.{m.group(2)}", out)
+        out = _ATS_FILE.sub(lambda m: f"<CandidateName>_{m.group(1)}.pdf", out)
         # Paths first, so a username inside a path becomes ~ rather than [redacted].
         for pattern in _HOME_PATHS:
             out = pattern.sub("~", out)
@@ -369,6 +503,9 @@ class Sanitizer:
             out = pattern.sub(REDACTED, out)
         out = _SALARY_CONTEXT.sub(r"\1\2[amount]", out)
         out = _MONEY.sub("[amount]", out)
+        out = _MONEY_WORDS.sub("[amount]", out)
+        out = _PHONE_INTL.sub("[phone]", out)
+        out = _PHONE_GROUPS.sub(_phone_group, out)
         out = _PHONE.sub("[phone]", out)
         return out
 
@@ -389,9 +526,11 @@ def truncate(text: str, limit: int = MAX_BODY_CHARS) -> str:
 # ---------------------------------------------------------------------------
 
 def normalize_title(title: str) -> str:
-    t = title.lower()
+    # Accents are stripped rather than letters dropped, so "Búsqueda" and
+    # "busqueda" share a fingerprint; ASCII titles normalize exactly as before.
+    t = strip_accents(unicodedata.normalize("NFC", title)).lower()
     t = re.sub(r"\d+", "#", t)
-    t = re.sub(r"[^a-z#]+", " ", t)
+    t = re.sub(r"[^\w#]+|_", " ", t)
     return " ".join(t.split())
 
 
@@ -441,6 +580,10 @@ def tool_versions(runner: Runner, offline: bool = False) -> Dict[str, str]:
     return versions
 
 
+FOOTER_START = "\n\n---\n_Filed automatically by"
+SEEN_AGAIN_EXCERPT = 300
+
+
 def build_footer(kind: str, component: str, fp: str, versions: Dict[str, str],
                  environ: Optional[Dict[str, str]] = None) -> str:
     vers = ", ".join(f"{k} {v}" for k, v in versions.items())
@@ -462,6 +605,11 @@ def build_labels(kind: str, extra: Optional[str]) -> List[str]:
     return labels
 
 
+def sanitize_labels(labels: List[str], sanitizer: Sanitizer) -> List[str]:
+    """Drop any label the sanitizer would change: labels are public metadata too."""
+    return [l for l in labels if sanitizer.clean(l) == l]
+
+
 def prepare_issue(kind: str, title: str, body: str, component: str, labels: Optional[str],
                   sanitizer: Sanitizer, runner: Runner, offline: bool = False,
                   environ: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
@@ -479,7 +627,7 @@ def prepare_issue(kind: str, title: str, body: str, component: str, labels: Opti
         "component": clean_component,
         "title": clean_title,
         "body": clean_body + footer,
-        "labels": build_labels(kind, labels),
+        "labels": sanitize_labels(build_labels(kind, labels), sanitizer),
         "fingerprint": fp,
     }
 
@@ -558,7 +706,12 @@ def create_issue(issue: Dict[str, Any], repo: str, runner: Runner) -> Dict[str, 
 def comment_issue(issue: Dict[str, Any], existing: Dict[str, Any], repo: str,
                   runner: Runner) -> Dict[str, Any]:
     number = existing.get("number")
-    body = "Seen again.\n\n" + issue["body"]
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    excerpt = issue["body"].split(FOOTER_START, 1)[0].strip()
+    if len(excerpt) > SEEN_AGAIN_EXCERPT:
+        excerpt = excerpt[:SEEN_AGAIN_EXCERPT].rstrip() + "…"
+    body = (f"Seen again at {stamp}.\n\n> " + excerpt.replace("\n", "\n> ")
+            + f"\n\n<!-- fp:{issue['fingerprint']} -->\n")
     proc = _gh(["issue", "comment", str(number), "-R", repo, "--body-file", "-"],
                repo, runner, input_text=body)
     if proc.returncode != 0:
@@ -618,10 +771,35 @@ def write_queue(entries: List[Dict[str, Any]], pending: Path = PENDING_FILE) -> 
     )
 
 
+_FP_MARKER = re.compile(r"<!-- fp:[0-9a-fA-F]+ -->")
+
+
+def resanitize_entry(entry: Dict[str, Any], sanitizer: Sanitizer) -> Dict[str, Any]:
+    """Re-clean a queued entry: terms may have been added since it was queued."""
+    out = dict(entry)
+    kind = entry.get("kind") if entry.get("kind") in KINDS else "bug"
+    out["title"] = " ".join(sanitizer.clean(entry.get("title") or "").split())[:200]
+    out["component"] = sanitizer.clean(entry.get("component") or "").strip()
+    if not has_substance(out["title"]):
+        raise Refused("queued title is empty after re-sanitizing")
+    body = sanitizer.clean(entry.get("body") or "")
+    if not has_substance(_FP_MARKER.sub("", body.split(FOOTER_START, 1)[0])):
+        raise Refused("queued body is empty after re-sanitizing")
+    fp = fingerprint(kind, out["component"], out["title"])
+    marker = f"<!-- fp:{fp} -->"
+    body = _FP_MARKER.sub(marker, body) if _FP_MARKER.search(body) else body + "\n" + marker + "\n"
+    out["body"] = body
+    out["fingerprint"] = fp
+    out["labels"] = sanitize_labels([str(l) for l in entry.get("labels") or []], sanitizer)
+    return out
+
+
 def flush(runner: Runner = _run, pending: Path = PENDING_FILE,
-          environ: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+          environ: Optional[Dict[str, str]] = None,
+          sanitizer: Optional[Sanitizer] = None) -> Dict[str, Any]:
     entries = read_queue(pending)
     repo = resolve_target_repo(runner, environ)
+    sanitizer = sanitizer or Sanitizer.from_repo()
     remaining, results = [], []
     for entry in entries:
         target = entry.get("repo") or repo
@@ -630,6 +808,11 @@ def flush(runner: Runner = _run, pending: Path = PENDING_FILE,
         except Refused as exc:
             results.append({"action": "refused", "title": entry.get("title"), "reason": str(exc)})
             continue  # dropped: never replay toward upstream
+        try:
+            entry = resanitize_entry(entry, sanitizer)
+        except Refused as exc:
+            results.append({"action": "refused", "title": None, "reason": str(exc)})
+            continue  # dropped: nothing safe left to send
         try:
             res = submit(entry, target, runner)
             res["title"] = entry.get("title")
@@ -645,6 +828,29 @@ def flush(runner: Runner = _run, pending: Path = PENDING_FILE,
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
+def check_body_file_allowed(path: Path, root: Optional[Path] = None) -> None:
+    """Refuse bodies read from CVs, cover letters or documents/ (exfil guard)."""
+    root = Path(root or ROOT_DIR)
+    try:
+        resolved = path.expanduser().resolve()
+        root_resolved = root.resolve()
+    except (OSError, RuntimeError):
+        return
+    try:
+        rel = resolved.relative_to(root_resolved)
+    except ValueError:
+        # Case-insensitive mounts (/mnt/c, Windows): compare casefolded.
+        r, b = str(resolved).casefold(), str(root_resolved).casefold().rstrip("/\\") + os.sep
+        if not r.startswith(b):
+            return
+        rel = Path(str(resolved)[len(b):])
+    if rel.parts and rel.parts[0].casefold() in PRIVATE_DIRS:
+        raise Refused(
+            f"refusing --body-file under {rel.parts[0]}/: CVs, cover letters and documents/ "
+            "hold personal data and must never be pasted into a public issue"
+        )
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -698,7 +904,7 @@ def run(argv: Optional[List[str]] = None, runner: Runner = _run,
 
     try:
         if args.flush:
-            result = flush(runner, pending, environ)
+            result = flush(runner, pending, environ, sanitizer)
             _emit(result, args.json, stream)
             return EXIT_OK
 
@@ -706,6 +912,8 @@ def run(argv: Optional[List[str]] = None, runner: Runner = _run,
             raise ReportError("--kind, --title and one of --body/--body-file are required (or --flush)")
 
         if args.body_file is not None:
+            if args.body_file != "-":
+                check_body_file_allowed(Path(args.body_file))
             try:
                 body = sys.stdin.read() if args.body_file == "-" else Path(args.body_file).read_text(encoding="utf-8")
             except OSError as exc:

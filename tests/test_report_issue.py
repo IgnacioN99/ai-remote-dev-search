@@ -92,7 +92,10 @@ class Base(unittest.TestCase):
         self.pending = self.tmp / "pending_issues.jsonl"
         profile = self.tmp / "candidate_profile.json"
         profile.write_text(json.dumps(PROFILE), encoding="utf-8")
-        self.sanitizer = report_issue.Sanitizer.from_repo(profile, self.tmp / "missing_CLAUDE.md")
+        # Every source is explicit: never fall through to the real tracker/apps.
+        self.sanitizer = report_issue.Sanitizer.from_repo(
+            profile, self.tmp / "missing_CLAUDE.md", self.tmp / "missing_tracker.csv",
+            self.tmp / "missing_applications")
 
     def invoke(self, argv, runner, environ=None):
         out = io.StringIO()
@@ -345,6 +348,229 @@ class DryRunAndOffline(Base):
             report_issue._run(["gh", "--version"], repo="o/r")
         env = run.call_args.kwargs["env"]
         self.assertEqual(env["GH_REPO"], "o/r")
+
+
+# Fictional tracker rows / application folders - no real company is used.
+FAKE_TRACKER = (
+    "date,company,role,status,cv_file\n"
+    "\n"
+    "2026-01-05,Zentrix Analytics,Senior Backend Engineer,applied,main_zentrix-analytics_backend.tex\n"
+    "2026-01-06,Nubéfera,Quokka Platform Wrangler,interview,\n"
+)
+FAKE_APP_FOLDERS = ("vortalix-data_senior-backend-engineer", "data-labs_developer")
+
+
+class TrackerAndApplicationTerms(Base):
+    def setUp(self):
+        super().setUp()
+        self.tracker = self.tmp / "job_search_tracker.csv"
+        self.tracker.write_text(FAKE_TRACKER, encoding="utf-8")
+        self.apps = self.tmp / "applications"
+        for name in FAKE_APP_FOLDERS:
+            (self.apps / name).mkdir(parents=True)
+        (self.apps / "stray_file.txt").write_text("x", encoding="utf-8")
+        self.s = report_issue.Sanitizer.from_repo(
+            self.tmp / "candidate_profile.json", self.tmp / "missing_CLAUDE.md",
+            self.tracker, self.apps)
+
+    def test_tracker_company_and_specific_role_redacted(self):
+        clean = self.s.clean("Zentrix Analytics rejected; zentrix-analytics slug; Quokka Platform Wrangler; Nubefera")
+        for needle in ("Zentrix", "zentrix", "Quokka", "Nubefera"):
+            self.assertNotIn(needle, clean, clean)
+        self.assertNotIn("Zentrix", self.s.clean("the Zentrix posting 404s"))
+        self.assertIn("analytics", self.s.clean("analytics dashboard"))
+
+    def test_generic_role_is_not_a_term(self):
+        text = "Senior Backend Engineer filter broke for developer roles in data labs"
+        self.assertEqual(self.s.clean(text), text)
+
+    def test_application_folder_slug_and_company_redacted(self):
+        clean = self.s.clean("see documents/applications/vortalix-data_senior-backend-engineer/notes.md "
+                             "and Vortalix Data and vortalix_corp")
+        self.assertNotIn("vortalix", clean.lower(), clean)
+        self.assertIn("documents/applications/[redacted]/notes.md", clean)
+
+    def test_all_generic_company_slug_adds_no_generic_tokens(self):
+        terms = [t.lower() for t in self.s.terms]
+        self.assertNotIn("data", terms)
+        self.assertNotIn("labs", terms)
+
+    def test_missing_sources_are_harmless(self):
+        self.assertEqual(report_issue.load_tracker_terms(self.tmp / "nope.csv"), [])
+        self.assertEqual(report_issue.load_application_terms(self.tmp / "nope"), [])
+
+    def test_from_repo_defaults_resolve_at_call_time(self):
+        with mock.patch.object(report_issue, "TRACKER_CSV", self.tracker), \
+                mock.patch.object(report_issue, "APPLICATIONS_DIR", self.apps), \
+                mock.patch.object(report_issue, "PROFILE_JSON", self.tmp / "none.json"), \
+                mock.patch.object(report_issue, "CLAUDE_MD", self.tmp / "none.md"):
+            s = report_issue.Sanitizer.from_repo()
+        self.assertNotIn("Zentrix", s.clean("Zentrix Analytics"))
+
+
+class FileNamesAndBoundaries(Base):
+    def test_application_file_names_replaced(self):
+        clean = self.sanitizer.clean(
+            "lualatex main_globex-nordic_backend.tex -> main_globex-nordic_backend.pdf, "
+            "cover_acme_dev.log, cover_acme_dev.aux, path cv/main_acme_dev.tex")
+        self.assertNotIn("globex", clean.lower())
+        self.assertNotIn("acme", clean.lower())
+        self.assertIn("main_<company>_<role>.tex", clean)
+        self.assertIn("main_<company>_<role>.pdf", clean)
+        self.assertIn("cover_<company>_<role>.log", clean)
+        self.assertIn("cover_<company>_<role>.aux", clean)
+        self.assertIn("cv/main_<company>_<role>.tex", clean)
+
+    def test_ats_pdf_names_replaced(self):
+        clean = self.sanitizer.clean("uploaded Jane_Doe_CV_Acme.pdf and file=JaneDoe_CoverLetter_Globex.pdf")
+        self.assertNotIn("Jane", clean)
+        self.assertIn("uploaded <CandidateName>_CV.pdf", clean)
+        self.assertIn("file=<CandidateName>_CoverLetter.pdf", clean)
+
+    def test_file_name_replacement_is_idempotent(self):
+        once = self.sanitizer.clean("main_acme_dev.tex Jane_CV.pdf")
+        self.assertEqual(self.sanitizer.clean(once), once)
+
+    def test_underscore_and_hyphen_are_separators(self):
+        s = report_issue.Sanitizer(["Zentrix"])
+        clean = s.clean("dir zentrix_backend, zentrix-dev, x_ZENTRIX_y")
+        self.assertNotIn("zentrix", clean.lower(), clean)
+
+    def test_term_inside_a_longer_word_survives(self):
+        s = report_issue.Sanitizer(["Zentrix"])
+        self.assertEqual(s.clean("Zentrixology and preZentrix"), "Zentrixology and preZentrix")
+
+
+class AccentInsensitive(Base):
+    def test_accented_term_matches_plain_and_decomposed_input(self):
+        s = report_issue.Sanitizer(["José Peña", "Nubéfera"])
+        for text in ("José Peña", "Jose Pena", "JOSE PENA", "Jose\u0301 Pen\u0303a", "Nubefera", "NUBÉFERA"):
+            self.assertEqual(s.clean(text), "[redacted]", text)
+
+    def test_plain_term_matches_its_own_form(self):
+        s = report_issue.Sanitizer(["Jose Pena"])
+        self.assertEqual(s.clean("Jose Pena"), "[redacted]")
+
+
+class SalaryAndPhoneExtras(Base):
+    def test_spanish_and_lowercase_currency_amounts(self):
+        clean = self.sanitizer.clean(
+            "wants 4500 dólares, 4500 dolares, 4.500 pesos, 4500usd, 4500 USD, "
+            "expected 4500 per month, 3000 por mes, 2000/month, 2500 a month")
+        for needle in ("4500", "4.500", "3000", "2000", "2500"):
+            self.assertNotIn(needle, clean, clean)
+
+    def test_unformatted_and_grouped_phones(self):
+        clean = self.sanitizer.clean("call 1123456789 or 011 15 1234-5678 or +54 9 11 2345-6789")
+        for needle in ("1123456789", "011", "1234-5678", "2345", "+54"):
+            self.assertNotIn(needle, clean, clean)
+        self.assertEqual(clean.count("[phone]"), 3)
+
+    def test_numbers_that_are_not_phones_survive(self):
+        text = ("exit 429 on 2026-10-07 12:30, issue #431, gh 2.45.0, v1.2.3, port 8080, "
+                "127.0.0.1:5432, 192.168.10.100, year 2025, 2026-10-07T12:30:00Z, pid 12345, "
+                "3 of 10 jobs, commit abc1234, sha 1a2b3c4d5e6f7a8b9c0d")
+        self.assertEqual(self.sanitizer.clean(text), text)
+
+
+class WslPaths(Base):
+    def test_unc_paths_collapse_to_home(self):
+        clean = self.sanitizer.clean(
+            r"\\wsl.localhost\Ubuntu\home\fakeuser\repo\x.py and \\wsl$\Debian\home\otheruser\y "
+            "and //wsl.localhost/Ubuntu/home/thirduser/q")
+        for needle in ("fakeuser", "otheruser", "thirduser", "Ubuntu", "Debian"):
+            self.assertNotIn(needle, clean, clean)
+        self.assertIn(r"~\repo\x.py", clean)
+        self.assertIn("~/q", clean)
+
+
+class LabelsCommentsFlushTitles(Base):
+    def test_labels_with_pii_are_dropped(self):
+        code, out = self.invoke(self.base_args("--labels", "operator-mode,jane-doe,acme widgets aps",
+                                               "--dry-run", "--json"), FakeRunner())
+        self.assertEqual(json.loads(out)["labels"], ["agent-reported", "bug", "operator-mode"])
+
+    def test_seen_again_comment_is_short(self):
+        fp = report_issue.fingerprint("bug", "tools/doctor.py", "doctor crashes")
+        runner = FakeRunner(existing=[{"number": 3, "title": "older", "url": "u",
+                                       "body": f"old\n<!-- fp:{fp} -->"}])
+        code, _ = self.invoke(["--kind", "bug", "--title", "doctor crashes", "--component",
+                               "tools/doctor.py", "--body", "x" * 2000 + " TAILMARK"], runner)
+        self.assertEqual(code, 0)
+        comment = runner.gh_writes()[0]["input"]
+        self.assertTrue(comment.startswith("Seen again at "))
+        self.assertIn(f"<!-- fp:{fp} -->", comment)
+        self.assertNotIn("TAILMARK", comment)
+        self.assertNotIn("Filed automatically", comment)
+        self.assertLess(len(comment), 450)
+
+    def test_flush_resanitizes_queued_entries(self):
+        # Queued by an older sanitizer: raw PII inside.
+        old_fp = "0" * 40
+        self.pending.write_text(json.dumps({
+            "kind": "bug", "component": "scrape", "title": "Jane Doe portal broke",
+            "body": "mail jane.doe@example.com at Acme Widgets ApS\n\n---\n_Filed automatically by x_\n"
+                    f"<!-- fp:{old_fp} -->\n",
+            "labels": ["agent-reported", "jane-doe"], "fingerprint": old_fp,
+            "repo": "IgnacioN99/ai-remote-dev-search"}) + "\n", encoding="utf-8")
+        runner = FakeRunner()
+        code, out = self.invoke(["--flush", "--json"], runner)
+        self.assertEqual(code, 0, out)
+        writes = runner.gh_writes()
+        self.assertEqual(len(writes), 1)
+        sent = " ".join(writes[0]["args"]) + (writes[0]["input"] or "")
+        for needle in ("Jane", "jane", "Acme", old_fp):
+            self.assertNotIn(needle, sent, sent)
+        self.assertIn("<!-- fp:", writes[0]["input"])
+
+    def test_flush_drops_entry_emptied_by_resanitizing(self):
+        self.pending.write_text(json.dumps({
+            "kind": "bug", "title": "ok title", "body": "Jane Doe jane.doe@example.com",
+            "labels": [], "fingerprint": "x", "repo": "IgnacioN99/ai-remote-dev-search"}) + "\n",
+            encoding="utf-8")
+        runner = FakeRunner()
+        code, out = self.invoke(["--flush", "--json"], runner)
+        self.assertEqual(code, 0)
+        self.assertEqual(runner.gh_writes(), [])
+        self.assertEqual(json.loads(out)["results"][0]["action"], "refused")
+
+    def test_non_ascii_titles_keep_letters(self):
+        self.assertEqual(report_issue.normalize_title("Búsqueda falló 3 veces"), "busqueda fallo # veces")
+        self.assertNotEqual(report_issue.fingerprint("bug", "c", "Búsqueda rota"),
+                            report_issue.fingerprint("bug", "c", "Descarga rota"))
+        self.assertEqual(report_issue.fingerprint("bug", "c", "Búsqueda rota"),
+                         report_issue.fingerprint("bug", "c", "busqueda rota"))
+
+    def test_ascii_fingerprint_unchanged(self):
+        import hashlib
+        expected = hashlib.sha1(b"bug|tools/doctor.py|doctor crashes when bun is missing ##").hexdigest()
+        self.assertEqual(report_issue.fingerprint("bug", "tools/doctor.py",
+                                                  "Doctor crashes when bun_is missing (#12)!"), expected)
+
+
+class BodyFileGuard(Base):
+    def test_body_file_under_private_dirs_is_refused(self):
+        for rel in ("cv/main_x.tex", "cover_letters/cover_x.tex", "documents/applications/a/notes.md",
+                    "Documents/memory/insights.jsonl"):
+            runner = FakeRunner()
+            code, out = self.invoke(["--kind", "bug", "--title", "t", "--body-file",
+                                     str(report_issue.ROOT_DIR / rel), "--dry-run", "--json"], runner)
+            self.assertEqual(code, 2, (rel, out))
+            self.assertIn("refusing --body-file", json.loads(out)["reason"])
+            self.assertEqual(runner.gh_calls(), [])
+
+    def test_traversal_into_private_dir_is_refused(self):
+        sneaky = report_issue.ROOT_DIR / "tools" / ".." / "cv" / "x.tex"
+        with self.assertRaises(report_issue.Refused):
+            report_issue.check_body_file_allowed(sneaky)
+
+    def test_body_file_elsewhere_is_allowed(self):
+        body = self.tmp / "body.md"
+        body.write_text("Traceback: boom", encoding="utf-8")
+        code, out = self.invoke(["--kind", "bug", "--title", "t", "--body-file", str(body),
+                                 "--dry-run", "--json"], FakeRunner())
+        self.assertEqual(code, 0, out)
+        self.assertIn("Traceback: boom", json.loads(out)["body"])
 
 
 class CheckConsistencyHook(unittest.TestCase):
