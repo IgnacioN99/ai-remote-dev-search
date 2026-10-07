@@ -6,6 +6,8 @@ You are helping the user register their own CV or cover letter template with the
 
 Follow these steps **in order**.
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /add-template` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Parse Arguments
@@ -180,6 +182,8 @@ Rules:
 
 ## Step 6: Confirm
 
+First run `python3 tools/sync_agent_skills.py` (while still in config mode, so the generated `.agents/skills/` copies pick up this command's edits), then `python3 tools/set_mode.py operator` - also when the command stops early or fails - so the framework is read-only again.
+
 Present a summary:
 
 > **Template `<name>` registered and activated.**
@@ -192,6 +196,12 @@ Present a summary:
 > - `/add-template --list` — see all registered templates
 > - `/add-template --use <other-name>` — switch templates
 > - `/add-template --use default` — go back to the stock <moderncv | cover.cls> template
+
+---
+
+## Final Step: Sync the Antigravity Skill Copies
+
+This command edits files under `.claude/`. `python3 tools/sync_agent_skills.py` must run before `python3 tools/set_mode.py operator` (the confirm step above does both, in that order) so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change while the framework is still writable, and the CI drift check stays green. Do this even if the user only runs Claude Code. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.
 
 ---
 

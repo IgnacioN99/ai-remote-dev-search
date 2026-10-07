@@ -8,11 +8,13 @@ The generator is **country-agnostic**: it works for any portal in any market and
 
 Follow these steps **in order**.
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /add-portal` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Parse Arguments
 
-- If `$ARGUMENTS` contains `--list`: use Glob with `.agents/skills/*/SKILL.md`, print a table of installed portal skills (name, market from the description, data source from `url-reference.md`), and stop.
+- If `$ARGUMENTS` contains `--list`: use Glob with `.agents/skills/*/cli/src/cli.ts` (directories without a `cli/` are generated workflow skills, not portals), print a table of installed portal skills (name, market from the description, data source from `url-reference.md`), and stop.
 - If `$ARGUMENTS` contains a URL: treat it as the portal URL and carry it into Step 1.
 - Otherwise: start the interview at Step 1.
 
@@ -86,7 +88,7 @@ These conventions are what make portal skills interchangeable for `/scrape` and 
 
 ### File specifics
 
-- **`SKILL.md` frontmatter:** `name`, `version: 1.0.0`, a `description` written for skill triggering - it must name the portal, the market, and include trigger phrases in English **and** the market's language; `context: fork`; `allowed-tools: Bash(bun run skills/<name>/cli/src/cli.ts *)`.
+- **`SKILL.md` frontmatter:** `name`, `version: 1.0.0`, a narrow `description` - name the portal, its domain and market, then state that it is used ONLY when invoked from the `/scrape` workflow or when the user explicitly names this portal (generic phrases like "find jobs" must route to `/scrape`, not to one portal); portal-name aliases in English **and** the market's language are fine, generic job-search trigger phrases are not; `context: fork`; `allowed-tools: Bash(bun run skills/<name>/cli/src/cli.ts *)`.
 - **`SKILL.md` body:** what the skill searches, the personal-use warning if Step 2 found terms restrictions, command reference with flags, 4-6 usage examples using the user's market (real cities, realistic roles), output-format table, and a Notes section recording portal quirks found in Step 2. If Step 2.5 found the portal needs a credential, add a **Setup** section naming the service, the exact environment variable to export, and the fact that every call is billed - stated where the user reads it before running the skill, not after.
 - **`url-reference.md`:** the endpoints, parameters table, and response-structure notes from Step 2 - this is the file a future maintainer needs when the portal changes its markup.
 - **`package.json`:** name `<portal>-cli`, `"type": "module"`, scripts `start`, `test` (`bun test --timeout 30000`), and `typecheck` (`tsc --noEmit`); dev-only dependencies in the zero-dependency default.
@@ -122,7 +124,7 @@ Do not proceed to Step 5 until search, detail, and tests all pass.
 ## Step 5: Register
 
 1. Ask whether the user wants the new portal added to their `/scrape` search strategy. If yes:
-   - The portal CLI itself is already picked up automatically by `/scrape` (it discovers `.agents/skills/*/SKILL.md`) — no further wiring is needed for CLI search/detail.
+   - The portal CLI itself is already picked up automatically by `/scrape` (it discovers every `.agents/skills/*/cli/src/cli.ts` portal) — no further wiring is needed for CLI search/detail.
    - Optionally add WebSearch/`site:` placeholder queries for that board in `.claude/skills/job-scraper/search-queries.md` (use the `[YOUR_JOB_BOARD]` style placeholders already there) so the fallback path still covers the board if the CLI is unavailable.
 2. Remind the user to add the install line for their own records if they maintain a fork README:
    ```bash
@@ -136,6 +138,8 @@ Do not proceed to Step 5 until search, detail, and tests all pass.
 
 ## Step 6: Confirm
 
+First run `python3 tools/sync_agent_skills.py` (while still in config mode, so the generated `.agents/skills/` copies pick up this command's edits), then `python3 tools/set_mode.py operator` - also when the command stops early or fails - so the framework is read-only again.
+
 Present a summary:
 
 > **Portal skill `<name>` generated and verified.**
@@ -147,6 +151,12 @@ Present a summary:
 > Try it: `bun run .agents/skills/<name>/cli/src/cli.ts search -q "<test query>" --format table`
 >
 > Per upstream policy, market-specific skills like this live in your fork rather than being PR'd upstream. If the portal changes its markup later, `url-reference.md` records the parsing anchors to update.
+
+---
+
+## Final Step: Sync the Antigravity Skill Copies
+
+This command edits files under `.claude/`. `python3 tools/sync_agent_skills.py` must run before `python3 tools/set_mode.py operator` (the confirm step above does both, in that order) so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change while the framework is still writable, and the CI drift check stays green. Do this even if the user only runs Claude Code. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.
 
 ---
 

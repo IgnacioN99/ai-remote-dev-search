@@ -1,7 +1,10 @@
 ---
 name: waas-search
 description: >-
-  Use this skill whenever the user wants to search jobs on Y Combinator Work at a Startup (workatastartup.com), find YC-backed startup jobs, look up startup job openings, or inspect a specific YC job listing. Invoke for engineering, AI, frontend, backend, fullstack, design, product, and startup roles across Y Combinator batches. Triggers on: work at a startup, workatastartup, waas, YC jobs, Y Combinator jobs, YC startups hiring, find startup jobs, search Y Combinator, look up YC job.
+  Searches and looks up YC startup job postings on Y Combinator's Work at a
+  Startup (workatastartup.com). Use ONLY when invoked from the /scrape workflow,
+  or when the user explicitly names Work at a Startup / YC jobs. For a general job
+  search ("find jobs", "search jobs") use the /scrape skill instead.
 ---
 
 # Work at a Startup (Y Combinator) Search Skill

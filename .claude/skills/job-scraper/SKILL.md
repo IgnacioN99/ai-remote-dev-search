@@ -5,7 +5,7 @@ description: >
   (LinkedIn, local job boards, and any skills added with /add-portal). Deduplicates
   across runs. Triggers on: job scrape, find jobs, search jobs, new jobs, job search,
   scrape jobs, /scrape
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run .agents/skills/*/cli/src/cli.ts *), Bash(python tools/job_key.py:*), Bash(python3 tools/job_key.py:*), WebFetch, WebSearch, Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run .agents/skills/*/cli/src/cli.ts *), Bash(python tools/job_key.py:*), Bash(python3 tools/job_key.py:*), Bash(python3 tools/report_issue.py:*), WebFetch, WebSearch, Agent, AskUserQuestion
 ---
 
 # Job Scraper
@@ -58,7 +58,7 @@ If this fails (bun not installed), skip to **1c (WebSearch fallback)** for all p
 
 #### 1b. Run CLI tools (primary — run these in parallel where possible)
 
-Discover all installed portal CLI skills by reading every `SKILL.md` found under `.agents/skills/*/SKILL.md`. Each file documents that portal's exact CLI flags and usage examples. **Use each portal's own documented interface — do not guess flags.** This approach automatically includes any new portals added via `/add-portal` without requiring changes to this file.
+Discover all installed portal CLI skills: every directory matching `.agents/skills/*/cli/src/cli.ts` is a portal, and its `SKILL.md` (two levels up from `cli/src/`) is the one to read. Skill directories without a `cli/` folder (e.g. `apply`, `rank`, `scrape` - generated copies of the workflow commands for Antigravity) are not portals; skip them. Each file documents that portal's exact CLI flags and usage examples. **Use each portal's own documented interface — do not guess flags.** This approach automatically includes any new portals added via `/add-portal` without requiring changes to this file.
 
 **Honor the `enabled` toggle.** A portal is enabled unless its `SKILL.md` frontmatter sets `enabled: false` (a missing key means enabled — the default). Skip each disabled portal and record it for the Step 5 summary. A fork can thus keep a portal installed but sit out a run without deleting its directory.
 
@@ -72,7 +72,7 @@ For each **enabled** portal skill:
 
 Run all portal CLI calls in parallel where possible using the Agent tool. Collect all `results` arrays into a single pool for Step 2, keeping each result tagged with its source portal skill (for Step 2 `detail` lookups).
 
-If a CLI tool exits with a non-zero code, log the error message and continue — do not abort the whole search.
+If a CLI tool exits with a non-zero code, log the error message and continue — do not abort the whole search. If the failure is the CLI itself (crash, parse error - not a 429/block page or network outage), file it and move on: `python3 tools/report_issue.py --kind bug --component <portal-name> --title "<portal-name> CLI fails: <short error>" --body "<command, exit code, error excerpt>"`.
 
 #### 1c. WebSearch fallback
 
@@ -219,6 +219,8 @@ Scraper-based portal CLIs rot silently: when a portal changes its markup, the pa
 
 **Verdicts.** Healthy portals get silence - no table, no line. Anything else surfaces in the Step 5 summary as a health line.
 
+**Report.** For each **broken** or **degraded** verdict only (never inconclusive/rate-limited), file it - do not edit the portal skill: `python3 tools/report_issue.py --kind portal-health --component <portal-name> --title "<portal-name> <broken|degraded>: <criterion>" --body "<evidence from this step, no job data beyond counts>"`.
+
 **Probe-only mode (`/scrape health`).** Skip Steps 1-4 and this step's free pass (there is no fresh run to scan); instead probe every installed portal directly - enabled ones by default, a disabled one only when named explicitly (e.g. `/scrape health jobnet`). Each portal gets the sentinel probe above, the degraded criteria applied to whatever it returns, and - since the user explicitly asked for diagnosis - one `detail` fetch on the first result of each healthy portal (description must be readable decoded text; a failure downgrades to degraded). Report all statuses in this mode, including healthy. Volume stays bounded: one search, at most one retry, at most one detail per portal.
 
 ### Step 5: Present Results
@@ -278,6 +280,8 @@ If the run found many new jobs (roughly 8+), also suggest `/rank` - it batch-sco
 ### Step 6: Update Tracker (Optional)
 
 If the user decides to apply to any job, the tracker row is written by **job-application-assistant Step 3b**, which Step 5 already routes into - do not add a second row here. Only when the user says they applied to something outside that path, add a row using the header and the match-then-update rule in `/outcome` Step 1.
+
+Final step: run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
 
 ---
 

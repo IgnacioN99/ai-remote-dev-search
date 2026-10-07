@@ -48,7 +48,8 @@ class GuardRepoFixture(unittest.TestCase):
         self.write_manifest({"name": "example-cli", "scripts": {"start": "bun run src/cli.ts"}})
 
     def write_settings(self, allow):
-        self.settings.write_text(json.dumps({"permissions": {"allow": list(allow)}}))
+        self.settings.write_text(json.dumps({"permissions": {
+            "allow": list(allow), "deny": sorted(security_guards.REQUIRED_DENY_PERMISSIONS)}}))
 
     def write_gitignore(self, rules):
         self.gitignore.write_text("\n".join(rules) + "\n")
@@ -86,6 +87,19 @@ class PermissionGuardTests(GuardRepoFixture):
         result = run_guards(self.root)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_missing_local_settings_deny_rule_fails(self):
+        self.settings.write_text(json.dumps({"permissions": {
+            "allow": sorted(security_guards.ALLOWED_PERMISSIONS)}}))
+        result = run_guards(self.root)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("required deny rule missing", result.stdout)
+        self.assertIn("Edit(/.claude/settings.local.json)", result.stdout)
+
+    def test_local_settings_deny_rule_uses_edit_not_write(self):
+        # Claude Code ignores path-scoped Write(...) rules (warns at startup); Edit covers writes.
+        self.assertIn("Edit(/.claude/settings.local.json)", security_guards.REQUIRED_DENY_PERMISSIONS)
+        self.assertFalse(any(e.startswith("Write(") for e in security_guards.REQUIRED_DENY_PERMISSIONS))
+
     def test_invalid_settings_json_fails(self):
         self.settings.write_text("{not json")
         result = run_guards(self.root)
@@ -119,7 +133,8 @@ class HookGuardTests(GuardRepoFixture):
         self.settings.write_text(
             json.dumps(
                 {
-                    "permissions": {"allow": sorted(security_guards.ALLOWED_PERMISSIONS)},
+                    "permissions": {"allow": sorted(security_guards.ALLOWED_PERMISSIONS),
+                                    "deny": sorted(security_guards.REQUIRED_DENY_PERMISSIONS)},
                     "hooks": hooks,
                 }
             )
@@ -210,11 +225,11 @@ class HookGuardTests(GuardRepoFixture):
     def test_allowlisted_hook_passes(self):
         command = "SessionStart:echo reviewed"
         guard = self.root / "tools" / "security_guards.py"
+        anchor = "ALLOWED_HOOKS: set[str] = {"
+        source = guard.read_text(encoding="utf-8")
+        self.assertIn(anchor, source)
         guard.write_text(
-            guard.read_text(encoding="utf-8").replace(
-                "ALLOWED_HOOKS: set[str] = set()",
-                f"ALLOWED_HOOKS: set[str] = {{{command!r}}}",
-            ),
+            source.replace(anchor, f"{anchor}\n    {command!r},", 1),
             encoding="utf-8",
         )
         self.write_settings_with_hooks(

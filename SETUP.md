@@ -329,6 +329,27 @@ Upstream keeps improving the methodology files your fork has personalized, so pl
      Forks also inherit a `.github/workflows/upstream-watch.yml` that runs this weekly and writes the result into a single rolling issue (it no-ops on the upstream template itself, and stays disabled on a fork until you enable Actions).
 3. **Merge normally.** `git merge upstream/master` (or `git pull`) three-way-merges upstream's edits around your personalization; because methodology edits rarely touch the lines `/setup` filled in, most updates land cleanly. A conflict in a personalized file is a *feature*, not a failure — it means upstream changed methodology in a section you customized, and the version marker plus its changelog commit tell you why. Resolve by keeping your data and adopting the methodology change around it.
 
+## 9. Optional: Using Google Antigravity
+
+Claude Code reads `.claude/` directly. Google Antigravity does not: it only exposes as `/name` the skills in `.agents/skills/<name>/SKILL.md`, and it reads `AGENTS.md` plus `.agents/rules/*.md` as always-on rules. The repo ships both:
+
+- `.agents/skills/<command>/SKILL.md` - a generated **full copy** of every `.claude/commands/*.md` command and of the `scrape`, `upskill` and `job-application-assistant` skills, with tool names translated (`WebFetch` -> `read_url_content`, `WebSearch` -> `search_web`, subagents -> `invoke_subagent` or inline).
+- `AGENTS.md` - the command -> skill table and the rule "when the user types `/X`, load skill X and follow it step by step".
+- `.agents/rules/core.md` - the non-negotiable rules (2-page CV, 1-page cover letter, no hallucination, ATS file naming).
+
+**Keep the copies in sync.** `.claude/` is the source of truth. After editing anything under `.claude/commands/` or `.claude/skills/`, and after `/setup`, `/reset`, `/add-template` or `/add-portal` (those commands run it as their last step), run:
+
+```bash
+python3 tools/sync_agent_skills.py          # regenerate .agents/skills copies
+python3 tools/sync_agent_skills.py --check  # exit 1 if anything drifted (CI runs this via tools/lint_skills.py)
+```
+
+Never edit the generated `SKILL.md` copies by hand - the next sync overwrites them. Profile and data files (`.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `search-queries.md`) are not copied: the generated skills read and write them at their `.claude/` paths.
+
+**WSL notes.** Antigravity's global configuration lives in `~/.gemini/config/` (inside the WSL home when the agent runs in WSL, not the Windows profile). Workspace MCP servers for Antigravity go in `.agents/mcp_config.json` (generated from `.mcp.json`; see the MCP section of the README). Open the repo from the WSL filesystem path so `python3`, `bun` and `lualatex` resolve to the Linux toolchain.
+
+**Quick check.** Open the repo in Antigravity, type `/` and confirm `/apply`, `/rank`, `/setup`, `/scrape` appear in the slash menu; run `/rank` and confirm the agent says it is following `.agents/skills/rank/SKILL.md` rather than starting a generic flow.
+
 ## Troubleshooting
 
 ### "salary_data.json not found"
@@ -351,3 +372,40 @@ Shared Claude Code permissions now live in `.claude/settings.json` (scoped to `b
 ```bash
 rm .claude/settings.local.json
 ```
+
+## Issue reporting
+
+During operator runs (`/scrape`, `/rank`, `/apply`, ...) the agent never patches the framework. When it hits a tool failure, a broken/degraded portal, doc drift or an improvement idea, it files a sanitized issue on **your fork** with `python3 tools/report_issue.py` (rules: `.agents/rules/issue-reporting.md`). The tool resolves the target from `origin` (override with `JOBSEARCH_ISSUES_REPO=owner/repo`), hard-refuses the upstream template, strips personal data, comments on a matching open issue instead of duplicating, and queues to `documents/memory/pending_issues.jsonl` (gitignored) when `gh` is offline (`--flush` replays). Your fork is public, so the sanitizer matters: still glance at what gets filed.
+
+One-time setup (replace `<you>/<fork>`):
+
+```bash
+gh repo edit <you>/<fork> --enable-issues
+gh repo set-default <you>/<fork>   # gh otherwise resolves to upstream
+for l in agent-reported framework operator-mode portal-health; do gh label create "$l" -R <you>/<fork> --force; done
+python3 tools/report_issue.py --kind bug --title "test" --body "x" --dry-run   # check the target
+```
+
+Claude Code is pre-approved via `.claude/settings.json`. In **Antigravity**, add the allow-list entry `command(python3 tools/report_issue.py)` in Settings (it can only be set in the UI); keep raw `gh issue` behind approval.
+
+## Operator mode: keeping the framework read-only
+
+Day-to-day commands (`/scrape`, `/rank`, `/apply`, `/interview`, `/outcome`, ...) run in **operator mode**: they must not change framework files in your main checkout. Problems they find are filed as issues on your fork (`tools/report_issue.py`), and fixes happen later in a linked git worktree. Three layers enforce this:
+
+1. **Edit-time hook** (on by default): `.claude/hooks/guard_framework.py`, registered in `.claude/settings.json` for Claude Code and in `.agents/hooks.json` for Antigravity. It denies edits to tracked files (and new files under `tools/`, `.claude/`, `.agents/`, `tests/`, `.github/`, `.githooks/`, `templates/`) in the main checkout. Gitignored outputs and linked worktrees are never blocked. In every checkout it also denies writes inside a git directory (`.git/config`, `.git/hooks/*`) and to `.claude/settings.local.json` (your personal permissions; `.claude/settings.json` adds the deny rule `Edit(/.claude/settings.local.json)` too). Claude Code's own "Yes, and don't ask again" still saves rules there, because Claude Code writes that file itself rather than through the Edit tool; edit it yourself or use `/permissions`. The hook needs git 2.31 or later. With an older git, or when git fails, it prints a warning to stderr and allows the edit.
+   - **Shell writes are not hooked.** The hook sees only the file-edit tools (Edit/Write/MultiEdit/NotebookEdit, and Antigravity's write/replace tools). A `python`, `sed` or `>` redirect run through the shell bypasses it. The drift check below is the backstop.
+   - **Antigravity prompts.** For every write it does not deny, the Antigravity hook answers `"ask"` so that Antigravity's own review flow decides. Depending on your review policy, that can mean a prompt for each file write. If that gets annoying, pick **Always Allow** on the prompt (Antigravity caches that choice), or relax the file-edit review policy in Antigravity's agent settings. Denied framework writes stay denied either way.
+2. **Drift check**: `python3 tools/check_framework_immutable.py [--report]`, run as the last step of `/scrape`, `/rank`, `/apply`, `/interview` and `/outcome`. It catches shell writes the hook cannot see. Personalization paths (`tools/personalization_paths.json`, such as `CLAUDE.md` and profile skill files left uncommitted by `/setup`) are never reported as drift, whatever the mode.
+3. **Pre-commit hook** (opt-in, once per clone):
+
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+
+   It rejects commits of framework files from the main checkout. Commit framework work from a worktree, or override deliberately (for example when merging reviewed branches into `master`) with `ALLOW_FRAMEWORK_COMMIT=1 git commit ...`. A clean `git merge upstream/master` (section 8) creates its merge commit without running pre-commit. A **conflicted** merge does not: after you resolve the conflicts, the concluding `git commit` runs the hook and is rejected, so finish it with `ALLOW_FRAMEWORK_COMMIT=1 git commit` (or `ALLOW_FRAMEWORK_COMMIT=1 git merge --continue`).
+
+**Personalization** that commands write by design is listed in `tools/personalization_paths.json`. `/setup`, `/reset`, `/expand`, `/add-portal` and `/add-template` switch to config mode with `python3 tools/set_mode.py config` and back with `python3 tools/set_mode.py operator`; `python3 tools/set_mode.py show` prints the current mode. The mode lives in the gitignored `.agents/state/mode` and expires after 4 hours.
+
+**Working on the framework**: in Claude Code, ask for the `framework-dev` agent with an issue number (it runs in its own worktree under `.claude/worktrees/`; `.worktreeinclude` is intentionally empty, so no personal files are copied in and the tests run without them), or start `claude -w issue-<n>`. In Antigravity: `git worktree add ../ai-job-search-issue-<n> -b fix/issue-<n>` and open that folder.
+
+**Optional OS sandbox**: Claude Code's sandbox can additionally deny shell writes to framework paths, but on Linux/WSL it needs bubblewrap (`sudo apt install bubblewrap socat`). It is not enabled in the shipped settings.

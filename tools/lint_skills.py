@@ -10,12 +10,15 @@ Checks:
   that exist (skill paths resolve relative to the repo root and to .agents/)
 - Every .claude/commands/*.md starts with a `# /<name>` title
 - .claude/settings.json is valid JSON with a permissions.allow list
+- The generated Antigravity skills under .agents/skills/ match their .claude/
+  sources (tools/sync_agent_skills.py --check), so drift fails CI
 
 Exit code 0 on success, 1 with a failure list otherwise.
 """
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -95,6 +98,23 @@ def check_settings() -> None:
         errors.append(".claude/settings.json: expected permissions.allow to be a list")
 
 
+def check_agent_skills_sync() -> None:
+    """The generated .agents/skills copies must match their .claude/ sources."""
+    script = ROOT / "tools" / "sync_agent_skills.py"
+    if not script.is_file():
+        return
+    result = subprocess.run(
+        [sys.executable, str(script), "--check"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if result.returncode != 0:
+        detail = (result.stdout + result.stderr).strip().splitlines()
+        errors.append("generated Antigravity skills drifted from .claude/ sources:")
+        errors.extend(f"  {line.strip()}" for line in detail)
+
+
 def main() -> int:
     skills = sorted(ROOT.glob(".claude/skills/*/SKILL.md")) + sorted(ROOT.glob(".agents/skills/*/SKILL.md"))
     commands = sorted((ROOT / ".claude" / "commands").glob("*.md"))
@@ -108,6 +128,7 @@ def main() -> int:
     for command in commands:
         check_command(command)
     check_settings()
+    check_agent_skills_sync()
 
     if errors:
         print(f"lint_skills: {len(errors)} failure(s)")

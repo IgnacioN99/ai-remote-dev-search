@@ -1,16 +1,11 @@
 ---
 name: entra-search
-version: 1.0.0
-description: >
-  Use this skill to search live AI / software / data / engineering job listings
-  across many countries (and remote) on ENTRA (entracareers.com) via its public
-  JSON API, or to look up one ENTRA posting. ENTRA ingests every posting straight
-  from the employer's own applicant-tracking system (Greenhouse, Lever, Ashby, …),
-  so results are structured, current, and carry the employer's own apply link.
-  Trigger phrases: find AI jobs, machine learning engineer jobs, AI engineer roles,
-  tech jobs at OpenAI/SpaceX/Stripe, remote developer jobs, who is hiring for
-  <role>, "are there any <role> jobs in <place>", look up this ENTRA job posting,
-  entracareers.
+version: 1.1.0
+description: >-
+  Searches and looks up AI / software / data job postings on ENTRA
+  (entracareers.com) via its public JSON API. Use ONLY when invoked from the
+  /scrape workflow, or when the user explicitly names ENTRA / entracareers. For a
+  general job search ("find jobs", "search jobs") use the /scrape skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/entra-search/cli/src/cli.ts *)

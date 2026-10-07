@@ -4,7 +4,7 @@
 
 ## Installed portal CLIs (primary for `/scrape`)
 
-`/scrape` discovers every portal skill under `.agents/skills/*/SKILL.md` and runs its CLI first. Active tech & remote CLIs include `linkedin-search`, `silverdev-search`, `getonbrd-search`, `remotive-search`, `remoteok-search`, `weworkremotely-search`, `freehire-search`, and `company-careers-search`.
+`/scrape` discovers every portal as a `.agents/skills/*/cli/src/cli.ts` entry point (reading the `SKILL.md` beside it) and runs its CLI first. Active tech & remote CLIs include `linkedin-search`, `silverdev-search`, `getonbrd-search`, `remotive-search`, `remoteok-search`, `weworkremotely-search`, `freehire-search`, and `company-careers-search`.
 
 ### Key Company Slugs for `company-careers-search`:
 - **Stripe** (`--company stripe`): Global financial infrastructure, world's leading Ruby shop (Sorbet, high-scale APIs).

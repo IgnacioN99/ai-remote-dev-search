@@ -4,6 +4,8 @@ You are running the onboarding setup for the AI Job Search framework. Your goal 
 
 There are three paths into setup. Step 0 picks the right one; all three converge on Step 3 (file generation) and Step 4 (confirmation).
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /setup` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Welcome & Choose Path
@@ -399,6 +401,8 @@ Replace all placeholder tokens in the search queries file with the user's actual
 
 ## Step 4: Confirm & Next Steps
 
+First run `python3 tools/sync_agent_skills.py` (while still in config mode, so the generated `.agents/skills/` copies pick up this command's edits), then `python3 tools/set_mode.py operator` - also when the command stops early or fails - so the framework is read-only again.
+
 Present a summary:
 
 > **Setup complete!** Here's what was generated:
@@ -426,6 +430,12 @@ Present a summary:
 If Path A left any STAR stubs in `07-interview-prep.md`, also note:
 
 > Path A flagged [N] STAR candidate stubs in `07-interview-prep.md` that need your situation/task/action/result details before you use them in interviews.
+
+---
+
+## Final Step: Sync the Antigravity Skill Copies
+
+This command edits files under `.claude/`. `python3 tools/sync_agent_skills.py` must run before `python3 tools/set_mode.py operator` (the confirm step above does both, in that order) so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change while the framework is still writable, and the CI drift check stays green. Do this even if the user only runs Claude Code. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.
 
 ---
 

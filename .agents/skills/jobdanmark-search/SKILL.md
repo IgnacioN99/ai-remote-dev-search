@@ -1,21 +1,11 @@
 ---
 name: jobdanmark-search
-version: 1.0.0
-description: >
-  Make sure to use this skill whenever the user mentions anything related to Danish
-  job listings, job search in Denmark, finding work in Denmark, or job vacancies on
-  Jobdanmark — even if they don't explicitly mention jobdanmark.dk. Also invoke this
-  skill for questions about specific Danish job categories, municipalities, job types,
-  or salaries in a job-search context. Trigger phrases include:
-  danish jobs, jobs in denmark, find job denmark, job search denmark, danish job listings,
-  jobdanmark, job opslag, find job, jobsøgning, ledige stillinger, stillingsopslag,
-  job i Danmark, fuldtidsjob, deltidsjob, studiejob, praktikplads, elev, fleksjob,
-  IT job denmark, sygeplejersker job, håndværker job, ingeniør job, pædagog job,
-  kontor job, leder job, salg job, hotel job, kirke job, job aarhus, job københavn,
-  job odense, job aalborg, job sjælland, job jylland, job fyn, jobkategorier denmark,
-  ledige job, ansøgningsfrist, søg job, job opslaget, jobopslag, danish vacancies,
-  work in denmark, employment denmark, job denmark, jobs near me denmark,
-  apprentice denmark, internship denmark, part-time denmark, full-time denmark.
+version: 1.1.0
+description: >-
+  Searches and looks up Danish job postings on Jobdanmark (jobdanmark.dk). Use
+  ONLY when invoked from the /scrape workflow, or when the user explicitly names
+  Jobdanmark / jobdanmark.dk. For a general job search ("find jobs", "search
+  jobs") use the /scrape skill instead.
 context: fork
 enabled: false  # Danish demo portal - ships opt-in; /setup enables it when your market is Denmark, or set true here yourself
 allowed-tools: Bash(bun run .agents/skills/jobdanmark-search/cli/src/cli.ts *)

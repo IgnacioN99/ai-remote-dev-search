@@ -4,6 +4,8 @@ You are resetting parts of the job search framework back to a blank state so the
 
 **This command is destructive.** Nothing is deleted until the user explicitly confirms. Follow these steps exactly in order.
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /reset` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Parse Scope from Arguments
@@ -262,6 +264,8 @@ rm -rf documents/applications/*/
 
 ## Step 4: Confirm What Was Done and Next Steps
 
+First run `python3 tools/sync_agent_skills.py` (while still in config mode, so the generated `.agents/skills/` copies pick up this command's edits), then `python3 tools/set_mode.py operator` - also when the command stops early or fails - so the framework is read-only again.
+
 After the reset is complete, report:
 
 ```
@@ -286,3 +290,9 @@ Then tell the user what to do next based on what was reset:
 
 **If both were reset:**
 > Both your profile files and documents folder are now empty. Add documents to `documents/` (or skip and use the CV import / interview path), then run `/setup`.
+
+---
+
+## Final Step: Sync the Antigravity Skill Copies
+
+This command edits files under `.claude/`. `python3 tools/sync_agent_skills.py` must run before `python3 tools/set_mode.py operator` (the confirm step above does both, in that order) so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change while the framework is still writable, and the CI drift check stays green. Do this even if the user only runs Claude Code. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.

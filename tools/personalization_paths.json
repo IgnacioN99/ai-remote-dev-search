@@ -1,0 +1,109 @@
+{
+  "_doc": [
+    "Tracked files that commands legitimately write in the MAIN checkout (personalization, not framework development).",
+    "Read by .claude/hooks/guard_framework.py and tools/check_framework_immutable.py (via tools/framework_paths.py).",
+    "mode 'config': allowed only while .agents/state/mode says config (python3 tools/set_mode.py config). The config",
+    "commands (/setup, /reset, /expand, /add-portal, /add-template) switch it on at their start and back to operator at the end.",
+    "mode 'always': operator flows write it by design, so it is allowed in any mode.",
+    "Drift check (check_framework_immutable.py), any mode: 'drift_exempt' true = never drift (profile/config docs);",
+    "'lines' = exempt only if every changed line vs HEAD matches 'lines'; 'new_dir' = exempt only untracked files inside a",
+    "brand-new <dir_depth>-segment directory with no tracked files (a portal/template just created by /add-portal|/add-template).",
+    "'lines' (optional regex): the 'always' grant only covers edits whose changed lines ALL match it; any other change",
+    "falls back to the remaining rules (normally config-only). Globs: '*' stays inside one path segment, '**' crosses them.",
+    "Every other tracked file, and every new non-ignored file under a framework dir, is denied in the main checkout:",
+    "file an issue with tools/report_issue.py or work in a linked git worktree."
+  ],
+  "paths": [
+    {
+      "glob": ".claude/skills/job-application-assistant/01-candidate-profile.md",
+      "mode": "always",
+      "used_by": [
+        "/apply standing rule (apply.md:7)",
+        "/interview exception (interview.md:111)",
+        "/setup",
+        "/reset",
+        "/expand"
+      ],
+      "why": "Facts confirmed during /apply or /interview must reach the profile in the same turn or the grounding audit strips them later.",
+      "drift_exempt": true
+    },
+    {
+      "glob": ".claude/skills/job-application-assistant/07-interview-prep.md",
+      "mode": "always",
+      "used_by": [
+        "/interview appends user-approved STAR examples (interview.md:109)",
+        "/setup",
+        "/reset"
+      ],
+      "why": "/interview is an operator flow and appends STAR examples on explicit user request.",
+      "drift_exempt": true
+    },
+    {
+      "glob": ".agents/skills/*/SKILL.md",
+      "mode": "always",
+      "lines": "^\\s*enabled:\\s*(true|false)\\s*(#.*)?$",
+      "used_by": [
+        "/scrape offers to set a broken portal's enabled: false (job-scraper/SKILL.md:235)",
+        "/setup portal toggles"
+      ],
+      "why": "Only the enabled: toggle line; any other change to a portal skill is framework work.",
+      "drift_exempt": "lines"
+    },
+    {
+      "glob": ".claude/skills/job-application-assistant/0[1-7]-*.md",
+      "mode": "config",
+      "used_by": [
+        "/setup (Step 3 and Path A)",
+        "/reset profile scope",
+        "/expand Step 5 (01, 02)",
+        "/add-template ACTIVE-TEMPLATE block (05, 06)"
+      ],
+      "drift_exempt": true
+    },
+    {
+      "glob": "CLAUDE.md",
+      "mode": "config",
+      "used_by": [
+        "/setup Step 3.1 and CV language (setup.md:342,357)"
+      ],
+      "drift_exempt": true
+    },
+    {
+      "glob": "cv/main_example.tex",
+      "mode": "config",
+      "used_by": [
+        "/setup Step 3.8"
+      ],
+      "drift_exempt": true
+    },
+    {
+      "glob": ".claude/skills/job-scraper/search-queries.md",
+      "mode": "config",
+      "used_by": [
+        "/setup Step 3.9",
+        "/reset profile scope",
+        "/add-portal Step 5 (optional placeholder queries)"
+      ],
+      "drift_exempt": true
+    },
+    {
+      "glob": ".agents/skills/**",
+      "mode": "config",
+      "used_by": [
+        "/add-portal Step 3 creates .agents/skills/<name>/",
+        "/setup portal enabled: flags (setup.md:341)"
+      ],
+      "drift_exempt": "new_dir",
+      "dir_depth": 3
+    },
+    {
+      "glob": "templates/**",
+      "mode": "config",
+      "used_by": [
+        "/add-template Step 3 stores templates/<type>/<name>/"
+      ],
+      "drift_exempt": "new_dir",
+      "dir_depth": 3
+    }
+  ]
+}
