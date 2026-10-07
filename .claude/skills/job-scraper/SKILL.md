@@ -1,21 +1,23 @@
 ---
 name: scrape
-description: >
-  Finds new job postings matching your profile via installed portal-search CLIs
-  (LinkedIn, local job boards, and any skills added with /add-portal). Deduplicates
-  across runs. Triggers on: job scrape, find jobs, search jobs, new jobs, job search,
-  scrape jobs, /scrape
+description: >-
+  Finds new job postings matching the candidate profile across every installed portal-search
+  CLI (LinkedIn, local job boards, portals added with /add-portal) and deduplicates them across
+  runs. Use when the user asks to find, search or scrape new jobs in general, without naming a
+  single portal. Also triggered by /scrape.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run .agents/skills/*/cli/src/cli.ts *), Bash(python tools/job_key.py:*), Bash(python3 tools/job_key.py:*), Bash(python3 tools/report_issue.py:*), WebFetch, WebSearch, Agent, AskUserQuestion
 ---
 
 # Job Scraper
+
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
 ## How It Works
 
 This skill searches job portals using the **installed portal-search CLIs** in
-`.agents/skills/` (plus WebSearch as a fallback), using queries from your profile.
+`.agents/skills/` (plus web search as a fallback), using queries from your profile.
 It deduplicates against previously seen jobs and the application tracker, and
 presents new matches with a quick fit assessment.
 
@@ -46,7 +48,7 @@ Optional arguments:
 
 Read `search-queries.md` (this directory) for the search strategy. By default, run the top 3 priority query categories. If the user said "broad", run all categories. If the user specified a focus area (e.g. "data science"), prioritize queries from that category.
 
-**Use the installed CLI tools as the primary search mechanism.** Fall back to `WebSearch` only for portals that do not have a CLI skill, or if `bun` is unavailable on the system.
+Use the installed CLI tools as the primary search mechanism. Fall back to web search only for portals that do not have a CLI skill, or if `bun` is unavailable on the system.
 
 #### 1a. Check bun availability
 
@@ -58,7 +60,7 @@ If this fails (bun not installed), skip to **1c (WebSearch fallback)** for all p
 
 #### 1b. Run CLI tools (primary — run these in parallel where possible)
 
-Discover all installed portal CLI skills: every directory matching `.agents/skills/*/cli/src/cli.ts` is a portal, and its `SKILL.md` (two levels up from `cli/src/`) is the one to read. Skill directories without a `cli/` folder (e.g. `apply`, `rank`, `scrape` - generated copies of the workflow commands for Antigravity) are not portals; skip them. Each file documents that portal's exact CLI flags and usage examples. **Use each portal's own documented interface — do not guess flags.** This approach automatically includes any new portals added via `/add-portal` without requiring changes to this file.
+Discover all installed portal CLI skills: every directory matching `.agents/skills/*/cli/src/cli.ts` is a portal, and its `SKILL.md` (two levels up from `cli/src/`) is the one to read. Skill directories without a `cli/` folder (e.g. `apply`, `rank`, `scrape` - generated copies of the workflow commands for Antigravity) are not portals; skip them. Each file documents that portal's exact CLI flags and usage examples; use exactly those flags (the CLIs reject unknown ones). This approach automatically includes any new portals added via `/add-portal` without requiring changes to this file.
 
 **Honor the `enabled` toggle.** A portal is enabled unless its `SKILL.md` frontmatter sets `enabled: false` (a missing key means enabled — the default). Skip each disabled portal and record it for the Step 5 summary. A fork can thus keep a portal installed but sit out a run without deleting its directory.
 
@@ -70,18 +72,18 @@ For each **enabled** portal skill:
 4. Cap results to ~20 per call using the portal's limit flag.
 5. Use `--format json` for machine-readable output.
 
-Run all portal CLI calls in parallel where possible using the Agent tool. Collect all `results` arrays into a single pool for Step 2, keeping each result tagged with its source portal skill (for Step 2 `detail` lookups).
+Run all portal CLI calls in parallel where possible (parallel subagents, or sequential calls when subagents are unavailable). Collect all `results` arrays into a single pool for Step 2, keeping each result tagged with its source portal skill (for Step 2 `detail` lookups).
 
 If a CLI tool exits with a non-zero code, log the error message and continue — do not abort the whole search. If the failure is the CLI itself (crash, parse error - not a 429/block page or network outage), file it and move on: `python3 tools/report_issue.py --kind bug --component <portal-name> --title "<portal-name> CLI fails: <short error>" --body "<command, exit code, error excerpt>"`.
 
 #### 1c. WebSearch fallback
 
-Use `WebSearch` for:
+Use web search for:
 - Portals listed in `search-queries.md` that do **not** have a corresponding directory under `.agents/skills/`
 - Any portal whose CLI fails at runtime
 - When bun is unavailable (Step 1a failed)
 
-Use the site-specific query strings from `search-queries.md` directly as WebSearch queries for these portals.
+Use the site-specific query strings from `search-queries.md` directly as web search queries for these portals.
 
 Tag each fallback result as WebSearch-sourced, keeping the portal tag when the fallback stands in for an installed portal whose CLI failed. Step 4 persists this as the entry's `source`, and Step 5 reports which portals ran on the fallback this run.
 
@@ -96,23 +98,23 @@ command (see its SKILL.md — do not guess flags) to extract **key requirements*
 
 **Closed-at-source detection:** `linkedin-search detail` also returns `isActive`.
 `false` means the posting page itself renders LinkedIn's "No longer accepting
-applications" banner — the job died between being indexed and being fetched (expired
-LinkedIn URLs redirect to *similar live jobs*, so a search hit can be a ghost). Mark
-such a job, never silently drop it: write its entry to `seen_jobs.json` in Step 4 with
-`"status": "expired"` and leave it out of the Step 5 presentation — an absent entry
-looks identical to a job never seen, and the recorded status is what makes a later
-ghost report self-triaging. `isActive: true` is only the absence of that banner, not
+applications" banner — the job died between being indexed and being fetched. This
+matters because an expired LinkedIn URL redirects to *similar live jobs*, so a search hit
+can be a ghost that only `isActive` exposes. Record
+such a job instead of dropping it: write its entry to `seen_jobs.json` in Step 4 with
+`"status": "expired"` and leave it out of the Step 5 presentation, so it is not
+re-fetched as new on the next run. `isActive: true` is only the absence of that banner, not
 proof the posting is open; deadlines and dead URLs remain `/rank`'s job.
 
-**From WebSearch results:** Use `WebFetch` on the posting URL and extract the same
-fields manually. If it returns HTTP 403, retry with browser headers via curl per
+**From web search results:** fetch the posting URL and extract the same fields
+manually. If the fetch returns HTTP 403, retry with browser headers via curl per
 `.claude/skills/job-application-assistant/09-web-research.md` before giving up — most
-bank and corporate sites reject WebFetch's user agent while serving browsers normally.
+bank and corporate sites reject the fetch tool's user agent while serving browsers normally.
 
 **Store a URL that actually resolves to the posting.** A listing-page URL with a
 `#fragment` appended (`.../jobs/ciso/#ikerian`) is not a posting: it fetches fine and
 returns unrelated job titles, which makes every later `/rank` and `/apply` run fail on
-that entry. When WebSearch only yields a listing page, search the employer's own careers
+that entry. When web search only yields a listing page, search the employer's own careers
 site for the role and store that URL instead, or drop the candidate rather than saving a
 fragment link.
 
@@ -125,13 +127,13 @@ For every candidate:
 
 ### Step 2.5: Mass-Posting Detection (within this run)
 
-A distribution pattern worth flagging to the user as a caution signal, not as an accusation against the employer - it describes how a listing is being distributed, not a verdict on whether the company is legitimate. It alone proves nothing is wrong (companies do legitimately hire the same role across several cities); flag it so the user can factor it in when deciding whether to invest time, don't downgrade fit or silently exclude the result because of it.
+Flag this distribution pattern to the user as a caution signal, not an accusation against the employer. Keep the fit level unchanged and keep the result in the table; the flag only helps the user decide whether to invest time.
 
 If two or more results in this run's pool (from the same company, or sharing the same req/job ID visible in the URL or title) have substantially the same description and differ only in city/location/title, don't present them as separate rows. Consolidate into a single row and note the spread, e.g. "posted identically across 6 cities (BR, MX, GT)".
 
 ### Step 3: Quick Fit Assessment
 
-For each new job, do a rapid fit check (NOT the full evaluation from `04-job-evaluation.md` - just a quick signal):
+For each new job, do a rapid fit check (a quick signal, not the full evaluation from `04-job-evaluation.md`):
 
 - **High match**: Role directly involves your core skills
 - **Medium match**: Role is adjacent to your experience
@@ -147,7 +149,7 @@ For each new job, do a rapid fit check (NOT the full evaluation from `04-job-eva
 python3 tools/job_key.py --company "<company>" --title "<title>" --url "<url>"
 ```
 
-It prints one line: the canonical key for that posting. The key must be a pure function of the posting, because two runs that slugify differently store the same job twice and defeat the dedup this step exists to provide. The helper also length-caps long titles and disambiguates the cap with a hash of the full slug, so a truncated title is stable across runs and two different long titles never collide. `python3 tools/job_key.py --audit` reports entries in an existing state file that predate this rule; it only reports, and never rewrites keys, since a rewritten key breaks the tracker's own company+role matching.
+It prints one line: the canonical key for that posting. The key is a pure function of the posting, so two runs never store the same job twice. `python3 tools/job_key.py --audit` reports entries in an existing state file that predate this rule; it only reports and never rewrites keys, since a rewritten key breaks the tracker's own company+role matching.
 
 2. Add ALL fetched jobs (new and skipped) to `seen_jobs.json` with structure:
 ```json
@@ -171,13 +173,13 @@ It prints one line: the canonical key for that posting. The key must be a pure f
 
 The `portal` field records which CLI skill produced the job (results are already tagged per portal in Step 1b - persist that tag here). Entries written before this field existed lack it; the health check (Step 4.75) attributes those by matching the URL's domain against each portal's base URL, so do not backfill.
 
-The `source` field records which mechanism produced the entry: `cli` for Step 1b portal-CLI output, `websearch` for the Step 1c fallback. This is what keeps a ghost-job report diagnosable after the run's summary is gone: a stored entry whose URL later resolves to nothing (or to a different job) reads very differently depending on whether it came from live CLI output or from a search index that can be weeks stale - and a presented job with no entry here at all points at fabrication, which Rule 1 forbids. Entries written before this field existed lack it; never backfill it - the mechanism was not recorded.
+The `source` field records which mechanism produced the entry: `cli` for Step 1b portal-CLI output, `websearch` for the Step 1c fallback, so a dead or wrong URL can later be traced to live CLI output or a possibly stale search index. Entries written before this field existed lack it; never backfill it - the mechanism was not recorded.
 
 `/rank` extends this schema additively: ranked entries also carry `rank_score` (0–100 overall score), `rank_verdict` (fit band, e.g. "strong fit"), `rank_date` (ISO date of ranking), the veto fields `location_verdict` and `language_gate` (both PASS/FAIL/FLAG) with `language_note` (the quoted requirement explaining a non-PASS), and `strengths`/`gaps` (1-3 verbatim bullets each, copied from the scoring agent's findings). The `status` field is set to `"ranked"`. Do not drop any of these fields when re-writing entries. Entries ranked before `strengths`/`gaps` existed simply lack them; readers tolerate their absence and never backfill by guessing. Entries ranked before the verdict rename may carry a legacy PASS/FAIL/FLAG string in `location` - read that as the verdict when `location_verdict` is absent; in fresh entries `location` is always a place, never a verdict.
 
 `deadline` is a base field rather than a `/rank` extension: Step 2's detail fetch already extracts the application deadline, so it is written when the job is first seen and refreshed by `/rank` Step 4 when a scoring agent returns a different value. `null` means the posting states no deadline; a missing key means the entry predates this field - **never infer a deadline** from either, and never backfill by guessing.
 
-`posted_date` is the posting's own publication date, taken from the `date` field Step 2's contract already guarantees on every portal CLI's search output. Step 1b uses that date to scope the run to the last 14 days and then drops it, so nothing downstream can distinguish a posting published yesterday from one published two years ago - `first_seen` is when this scraper first saw the entry, not when the employer posted it. Persisting it makes Step 1b's window auditable after the run and gives `/rank` a freshness signal to weigh, instead of rediscovering the date and recording it in prose that nothing reads. That gap landed for real: a freehire-search posting dated 2024-05-13 was scraped and ranked Strong Fit at position 1 of 133, its own scoring note observing the listing "may be long stale" with nothing able to act on it. `null` means the portal returned no date for that result (the CLIs emit `date: null` when a listing omits it); a missing key means the entry predates this field - **never infer a posting date** from either, and never backfill by guessing.
+`posted_date` is the posting's own publication date, taken from the `date` field Step 2's contract already guarantees on every portal CLI's search output (`first_seen` is when this scraper first saw the entry, not when the employer posted it). Persisting it keeps Step 1b's 14-day window auditable and gives `/rank` a freshness signal. `null` means the portal returned no date for that result (the CLIs emit `date: null` when a listing omits it); a missing key means the entry predates this field - **never infer a posting date** from either, and never backfill by guessing.
 
 3. Only present jobs NOT already in the seen list (matched by URL or
    company+title) or tracker.
@@ -203,8 +205,9 @@ Use a short keyword drawn from the posting's title for `<role keyword>` - e.g. a
 titled "AI Program Manager" becomes `"<Company Name> AI Program Manager"`.
 
 Both links are for the user to open and browse themselves - never fetch or scrape the
-LinkedIn people-search result pages programmatically. Never fabricate contacts or claim a
-specific person was found; these are search links, not results.
+LinkedIn people-search result pages programmatically (automated people lookups are out of
+bounds for privacy and ToS reasons). Never fabricate contacts or claim a specific person
+was found; these are search links, not results.
 
 ### Step 4.75: Portal Health Check
 
@@ -235,9 +238,9 @@ can be stale, so the reader should know which rows carry that caveat; omit the
 line when every portal ran its CLI. When Step 4.75 found a portal degraded, broken, or inconclusive,
 add one `health:` line per suspect portal (healthy portals get no line); after
 the report, offer to set that portal's `enabled: false` so `/scrape` stops
-running it (and covers it via the Step 1c fallback) until it is fixed - only
-edit the toggle with the user's confirmation, and never edit anything else in
-the skill.
+running it (and covers it via the Step 1c fallback) until it is fixed. Edit only
+that toggle, and only after the user confirms (STOP — wait for the reply); leave
+the rest of the portal skill untouched.
 
 ```
 ## New Job Matches - YYYY-MM-DD
@@ -273,13 +276,15 @@ LinkedIn search links:
 After presenting, ask:
 > "Want me to evaluate any of these in detail? Just give me the number(s)."
 
-If the user picks a number, invoke the **job-application-assistant** skill workflow (fit evaluation first, then CV + cover letter if approved).
+STOP — wait for the user's reply.
+
+If the user picks a number, run `/apply <url>` with that job's URL: the full `/apply` workflow (fit evaluation first, then CV + cover letter if approved, compile, quality gate, tracker row). Pass the scrape's fit read as prior context only; `/apply` Step 1 re-runs the full evaluation.
 
 If the run found many new jobs (roughly 8+), also suggest `/rank` - it batch-scores all new postings against the full fit framework and returns a ranked shortlist, which beats eyeballing a long table. (`/rank` sets the `ranked` and `expired` status values in `seen_jobs.json`; treat both as already-seen for dedup purposes.)
 
 ### Step 6: Update Tracker (Optional)
 
-If the user decides to apply to any job, the tracker row is written by **job-application-assistant Step 3b**, which Step 5 already routes into - do not add a second row here. Only when the user says they applied to something outside that path, add a row using the header and the match-then-update rule in `/outcome` Step 1.
+If the user decides to apply to any job, the tracker row is written by **`/apply` Step 6b**, which Step 5 already routes into - do not add a second row here. Only when the user says they applied to something outside that path, add a row using the header and the match-then-update rule in `/outcome` Step 1.
 
 Final step: run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
 
@@ -287,12 +292,22 @@ Final step: run `python3 tools/check_framework_immutable.py --report`; if it lis
 
 ## Important Rules
 
-1. **Never fabricate job postings.** Only present jobs from actual CLI search/detail output or WebSearch/WebFetch results.
-2. **Respect deduplication.** Always check seen_jobs.json AND job_search_tracker.csv before presenting.
+1. **Never fabricate job postings.** Only present jobs from actual CLI search/detail output or fetched web search results; an invented posting wastes the user's application effort.
+2. **Respect deduplication.** Check `seen_jobs.json` and `job_search_tracker.csv` before presenting.
 3. **Focus on configured geographic area.** Skip jobs that require relocation or are clearly outside commute range.
 4. **Only open positions.** Skip postings with expired deadlines or those marked as closed.
-5. **Be efficient with detail fetches.** Don't run `detail` or WebFetch on every search hit — pre-filter by title/snippet, then fetch only promising matches.
-6. **Parallel searches.** Run portal CLI searches in parallel; use WebSearch only for gaps the CLIs don't cover.
+5. **Be efficient with detail fetches.** Pre-filter search hits by title/snippet, then run `detail` or fetch only the promising matches.
+6. **Parallel searches.** Run portal CLI searches in parallel; use web search only for gaps the CLIs don't cover.
 7. **No automated people lookups.** Referral contacts (Step 4.5) are LinkedIn search links only - never fetch or scrape LinkedIn people-search result pages programmatically.
 8. **Health checks are bounded and honest.** Step 4.75 spends at most one probe, one retry, and (in `health` mode) one detail fetch per portal - a diagnosis, not a crawl. A rate-limit is never evidence of breakage. Health verdicts come only from observed CLI output; a portal that could not be tested is reported as inconclusive, never guessed. The `enabled` toggle is the only thing the health check may edit, and only with confirmation.
 9. **Flag distribution patterns, never accuse.** The mass-posting signal (Step 2.5) describes how a listing is being distributed, not a claim that the employer is a scam. Never name a company as fraudulent or untrustworthy - present the observation and let the user decide.
+
+## Final checklist
+
+Before ending the turn, confirm each item in your reply:
+- [ ] Portals run, skipped (disabled) and on the web search fallback are named
+- [ ] Every stored key came from `python3 tools/job_key.py`; quote one command output as evidence
+- [ ] `job_scraper/seen_jobs.json` updated with every fetched job (new, skipped, expired) and its `portal`, `source`, `posted_date` and `deadline`
+- [ ] Presented jobs exclude every URL or company+title already seen and every company+role in the tracker
+- [ ] Health lines reported for degraded, broken or inconclusive portals; each `python3 tools/report_issue.py` call quoted as evidence
+- [ ] `python3 tools/check_framework_immutable.py --report` run; quote the command output as evidence

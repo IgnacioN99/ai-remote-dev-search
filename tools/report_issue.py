@@ -19,8 +19,11 @@ Privacy:
   salary/currency amounts, home paths (-> ~, incl. WSL UNC paths), application
   file names, every identity string from the gitignored candidate_profile.json,
   filled-in CLAUDE.md Identity values, tracker companies/roles and
-  documents/applications/ folder names. Matching is accent-insensitive and
-  treats `_`/`-` as word separators. Queued entries are re-sanitized on --flush.
+  documents/applications/ folder names (read from the main checkout, also
+  when run from a linked worktree). Matching is accent-insensitive in both
+  directions, treats `_`/`-` as word separators and adds squashed/CamelCase
+  forms of multi-word companies. Epoch timestamps and repeated identical
+  numbers are not mistaken for phones. Queued entries are re-sanitized on --flush.
 
 Dedupe:
   The body carries `<!-- fp:<sha1> -->` (sha1 of kind|component|normalized
@@ -44,7 +47,7 @@ Exit codes:
   0  created, commented, queued, dry-run, or flush finished
   1  error (bad arguments, no resolvable origin, unreadable body file)
   2  refused (target is upstream, sanitizing left nothing to report, or
-     --body-file points under cv/, cover_letters/ or documents/)
+     --body-file has a cv/, cover_letters/ or documents/ path segment or is a .tex)
 """
 
 from __future__ import annotations
@@ -63,13 +66,42 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+
+
+def main_checkout_root(root: Path = ROOT_DIR, runner: Optional[Callable[..., Any]] = None) -> Path:
+    """The main checkout's root, also when this file runs from a linked worktree.
+
+    Personal data (profile JSON, filled-in CLAUDE.md, tracker, applications/) is
+    gitignored and lives only in the main checkout; a framework-dev worktree has
+    none of it, so the sanitizer must read it from there. Uses
+    `git rev-parse --path-format=absolute --git-common-dir` (git >= 2.31); any
+    failure falls back to `root`.
+    """
+    runner = runner or subprocess.run
+    try:
+        proc = runner(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=str(root), capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return root
+    if proc is None or proc.returncode != 0:
+        return root
+    common = Path((proc.stdout or "").strip())
+    if not common.is_absolute() or common.name != ".git" or not common.parent.is_dir():
+        return root
+    return common.parent
+
+
+DATA_ROOT = main_checkout_root()
 PENDING_FILE = ROOT_DIR / "documents" / "memory" / "pending_issues.jsonl"
-PROFILE_JSON = ROOT_DIR / "candidate_profile.json"
-CLAUDE_MD = ROOT_DIR / "CLAUDE.md"
-TRACKER_CSV = ROOT_DIR / "job_search_tracker.csv"
-APPLICATIONS_DIR = ROOT_DIR / "documents" / "applications"
-# --body-file may not point into these: an injected instruction could otherwise
-# exfiltrate a CV, cover letter or application notes into a public issue.
+PROFILE_JSON = DATA_ROOT / "candidate_profile.json"
+CLAUDE_MD = DATA_ROOT / "CLAUDE.md"
+TRACKER_CSV = DATA_ROOT / "job_search_tracker.csv"
+APPLICATIONS_DIR = DATA_ROOT / "documents" / "applications"
+# --body-file may not point into these (as any path segment), nor at a .tex
+# file: an injected instruction could otherwise exfiltrate a CV, cover letter
+# or application notes into a public issue.
 PRIVATE_DIRS = ("cv", "cover_letters", "documents")
 SKILL_MD = ROOT_DIR / ".claude" / "skills" / "job-application-assistant" / "SKILL.md"
 
@@ -301,12 +333,18 @@ def load_profile_strings(profile_path: Path = PROFILE_JSON) -> List[str]:
 def load_claude_identity(claude_md: Path = CLAUDE_MD) -> List[str]:
     """Filled-in Name and Location from CLAUDE.md's Identity section.
 
+    Reads `CLAUDE.md.personal` instead when it exists (the personal overlay).
+
     Only those two: the headline and status are generic career words ("Senior
     Backend Engineer", "Open to work") whose redaction would gut every report.
     Placeholders like [YOUR_NAME] are skipped.
     """
+    claude_md = Path(claude_md)
+    overlay = claude_md.with_name(claude_md.name + ".personal")  # tools/personal_overlay.py rule
+    if overlay.is_file():
+        claude_md = overlay
     try:
-        text = Path(claude_md).read_text(encoding="utf-8")
+        text = claude_md.read_text(encoding="utf-8")
     except OSError:
         return []
     match = re.search(r"^### Identity\s*\n(.*?)(?=^#{2,3} |\Z)", text, re.MULTILINE | re.DOTALL)
@@ -338,9 +376,43 @@ def strip_accents(text: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
+def _accent_classes() -> Dict[str, str]:
+    """Base letter -> every Latin-1/Latin Extended-A letter that strips to it."""
+    classes: Dict[str, str] = {}
+    for code in range(0xC0, 0x180):
+        ch = chr(code)
+        base = strip_accents(ch).lower()
+        if len(base) == 1 and base.isascii() and base.isalpha() and base != ch.lower():
+            current = classes.get(base, base)
+            classes[base] = current + "".join(c for c in (ch.lower(), ch.upper()) if c not in current)
+    return classes
+
+
+_ACCENT_CLASSES = _accent_classes()
+
+
+def accent_insensitive_regex(term: str) -> str:
+    """"Jose Pena" -> "J[oóòôöõø…]s[eéèêë…] P[eé…][nñ…]a": accented input matches plain terms."""
+    out = []
+    for ch in strip_accents(term):
+        cls = _ACCENT_CLASSES.get(ch.lower())
+        out.append(f"[{re.escape(cls)}]" if cls else re.escape(ch))
+    return "".join(out)
+
+
 def _all_generic(value: str) -> bool:
     words = [w for w in re.split(r"[\W_]+", value.lower()) if w]
     return not words or all(w in _GENERIC_SLUG_WORDS or len(w) < 3 for w in words)
+
+
+def _company_variants(company: str) -> List[str]:
+    """"Zentrix Analytics" -> ["ZentrixAnalytics", "zentrixanalytics"]: the forms a
+    multi-word company takes in handles, domains and identifiers."""
+    words = [w for w in re.split(r"[\W_]+", company) if w]
+    if len(words) < 2 or _all_generic(company):
+        return []
+    camel = "".join(w[:1].upper() + w[1:] for w in words)
+    return [camel, camel.lower()]
 
 
 def _company_tokens(company: str) -> List[str]:
@@ -368,6 +440,7 @@ def load_tracker_terms(tracker_path: Path = TRACKER_CSV) -> List[str]:
                 if slug:
                     terms.append(slug)
                 terms.extend(_company_tokens(company))
+                terms.extend(_company_variants(company))
             role = row.get("role", "").strip()
             if role and not _all_generic(role):
                 terms.append(role)
@@ -396,6 +469,7 @@ def load_application_terms(applications_dir: Path = APPLICATIONS_DIR) -> List[st
             terms.append(company)
             terms.append(company.replace("-", " "))
             terms.extend(_company_tokens(company))
+            terms.extend(_company_variants(company))
     return terms
 
 
@@ -426,13 +500,33 @@ _PHONE_GROUPS = re.compile(
 )
 _PHONE_INTL = re.compile(r"(?<![\w.])\+\d[\d\s().-]{6,}\d(?!\w)")
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# Unix timestamps in seconds (2017-2033) or milliseconds: log lines, not phones.
+# Bare runs go up to 15 digits (E.164 max; "00" + 13-digit international) - the
+# fullmatch below is what spares 10/13-digit timestamps. Known edge: an unformatted
+# 10-digit number starting 15-19 (e.g. "1534567890") reads as an epoch and survives;
+# real phones in that shape are rare and almost always written with separators.
+_EPOCH = re.compile(r"1[5-9]\d{8}(?:\d{3})?")
 
 
 def _phone_group(match: "re.Match[str]") -> str:
     value = match.group(0)
-    if len(re.sub(r"\D", "", value)) < 9 or _ISO_DATE.search(value):
+    digits = re.sub(r"\D", "", value)
+    if len(digits) < 9 or _ISO_DATE.search(value):
         return value
+    if _EPOCH.fullmatch(value):
+        return value
+    if _repeated_groups(value):
+        return value  # "12345 12345 12345": a repeated id/count list, not a phone
     return "[phone]"
+
+
+def _repeated_groups(value: str) -> bool:
+    groups = re.findall(r"\d+", value)
+    return len(groups) >= 2 and len(set(groups)) == 1
+
+
+def _phone_formatted(match: "re.Match[str]") -> str:
+    return match.group(0) if _repeated_groups(match.group(0)) else "[phone]"
 
 
 _NUM = r"\d(?:[\d.,]*\d)?"
@@ -468,8 +562,15 @@ class Sanitizer:
     def __init__(self, extra_terms: Iterable[str] = ()) -> None:
         self.terms = _sensitive_terms(extra_terms)
         # `_` and `-` count as separators, so "acme" is caught inside acme_dev.
+        # Each term matches its accented and plain spellings alike, so a plain
+        # "Jose Pena" still redacts "José Peña" in the text.
+        sources: List[str] = []
+        for term in self.terms:
+            source = accent_insensitive_regex(term)
+            if source.lower() not in {s.lower() for s in sources}:
+                sources.append(source)
         self._term_patterns = [
-            re.compile(r"(?<![^\W_])" + re.escape(t) + r"(?![^\W_])", re.IGNORECASE) for t in self.terms
+            re.compile(r"(?<![^\W_])" + src + r"(?![^\W_])", re.IGNORECASE) for src in sources
         ]
 
     @classmethod
@@ -506,7 +607,7 @@ class Sanitizer:
         out = _MONEY_WORDS.sub("[amount]", out)
         out = _PHONE_INTL.sub("[phone]", out)
         out = _PHONE_GROUPS.sub(_phone_group, out)
-        out = _PHONE.sub("[phone]", out)
+        out = _PHONE.sub(_phone_formatted, out)
         return out
 
 
@@ -829,27 +930,53 @@ def flush(runner: Runner = _run, pending: Path = PENDING_FILE,
 # CLI
 # ---------------------------------------------------------------------------
 
-def check_body_file_allowed(path: Path, root: Optional[Path] = None) -> None:
-    """Refuse bodies read from CVs, cover letters or documents/ (exfil guard)."""
-    root = Path(root or ROOT_DIR)
+def _relative_to(resolved: Path, root: Path) -> Optional[Path]:
     try:
-        resolved = path.expanduser().resolve()
         root_resolved = root.resolve()
     except (OSError, RuntimeError):
-        return
+        return None
     try:
-        rel = resolved.relative_to(root_resolved)
+        return resolved.relative_to(root_resolved)
     except ValueError:
         # Case-insensitive mounts (/mnt/c, Windows): compare casefolded.
         r, b = str(resolved).casefold(), str(root_resolved).casefold().rstrip("/\\") + os.sep
         if not r.startswith(b):
-            return
-        rel = Path(str(resolved)[len(b):])
-    if rel.parts and rel.parts[0].casefold() in PRIVATE_DIRS:
-        raise Refused(
-            f"refusing --body-file under {rel.parts[0]}/: CVs, cover letters and documents/ "
-            "hold personal data and must never be pasted into a public issue"
-        )
+            return None
+        return Path(str(resolved)[len(b):])
+
+
+def check_body_file_allowed(path: Path, root: Optional[Path] = None,
+                            data_root: Optional[Path] = None) -> None:
+    """Refuse bodies read from CVs, cover letters, documents/ or .tex files (exfil guard).
+
+    Inside the repo (this checkout or the main checkout) any segment of the
+    repo-relative path counts; outside it, any segment of the path as given and
+    as resolved. The repo's own location is not judged: it may well sit under a
+    `Documents/CV/` folder.
+    """
+    roots = [Path(root or ROOT_DIR), Path(data_root or (DATA_ROOT if root is None else root))]
+    given = Path(path).expanduser()
+    if given.suffix.casefold() == ".tex":
+        raise Refused("refusing --body-file pointing at a .tex file: CV and cover letter "
+                      "sources hold personal data and must never be pasted into a public issue")
+    try:
+        resolved = given.resolve()
+    except (OSError, RuntimeError):
+        resolved = given
+    if resolved.suffix.casefold() == ".tex":
+        raise Refused("refusing --body-file pointing at a .tex file (symlink target)")
+    rel = next((r for r in (_relative_to(resolved, base) for base in roots) if r is not None), None)
+    if rel is not None:
+        candidates = [rel.parts]
+    else:
+        candidates = [given.parts, resolved.parts]
+    for parts in candidates:
+        for part in parts:
+            if part.casefold() in PRIVATE_DIRS:
+                raise Refused(
+                    f"refusing --body-file under {part}/: CVs, cover letters and documents/ "
+                    "hold personal data and must never be pasted into a public issue"
+                )
 
 
 def build_parser() -> argparse.ArgumentParser:

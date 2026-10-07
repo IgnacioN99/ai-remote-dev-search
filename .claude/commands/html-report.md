@@ -1,3 +1,11 @@
+---
+description: >-
+  Generates a self-contained HTML dashboard from the application tracker and archives. Use
+  when the user asks for an application dashboard, tracker report or pipeline overview. Also
+  triggered by /html-report.
+argument-hint: "[output-path] [--open]"
+---
+
 # /html-report - Generate Application Tracker Dashboard
 
 Generate a self-contained HTML dashboard from `job_search_tracker.csv` and the application archives under `documents/applications/`. The output is a single `.html` file — no server, no dependencies — that can be opened directly in a browser.

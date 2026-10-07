@@ -8,7 +8,8 @@ Checks:
   parses, with non-empty `name` and `description` keys
 - `allowed-tools` entries of the form `Bash(bun run <path> *)` point at files
   that exist (skill paths resolve relative to the repo root and to .agents/)
-- Every .claude/commands/*.md starts with a `# /<name>` title
+- Every .claude/commands/*.md starts with a `# /<name>` title, after an optional
+  YAML frontmatter block that must parse and carry a `description`
 - .claude/settings.json is valid JSON with a permissions.allow list
 - The generated Antigravity skills under .agents/skills/ match their .claude/
   sources (tools/sync_agent_skills.py --check), so drift fails CI
@@ -74,7 +75,24 @@ def check_skill(path: Path) -> None:
 
 
 def check_command(path: Path) -> None:
-    lines = path.read_text(encoding="utf-8").lstrip().splitlines()
+    text = path.read_text(encoding="utf-8").replace("\r\n", "\n").lstrip()
+    if text.startswith("---\n"):
+        # Optional Claude Code command frontmatter (description, argument-hint,
+        # disable-model-invocation): must parse and carry a description, since
+        # tools/sync_agent_skills.py publishes it as the Antigravity skill's.
+        end = text.find("\n---", 4)
+        if end == -1:
+            errors.append(f"{rel(path)}: unterminated YAML frontmatter")
+            return
+        try:
+            data = yaml.safe_load(text[4:end])
+        except yaml.YAMLError as exc:
+            errors.append(f"{rel(path)}: frontmatter is not valid YAML: {exc}")
+            return
+        if not isinstance(data, dict) or not data.get("description"):
+            errors.append(f"{rel(path)}: frontmatter missing required key 'description'")
+        text = text[end + 4:].lstrip()
+    lines = text.splitlines()
     first = lines[0] if lines else ""
     if not first.startswith("# /"):
         errors.append(f"{rel(path)}: command file must start with a '# /<name>' title (found: {first[:50]!r})")

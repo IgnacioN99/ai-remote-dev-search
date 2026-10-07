@@ -21,8 +21,13 @@ their canonical `.claude/skills/...` paths instead.
 While copying, Claude-only constructs are rewritten to agent-neutral wording
 with Antigravity tool names (WebFetch -> read_url_content, WebSearch ->
 search_web, Agent tool -> invoke_subagent or inline, AskUserQuestion -> ask
-in chat), `allowed-tools`/`model:` frontmatter is dropped, and a header note
-explains `$ARGUMENTS`.
+in chat, `mcp__<server>__<tool>` -> "the <server> MCP tool", "read the PDF via
+the Read tool" -> render and inspect the PDF visually), `model:` frontmatter is
+dropped, `allowed-tools` becomes a tool-neutral "Tools this skill needs" line,
+the `description:` is taken from the source's own frontmatter
+(gaining "Also triggered by /<name>." if missing), and a header note explains
+`$ARGUMENTS`. Generated output that still contains a Claude-only token
+(FORBIDDEN_TOKENS) is an error in both write and --check mode.
 
 Usage:
   python3 tools/sync_agent_skills.py           # write/refresh generated files
@@ -56,98 +61,24 @@ SKILL_SOURCES = {
     "upskill": "upskill",
 }
 
+# Claude-only tokens that must never survive into a generated skill. A source
+# phrasing the rewrites below do not cover fails the sync loudly instead of
+# shipping a tool name Antigravity does not have.
+FORBIDDEN_TOKENS = ("mcp__", "AskUserQuestion", "WebFetch", "WebSearch", "Agent tool")
+# Whole-word matches only ("WebFetcher", "Agent toolkit" are fine); a token ending
+# in "_" is a prefix ("mcp__slack__send"), so it gets no trailing boundary.
+_FORBIDDEN_RES = tuple(
+    (token, re.compile(r"(?<!\w)" + re.escape(token) + ("" if token.endswith("_") else r"(?!\w)")))
+    for token in FORBIDDEN_TOKENS
+)
+
+# Antigravity caps a skill description at 1024 characters.
+MAX_DESCRIPTION_CHARS = 1024
+
 # Version stamped on generated skills whose source carries none.
 DEFAULT_FRAMEWORK_VERSION = "1.0.0"
 
 SKILLIGNORE = "node_modules/\n**/node_modules/**\nbun.lock\nbun.lockb\npackage-lock.json\ndist/\n"
-
-# Trigger-friendly descriptions. The primary agent picks skills by these, so
-# each names the slash command and the plain-language requests it covers.
-DESCRIPTIONS = {
-    "apply": (
-        "Runs the full /apply drafter-reviewer job application workflow: fit "
-        "evaluation, tailored CV (exactly 2 pages) and cover letter (1 page), "
-        "review, compile, quality gate and tracker update. Use when the user types "
-        "/apply or asks to apply to, tailor a CV for, or write a cover letter for a "
-        "specific job posting (URL or pasted text)."
-    ),
-    "rank": (
-        "Runs /rank: batch-scores scraped jobs in job_scraper/seen_jobs.json against "
-        "the fit framework and returns a ranked shortlist. Use when the user types "
-        "/rank or asks to rank, triage, score or shortlist the scraped jobs."
-    ),
-    "setup": (
-        "Runs /setup profile onboarding: collects the candidate's career information "
-        "and populates CLAUDE.md, the profile files and search queries. Use when the "
-        "user types /setup or asks to set up, onboard, or (re)build their candidate "
-        "profile."
-    ),
-    "interview": (
-        "Runs /interview: builds a stage-specific interview prep pack (and optional "
-        "mock interview) for a tracked application. Use when the user types "
-        "/interview or asks to prepare for an upcoming interview with a company."
-    ),
-    "outcome": (
-        "Runs /outcome: records the result or progress of a tracked application "
-        "(interview, offer, rejection, no response) and drafts follow-ups for stale "
-        "ones. Use when the user types /outcome or reports news about an application."
-    ),
-    "expand": (
-        "Runs /expand: discovers competencies hidden in the user's documents and "
-        "public online presence and proposes additive profile updates. Use when the "
-        "user types /expand or asks to enrich or expand their profile/competencies."
-    ),
-    "reset": (
-        "Runs /reset: destructively resets profile files and/or the documents folder "
-        "to a blank state after explicit confirmation. Use only when the user types "
-        "/reset or explicitly asks to reset or wipe their profile data."
-    ),
-    "gmail-sync": (
-        "Runs /gmail-sync: scans Gmail for status signals on tracked applications "
-        "and, after approval, updates the tracker and outcome files. Use when the "
-        "user types /gmail-sync or asks to sync application status from email."
-    ),
-    "notion-sync": (
-        "Runs /notion-sync: pushes ranked jobs and applications to a read-only Notion "
-        "database view. Use when the user types /notion-sync or asks to sync the job "
-        "search to Notion."
-    ),
-    "html-report": (
-        "Runs /html-report: generates a self-contained HTML dashboard from the "
-        "application tracker. Use when the user types /html-report or asks for an "
-        "application dashboard or tracker report."
-    ),
-    "add-portal": (
-        "Runs /add-portal: investigates a job board and scaffolds a new portal search "
-        "skill (CLI) for it. Use when the user types /add-portal or asks to add "
-        "support for a new job portal or job board."
-    ),
-    "add-template": (
-        "Runs /add-template: registers, lists or switches a custom CV or cover letter "
-        "template. Use when the user types /add-template or asks to use their own CV "
-        "or cover letter template."
-    ),
-    "scrape": (
-        "Runs /scrape: finds new job postings matching the profile across all "
-        "installed portal-search CLIs and deduplicates them across runs. Use when the "
-        "user types /scrape or asks to find, search or scrape new jobs in general "
-        "(without naming a single portal)."
-    ),
-    "upskill": (
-        "Runs /upskill: compares tracked job postings against the candidate profile "
-        "to find skill gaps and produce a prioritized learning plan. Use when the "
-        "user types /upskill or asks about skill gaps, what to learn, or a learning "
-        "plan."
-    ),
-    "job-application-assistant": (
-        "Assists with ad-hoc job application work outside a slash command: "
-        "evaluating a job posting's fit, tailoring CVs, writing cover letters, "
-        "answering application-form questions and interview prep. Use when the user "
-        "asks about a job posting, CV, cover letter, resume, job fit or interview "
-        "prep without typing a slash command."
-    ),
-}
-
 
 def read_text(path: Path) -> str:
     """Read UTF-8 text with line endings normalized to LF (WSL/autocrlf safe)."""
@@ -168,6 +99,35 @@ def split_frontmatter(text: str) -> tuple[dict[str, str], str]:
             data[key.strip()] = value.strip().strip('"').strip("'")
     body = text[end + 4:]
     return data, body.lstrip("\n")
+
+
+def frontmatter_description(text: str) -> str:
+    """The source's own `description:` frontmatter value, as one line.
+
+    Descriptions live in the .claude/ sources (Claude Code reads them there),
+    so the generated copies reuse them instead of keeping a second list here.
+    Handles a plain or quoted scalar and folded/literal blocks (`>`, `>-`,
+    `|`, `|-`); returns "" when there is no frontmatter or no description.
+    """
+    if not text.startswith("---\n"):
+        return ""
+    end = text.find("\n---", 4)
+    if end == -1:
+        return ""
+    lines = text[4:end].splitlines()
+    for i, line in enumerate(lines):
+        if not line.startswith("description:"):
+            continue
+        value = line.split(":", 1)[1].strip()
+        if value and value[0] not in ">|":
+            return value.strip('"').strip("'")
+        block = []
+        for cont in lines[i + 1:]:
+            if cont and not cont[0].isspace():
+                break
+            block.append(cont.strip())
+        return " ".join(part for part in block if part)
+    return ""
 
 
 def data_file_names() -> dict[str, str]:
@@ -199,11 +159,29 @@ def rewrite_body(body: str) -> str:
         body = re.sub(rf"(?<![\w./-]){re.escape(name)}", canonical, body)
     body = body.replace(" (this directory)", "")
 
+    # MCP tool names: Gmail and Notion first (their tail may be `*`, a tool
+    # name or empty, as in "tool names starting with `mcp__notion__`"), then
+    # any other server.
+    # A parenthetical that only names the tool prefix repeats the prose around
+    # it ("the Gmail MCP tools (`mcp__claude_ai_Gmail__*`)"): drop it.
+    body = re.sub(r" \(`mcp__[\w-]*\*?`\)", "", body)
+    body = re.sub(
+        r"tool names starting with `?mcp__(?:claude_ai_)?([\w-]+?)__`?",
+        lambda m: f"tool names from the {m.group(1).capitalize()} MCP server",
+        body,
+    )
+    body = re.sub(r"`?mcp__(?:claude_ai_)?[Gg]mail__(\*|\w+)?`?", _mcp_named("Gmail"), body)
+    body = re.sub(r"`?mcp__(?:claude_ai_)?[Nn]otion__(\*|[\w-]+)?`?", _mcp_named("Notion"), body)
+    body = re.sub(r"`?mcp__([\w-]+?)__(\*|[\w-]+)?`?", _mcp_generic, body)
+
+    # Visual PDF inspection: Antigravity has no PDF-reading Read tool.
+    body = PDF_READ_PHRASE.sub(_pdf_inspect, body)
+
     # Tool names.
     body = re.sub(r"\bWebFetch\b", "read_url_content", body)
     body = re.sub(r"\bWebSearch\b", "search_web", body)
     body = re.sub(
-        r"(?:the )?\*{0,2}Agent tool\*{0,2}",
+        r"(?:\bthe )?\*{0,2}\bAgent tool\b\*{0,2}",
         "`invoke_subagent` (if available; otherwise do the work inline yourself)",
         body,
     )
@@ -215,7 +193,118 @@ def rewrite_body(body: str) -> str:
     return body
 
 
-def header_note(name: str, is_command: bool) -> str:
+PDF_INSPECT = (
+    "open the compiled PDF and inspect each page visually (render to images if your "
+    "runtime cannot view PDFs)"
+)
+PDF_READ_PHRASE = re.compile(
+    r"\b[Rr]ead (?:both |the |each )?(?:compiled )?PDFs? (?:output )?(?:via|with|using) the Read tool"
+    r"|\b(?:[Uu]se )?(?:the )?Read tool on the (?:compiled )?PDFs?(?: output)?"
+)
+
+
+def _pdf_inspect(match: "re.Match[str]") -> str:
+    text = PDF_INSPECT
+    if "both" in match.group(0):
+        text = text.replace("the compiled PDF", "both compiled PDFs")
+    if match.group(0)[0].isupper():
+        text = text[0].upper() + text[1:]
+    return text
+
+
+def _mcp_named(label: str):
+    def replace(match: "re.Match[str]") -> str:
+        tool = match.group(1)
+        if not tool or tool == "*":
+            return f"the {label} MCP tools"
+        return f"the {label} MCP tools ({tool})"
+    return replace
+
+
+def _mcp_generic(match: "re.Match[str]") -> str:
+    server, tool = re.sub(r"^claude_ai_", "", match.group(1)), match.group(2)
+    if not tool or tool == "*":
+        return f"the {server} MCP tools"
+    return f"the {server} MCP tool `{tool}`"
+
+
+def _split_tools(value: str) -> list[str]:
+    """Split an allowed-tools value on commas outside parentheses."""
+    items, depth, current = [], 0, ""
+    for ch in value:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            items.append(current.strip())
+            current = ""
+        else:
+            current += ch
+    if current.strip():
+        items.append(current.strip())
+    return items
+
+
+def tools_needed(allowed: str) -> str:
+    """Translate Claude Code `allowed-tools` into a tool-neutral sentence."""
+    if not allowed:
+        return ""
+    groups: list[str] = []
+    commands: list[str] = []
+
+    def add(label: str) -> None:
+        if label not in groups:
+            groups.append(label)
+
+    for item in _split_tools(allowed):
+        name, _, arg = item.partition("(")
+        name, arg = name.strip(), arg.rstrip(")").strip()
+        if name in ("Read", "Glob", "Grep"):
+            add("read and search files")
+        elif name in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+            add("write and edit files")
+        elif name == "Bash":
+            add("terminal")
+            if arg:
+                cmd = re.sub(r"(?::\*| \*)$", "", arg).strip()
+                if cmd and cmd not in commands:
+                    commands.append(cmd)
+        elif name == "WebFetch":
+            add("fetch URLs (read_url_content)")
+        elif name == "WebSearch":
+            add("web search (search_web)")
+        elif name in ("Agent", "Task"):
+            add("subagents (`invoke_subagent` if available, otherwise inline)")
+        elif name == "AskUserQuestion":
+            add("ask the user in chat")
+        elif name.startswith("mcp__"):
+            add(re.sub(r"`?mcp__([\w-]+?)__(\*|[\w-]+)?`?", _mcp_generic, name))
+        # Skill(...) and unknown entries carry no runtime-neutral meaning.
+    if "terminal" in groups and commands:
+        groups[groups.index("terminal")] = "terminal (" + ", ".join(f"`{c}`" for c in commands) + ")"
+    return "Tools this skill needs: " + "; ".join(groups) + "." if groups else ""
+
+
+def description_for(name: str, description: str) -> str:
+    """Source frontmatter description plus the slash-command hint (added once)."""
+    text = description.strip()
+    suffix = f"Also triggered by /{name}."
+    if suffix not in text:
+        text = f"{text} {suffix}"
+    if len(text) > MAX_DESCRIPTION_CHARS:
+        sys.exit(
+            f"sync_agent_skills: description for '{name}' is {len(text)} characters "
+            f"(max {MAX_DESCRIPTION_CHARS}) - shorten it in the source frontmatter"
+        )
+    return text
+
+
+def forbidden_tokens(text: str) -> list[str]:
+    return [token for token, pattern in _FORBIDDEN_RES if pattern.search(text)]
+
+
+def header_note(name: str, is_command: bool, tools_line: str = "") -> str:
     invocation = f"`/{name}`"
     lines = [
         f"> **Antigravity copy of {invocation}.**"
@@ -230,10 +319,14 @@ def header_note(name: str, is_command: bool) -> str:
         "search, `invoke_subagent` = subagent (if unavailable, do the work inline); "
         "Read/Write/Edit/Bash tool = your file and terminal tools. Paths are relative "
         "to the repository root; profile and data files live under "
-        "`.claude/skills/...` - read and write them there.",
+        "`.claude/skills/...` - read and write them there, except that a gitignored "
+        "`<file>.personal` beside one takes precedence: read it instead, and write "
+        "candidate data only to it (Personal overlay).",
     ]
     if name == "job-application-assistant":
         lines[0] = "> **Antigravity copy of the job-application-assistant skill.**"
+    if tools_line:
+        lines.append(f"> {tools_line}")
     return "\n".join(lines)
 
 
@@ -252,11 +345,13 @@ def yaml_folded(text: str) -> str:
 
 
 def render(name: str, source: Path, is_command: bool) -> str:
-    fm, body = split_frontmatter(read_text(source))
-    if name not in DESCRIPTIONS:
+    text = read_text(source)
+    fm, body = split_frontmatter(text)
+    description = frontmatter_description(text)
+    if not description:
         sys.exit(
-            f"sync_agent_skills: no description for '{name}' - add one to DESCRIPTIONS "
-            "in tools/sync_agent_skills.py"
+            f"sync_agent_skills: no description for '{name}' - add a `description:` "
+            f"to the frontmatter of {source.relative_to(ROOT).as_posix()}"
         )
     version = fm.get("framework_version") or DEFAULT_FRAMEWORK_VERSION
     rel_source = source.relative_to(ROOT).as_posix()
@@ -264,12 +359,12 @@ def render(name: str, source: Path, is_command: bool) -> str:
         "---",
         f"name: {name}",
         "description: >-",
-        yaml_folded(DESCRIPTIONS[name]),
+        yaml_folded(description_for(name, description)),
         f"framework_version: {version}",
         "---",
         HEADER_COMMENT.format(source=rel_source),
         "",
-        header_note(name, is_command),
+        header_note(name, is_command, tools_needed(fm.get("allowed-tools", ""))),
         "",
         rewrite_body(body).rstrip("\n"),
         "",
@@ -341,6 +436,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     expected = expected_outputs()
+    leaks = {path: forbidden_tokens(content) for path, content in expected.items()}
+    leaks = {path: tokens for path, tokens in leaks.items() if tokens}
+    if leaks:
+        print(
+            "sync_agent_skills: generated skills still contain Claude-only tokens - extend "
+            "rewrite_body() in tools/sync_agent_skills.py or reword the .claude/ source:"
+        )
+        for path, tokens in leaks.items():
+            print(f"  - {rel(path)}: {', '.join(tokens)}")
+        return 1
     drifted = [
         path for path, content in expected.items()
         if not path.is_file() or read_text(path) != content

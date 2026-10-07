@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import report_issue  # noqa: E402
 
-FORK_SSH = "git@github.com:IgnacioN99/ai-remote-dev-search.git"
+FORK_SSH = "git@github.com:forkowner/ai-job-search-fork.git"
 UPSTREAM_HTTPS = "https://github.com/MadsLorentzen/ai-job-search.git"
 
 # Fictional candidate, in the same spirit as the Jane Doe fixtures used by the
@@ -71,9 +71,9 @@ class FakeRunner:
             if args[1:3] == ["issue", "create"]:
                 if self.create_errors:
                     return cp(args, 1, err=self.create_errors.pop(0))
-                return cp(args, 0, out="https://github.com/IgnacioN99/ai-remote-dev-search/issues/7\n")
+                return cp(args, 0, out="https://github.com/forkowner/ai-job-search-fork/issues/7\n")
             if args[1:3] == ["issue", "comment"]:
-                return cp(args, 0, out="https://github.com/IgnacioN99/ai-remote-dev-search/issues/3#issuecomment-1\n")
+                return cp(args, 0, out="https://github.com/forkowner/ai-job-search-fork/issues/3#issuecomment-1\n")
         raise AssertionError(f"unexpected call {args}")
 
     def gh_writes(self):
@@ -110,7 +110,7 @@ class Base(unittest.TestCase):
 
 class NeverTargetsUpstream(Base):
     def test_parse_ssh_and_https(self):
-        self.assertEqual(report_issue.parse_repo_slug(FORK_SSH), "IgnacioN99/ai-remote-dev-search")
+        self.assertEqual(report_issue.parse_repo_slug(FORK_SSH), "forkowner/ai-job-search-fork")
         self.assertEqual(report_issue.parse_repo_slug(UPSTREAM_HTTPS), "MadsLorentzen/ai-job-search")
         self.assertEqual(report_issue.parse_repo_slug("ssh://git@github.com/o/r.git"), "o/r")
         self.assertEqual(report_issue.parse_repo_slug("https://github.com/o/r"), "o/r")
@@ -154,8 +154,8 @@ class NeverTargetsUpstream(Base):
             if call["args"][1] == "--version":
                 continue
             self.assertIn("-R", call["args"])
-            self.assertEqual(call["args"][call["args"].index("-R") + 1], "IgnacioN99/ai-remote-dev-search")
-            self.assertEqual(call["repo"], "IgnacioN99/ai-remote-dev-search")
+            self.assertEqual(call["args"][call["args"].index("-R") + 1], "forkowner/ai-job-search-fork")
+            self.assertEqual(call["repo"], "forkowner/ai-job-search-fork")
 
     def test_queued_entry_toward_upstream_is_dropped_on_flush(self):
         self.pending.write_text(json.dumps({
@@ -301,7 +301,7 @@ class DryRunAndOffline(Base):
         code, out = self.invoke(self.base_args("--dry-run"), runner)
         self.assertEqual(code, 0)
         self.assertEqual(runner.gh_calls(), [])
-        self.assertIn("IgnacioN99/ai-remote-dev-search", out)
+        self.assertIn("forkowner/ai-job-search-fork", out)
         self.assertFalse(self.pending.exists())
 
     def test_gh_missing_queues_sanitized_entry(self):
@@ -312,7 +312,7 @@ class DryRunAndOffline(Base):
         self.assertEqual(json.loads(out)["action"], "queued")
         raw = self.pending.read_text(encoding="utf-8")
         self.assertNotIn("jane.doe@example.com", raw)
-        self.assertEqual(json.loads(raw)["repo"], "IgnacioN99/ai-remote-dev-search")
+        self.assertEqual(json.loads(raw)["repo"], "forkowner/ai-job-search-fork")
 
     def test_gh_failure_queues(self):
         runner = FakeRunner(list_rc=1)
@@ -466,6 +466,11 @@ class SalaryAndPhoneExtras(Base):
             self.assertNotIn(needle, clean, clean)
         self.assertEqual(clean.count("[phone]"), 3)
 
+    def test_long_international_runs_are_redacted(self):
+        clean = self.sanitizer.clean("call 004512345678901 or 004912345678901 or 491701234567890 today")
+        for needle in ("004512345678901", "004912345678901", "491701234567890"):
+            self.assertNotIn(needle, clean, clean)
+
     def test_numbers_that_are_not_phones_survive(self):
         text = ("exit 429 on 2026-10-07 12:30, issue #431, gh 2.45.0, v1.2.3, port 8080, "
                 "127.0.0.1:5432, 192.168.10.100, year 2025, 2026-10-07T12:30:00Z, pid 12345, "
@@ -512,7 +517,7 @@ class LabelsCommentsFlushTitles(Base):
             "body": "mail jane.doe@example.com at Acme Widgets ApS\n\n---\n_Filed automatically by x_\n"
                     f"<!-- fp:{old_fp} -->\n",
             "labels": ["agent-reported", "jane-doe"], "fingerprint": old_fp,
-            "repo": "IgnacioN99/ai-remote-dev-search"}) + "\n", encoding="utf-8")
+            "repo": "forkowner/ai-job-search-fork"}) + "\n", encoding="utf-8")
         runner = FakeRunner()
         code, out = self.invoke(["--flush", "--json"], runner)
         self.assertEqual(code, 0, out)
@@ -526,7 +531,7 @@ class LabelsCommentsFlushTitles(Base):
     def test_flush_drops_entry_emptied_by_resanitizing(self):
         self.pending.write_text(json.dumps({
             "kind": "bug", "title": "ok title", "body": "Jane Doe jane.doe@example.com",
-            "labels": [], "fingerprint": "x", "repo": "IgnacioN99/ai-remote-dev-search"}) + "\n",
+            "labels": [], "fingerprint": "x", "repo": "forkowner/ai-job-search-fork"}) + "\n",
             encoding="utf-8")
         runner = FakeRunner()
         code, out = self.invoke(["--flush", "--json"], runner)
@@ -587,6 +592,121 @@ class CheckConsistencyHook(unittest.TestCase):
         self.assertNotIn("Acme", body)
         self.assertNotIn("acme_engineer", body)
         self.assertEqual(cmd[cmd.index("--kind") + 1], "drift")
+
+
+class MainCheckoutDataRoot(unittest.TestCase):
+    def runner_returning(self, out, rc=0):
+        def run(args, **kwargs):
+            self.assertEqual(args, ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"])
+            return cp(args, rc, out=out)
+        return run
+
+    def test_linked_worktree_resolves_to_main_checkout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            main = Path(tmp) / "repo"
+            (main / ".git").mkdir(parents=True)
+            worktree = main / ".claude" / "worktrees" / "wt"
+            worktree.mkdir(parents=True)
+            root = report_issue.main_checkout_root(worktree, self.runner_returning(f"{main / '.git'}\n"))
+            self.assertEqual(root, main)
+
+    def test_fallbacks_to_current_root(self):
+        here = Path(tempfile.gettempdir())
+        self.assertEqual(report_issue.main_checkout_root(here, self.runner_returning("", rc=128)), here)
+        self.assertEqual(report_issue.main_checkout_root(here, self.runner_returning(".git\n")), here)
+        self.assertEqual(report_issue.main_checkout_root(here, self.runner_returning("/x/repo.git\n")), here)
+
+        def boom(args, **kwargs):
+            raise FileNotFoundError("git")
+        self.assertEqual(report_issue.main_checkout_root(here, boom), here)
+
+    def test_personal_data_defaults_use_data_root(self):
+        for const in ("PROFILE_JSON", "CLAUDE_MD", "TRACKER_CSV", "APPLICATIONS_DIR"):
+            path = getattr(report_issue, const)
+            self.assertTrue(str(path).startswith(str(report_issue.DATA_ROOT)), const)
+
+
+class BodyFileSegments(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        # The repo itself sits under Documents/CV, as on real machines.
+        self.repo = Path(tmp.name) / "Documents" / "CV" / "repo"
+        (self.repo / "tools").mkdir(parents=True)
+        self.outside = Path(tmp.name) / "scratch"
+        self.outside.mkdir()
+
+    def check(self, path):
+        report_issue.check_body_file_allowed(Path(path), root=self.repo, data_root=self.repo)
+
+    def test_repo_under_documents_cv_is_not_judged(self):
+        self.check(self.repo / "tools" / "body.md")
+        self.check(self.outside / "body.md")
+
+    def test_private_segment_anywhere_is_refused(self):
+        for rel in ("cv/x.md", "tools/cover_letters/y.md", "a/b/documents/c.md", "CV/z.txt"):
+            with self.subTest(rel=rel), self.assertRaises(report_issue.Refused):
+                self.check(self.repo / rel)
+        for path in (self.outside / "cv" / "notes.md", self.outside / "x" / "Documents" / "y.md",
+                     self.repo / "tools" / ".." / ".." / "cover_letters" / "y.md"):
+            with self.subTest(path=str(path)), self.assertRaises(report_issue.Refused):
+                self.check(path)
+
+    def test_tex_files_refused_anywhere(self):
+        for path in (self.outside / "body.tex", self.repo / "tools" / "x.TEX"):
+            with self.subTest(path=str(path)), self.assertRaises(report_issue.Refused):
+                self.check(path)
+
+    def test_main_checkout_paths_are_judged_relative_to_it(self):
+        main = self.repo
+        worktree = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(worktree, ignore_errors=True))
+        report_issue.check_body_file_allowed(main / "tools" / "b.md", root=worktree, data_root=main)
+        with self.assertRaises(report_issue.Refused):
+            report_issue.check_body_file_allowed(main / "cv" / "b.md", root=worktree, data_root=main)
+
+
+class AccentAndCompanyVariants(unittest.TestCase):
+    def test_plain_term_redacts_accented_text(self):
+        s = report_issue.Sanitizer(["Jose Pena", "Nubefera"])
+        for text in ("José Peña", "JOSÉ PEÑA", "Jose\u0301 Pen\u0303a", "Nubéfera", "Jose Pena"):
+            self.assertEqual(s.clean(text), "[redacted]", text)
+        self.assertEqual(s.clean("Josefina Penalty"), "Josefina Penalty")
+
+    def test_multi_word_company_squashed_and_camelcase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tracker = Path(tmp) / "t.csv"
+            tracker.write_text("company,role\nQuarnex Robotics,Engineer\nData Labs,Developer\n", encoding="utf-8")
+            apps = Path(tmp) / "apps"
+            (apps / "vortalix-data_dev").mkdir(parents=True)
+            s = report_issue.Sanitizer.from_repo(Path(tmp) / "none.json", Path(tmp) / "none.md", tracker, apps)
+        clean = s.clean("see QuarnexRobotics, quarnexrobotics.com, @quarnexrobotics and VortalixData, vortalixdata")
+        for needle in ("quarnex", "vortalix"):
+            self.assertNotIn(needle, clean.lower(), clean)
+        terms = {t.lower() for t in s.terms}
+        self.assertNotIn("datalabs", terms, "all-generic companies get no variants")
+
+
+class PhoneFalsePositives(Base):
+    def test_epoch_timestamps_survive(self):
+        text = "ts=1712345678 and created 1712345678123 and at 1599999999"
+        self.assertEqual(self.sanitizer.clean(text), text)
+
+    def test_repeated_identical_numbers_survive(self):
+        for text in ("ids 12345 12345 12345", "count 4321-4321-4321"):
+            self.assertEqual(self.sanitizer.clean(text), text)
+
+    def test_long_ids_and_hex_survive(self):
+        text = ("job 12345678901234567 sha 1234567890abcdef1234 uuid 123e4567-e89b-12d3-a456-426614174000 "
+                "build 9876543210987654")  # 16+ digits: longer than any E.164 number
+        self.assertEqual(self.sanitizer.clean(text), text)
+
+    def test_real_phone_formats_still_redacted(self):
+        text = ("call +45 12 34 56 78, (555) 123-4567, 011 15 1234-5678, 1123456789, "
+                "+54 9 11 2345-6789, 5491123456789")
+        clean = self.sanitizer.clean(text)
+        for needle in ("12 34 56", "123-4567", "1234-5678", "1123456789", "2345-6789", "5491123456789"):
+            self.assertNotIn(needle, clean, clean)
 
 
 if __name__ == "__main__":

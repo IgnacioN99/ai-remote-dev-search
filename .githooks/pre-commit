@@ -5,8 +5,8 @@ Activate once per clone:  git config core.hooksPath .githooks   (see SETUP.md)
 
 Framework development belongs in a linked worktree (git-dir != git-common-dir), where this
 hook allows everything. In the main checkout a commit may only touch personalization paths
-listed in tools/personalization_paths.json (CLAUDE.md, profile skill files, cv/main_example.tex,
-portal skills, templates...). Override deliberately with ALLOW_FRAMEWORK_COMMIT=1, e.g. when
+listed in tools/personalization_paths.json (portal enabled: toggles, new portals and
+templates); profile data lives in gitignored *.personal files and is never committed. Override deliberately with ALLOW_FRAMEWORK_COMMIT=1, e.g. when
 merging reviewed branches into master. Stdlib only; fails open with a warning on internal errors.
 """
 

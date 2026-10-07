@@ -177,7 +177,7 @@ class ApplyRecordsApplication(unittest.TestCase):
         )
 
     def test_skill_defers_to_apply_rather_than_restating(self):
-        """/scrape Step 5 routes into the skill, bypassing /apply entirely."""
+        """The ad-hoc assistant path drafts documents without running /apply."""
         step_3b = section(SKILL, "### Step 3b: Record the Application")
         self.assertIn(
             "`/apply` Step 6b",
@@ -224,7 +224,7 @@ class DraftedMeansDraftedToEveryReader(unittest.TestCase):
          "page bodies are write-once, so calling drafts 'submitted documents' "
          "is permanent even after /outcome records the real submission"),
         (SCRAPER, None, "do not add a second row",
-         "/scrape would duplicate the row Step 3b just wrote"),
+         "/scrape would duplicate the row /apply Step 6b just wrote"),
         (APPLY, "### Step 6b: Record the Application", "bare number, 0-100",
          "/upskill divides by fit_rating, so `72/100` or a verdict word breaks it"),
         (APPLY, "### Step 6b: Record the Application", "append a new row",
@@ -293,11 +293,11 @@ class ApplyArchivesThePosting(unittest.TestCase):
          "item 7's constraints, and would write a remembered posting instead"),
         (SKILL, "### Step 1: Research & Evaluate Fit",
          "full posting text verbatim",
-         "the /scrape path never runs /apply Step 0, so nothing stops it "
+         "the ad-hoc assistant path never runs /apply Step 0, so nothing stops it "
          "compressing the posting before Step 3b archives it"),
         (SKILL, "### Step 3b: Record the Application",
          "same posting archive",
-         "the /scrape path reaches Step 3b without running /apply, and its "
+         "the ad-hoc assistant path reaches Step 3b without running /apply, and its "
          "closed enumeration of Step 6b's rules would omit the archive write"),
         (OUTCOME, "## Step 3: Archive the Application Materials",
          "if it already exists, leave it",
@@ -350,7 +350,7 @@ class DeadlineSurvivesEveryWrite(unittest.TestCase):
         (NOTION_SYNC, None, "tracker `deadline` column",
          "the Deadine property must name the tracker column as its source"),
         (SKILL, "### Step 3b: Record the Application", "`deadline` is the application deadline",
-         "the /scrape path reaches Step 3b without running /apply Step 0, so it must "
+         "the ad-hoc assistant path reaches Step 3b without running /apply Step 0, so it must "
          "still be told what the field is and where it comes from"),
         # The two properties the migration has to hold. Both are stated in the
         # prose of either file and neither was pinned, so either could be edited
@@ -508,9 +508,9 @@ class ArchiveNameIsOnePathComponent(unittest.TestCase):
          "CV and cover-letter filenames use the same unsanitised values; a "
          "`/` there sends the draft to a path lualatex never writes a PDF "
          "back to, and the Step 4 compile check fails on a phantom path"),
-        (SKILL, "### Step 2: Tailor CV",
+        (SKILL, "### Step 2: Edit an Existing CV",
          "by the **Subfolder naming** rule in `documents/README.md`",
-         "the /scrape path writes its documents before Step 3b consults /apply, "
+         "the ad-hoc assistant path writes its documents before Step 3b consults /apply, "
          "so /apply's filename rule cannot protect it"),
         (GMAIL_SYNC, "## Step 2: Load State",
          "by the **Subfolder naming** rule in `documents/README.md`",

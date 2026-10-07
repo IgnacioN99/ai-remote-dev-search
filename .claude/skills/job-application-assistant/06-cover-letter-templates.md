@@ -1,5 +1,5 @@
 ---
-framework_version: 1.0.2
+framework_version: 1.0.4
 ---
 
 # Cover Letter Templates and Tailoring Guide
@@ -18,15 +18,7 @@ Cover letters use a custom LaTeX document class (`cover.cls`) with Lato/Raleway 
 cd cover_letters && xelatex -interaction=nonstopmode cover_<company>_<role>.tex
 ```
 
-Expected output: `Output written on cover_<company>_<role>.pdf (1 page, ...)`. Any page count other than 1 is a failure that must be fixed before presenting to the user.
-
-## Compile-and-Inspect Loop (MANDATORY)
-
-After writing the cover letter and before presenting to the user, always compile and visually inspect the PDF. Iterate until the layout is clean:
-
-1. Run `xelatex -interaction=nonstopmode cover_<company>_<role>.tex`
-2. Confirm page count is exactly 1 and compile succeeded
-3. Read the PDF via the Read tool and visually check: signature fits at the bottom, no text cut off, bullet font matches body
+Expected output: `Output written on cover_<company>_<role>.pdf (1 page, ...)`. Any other page count is a failure to fix before presenting. The compile-and-inspect loop (exactly 1 page, signature on the page, bullet font matching the body) is `/apply` Step 5 (`.claude/commands/apply.md`); this file holds the template knowledge it refers to.
 
 ### Known template pitfall: itemize inside `\lettercontent{}`
 
@@ -128,17 +120,17 @@ The font wrapper is mandatory — if you just move `\begin{itemize}` outside `\l
 ### Salutation
 - If you know the hiring manager's name: "Dear [First Last],"
 - If you know the team: "Dear [Company] hiring team,"
-- Generic: "Dear [Company]," (avoid "To whom it may concern")
+- Unknown: "Dear Hiring Manager," or its equivalent in the letter's language (avoid "To whom it may concern")
 
 ### Length - Hard 1-Page Limit
 - Target: 1 page including signature block
-- Maximum: **never exceed 1 page**
+- Maximum: exactly 1 page; trim content rather than spill
 - **Word budget: 250-300 words** of body text (not counting LaTeX markup). This is the safe maximum. 350 words will overflow.
 - **Always count**: opening paragraph + bullet list paragraph + closing paragraph = 3 blocks. Add a 4th only if the others are short.
 - When adding company-specific content, trim other content to compensate rather than adding net length
 
 ### Line Spacing
-- Add `\usepackage{setspace}` and `\setstretch{1.0}` if the letter is long and needs to fit on one page
+- Keep the template's spacing and geometry; when the letter runs long, trim content (see Length above) rather than tightening line spacing
 - Use `\vspace{.5cm}` between major sections for readability (only if space permits)
 
 ### Bullet Lists
@@ -158,7 +150,7 @@ Escape these wherever they appear in body text:
 ### Non-English Cover Letters
 - Same template structure, just write content in the posting's language
 - Adjust date format to local convention
-- Adjust closing to local convention (e.g. "Med venlig hilsen," for Danish)
+- Adjust the closing to the convention of the posting's language
 
 ## Checklist Before Finalizing
 - [ ] No em-dashes (use commas or periods instead)
@@ -168,7 +160,7 @@ Escape these wherever they appear in body text:
 - [ ] Motivation section references this specific company's mission/values
 - [ ] Company name and role are correct throughout
 - [ ] Date is current
-- [ ] Fits on one page
+- [ ] Exactly 1 page, signature block included
 - [ ] Language matches the job posting language
 - [ ] Salutation is appropriate (named person if possible)
 - [ ] Headline is engaging and specific, not generic
@@ -176,5 +168,5 @@ Escape these wherever they appear in body text:
 ## Submission Guidelines (Best Practice)
 - Submit only the documents the employer requests
 - Export as PDF to preserve formatting
-- Name files clearly: "[Your Name] CV" and "[Your Name] Cover Letter"
+- Name uploaded files in the ATS format: `<CandidateName>_CV.pdf` and `<CandidateName>_CoverLetter.pdf` (optionally `_<Company>` before `.pdf`), never the internal `main_*`/`cover_*` names - `/apply` Step 5 exports these copies
 - Follow all employer instructions regarding anonymity or specific materials

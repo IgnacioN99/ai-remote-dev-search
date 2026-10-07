@@ -1,20 +1,31 @@
+---
+description: >-
+  Onboards the candidate: collects career information from a CV, documents or an interview
+  and writes the profile files, CLAUDE.md and search queries. Use when the user wants to set
+  up, rebuild or update a section of their candidate profile. Also triggered by /setup.
+  Run only when the user types /setup or explicitly asks for it.
+argument-hint: "[--section <name>]"
+disable-model-invocation: true
+---
+
 # /setup - Profile Onboarding
 
 You are running the onboarding setup for the AI Job Search framework. Your goal is to collect the user's professional information and populate all profile files so the `/apply` workflow works out of the box.
 
-There are three paths into setup. Step 0 picks the right one; all three converge on Step 3 (file generation) and Step 4 (confirmation).
+There are three paths into setup. Step 0 picks the right one; all three converge on Step 3 (file generation) and Step 4 (confirmation). Ask one question per turn; at each STOP, wait for the user's reply before continuing.
 
-**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /setup` before writing anything (see `tools/personalization_paths.json`).
+**Config mode:** this command can toggle portal `enabled:` flags under `.agents/skills/`, so run `python3 tools/set_mode.py config --by /setup` before writing anything (see `tools/personalization_paths.json`).
+
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
 ## Step 0: Welcome & Choose Path
 
-If `$ARGUMENTS` contains `--section <name>`, skip directly to that section in Path C for an update-only flow. Do not run the path-selection prompt below.
+If `$ARGUMENTS` contains `--section <name>`, skip directly to that section in Path C for an update-only flow, without the path-selection prompt below.
 
-Otherwise, first check where this working copy would publish to — **before anything is
-written, not after** (the Step 4 privacy note fires only once every file is already on
-disk, which is too late to inform the decision). Run `git remote get-url origin`; if the
+Otherwise, first check where this working copy would publish to, before anything is
+written. Run `git remote get-url origin`; if the
 command fails (no remote, or not a git checkout), skip this check silently. If there is
 a GitHub `origin`, check it with `gh repo view <owner/repo> --json visibility,isFork`
 when `gh` is available. If the origin is a **public fork** of the template — or its
@@ -28,10 +39,10 @@ visibility cannot be determined — warn now and wait:
 > instead — SETUP.md section 8 has the two-minute private-remote recipe. Want to
 > continue with the setup?
 
-Wait for the user's confirmation before showing the path prompt. A private origin, no
+STOP — wait for the user's confirmation before showing the path prompt. A private origin, no
 origin, or a non-fork remote needs no warning — continue silently.
 
-Then, before greeting the user, scan the `documents/` folder. Use Glob with `documents/**/*` and count files per subfolder (`cv/`, `linkedin/`, `diplomas/`, `references/`, `projects/`, `applications/`).
+Then, before greeting the user, scan the `documents/` folder: list every file matching `documents/**/*` and count files per subfolder (`cv/`, `linkedin/`, `diplomas/`, `references/`, `projects/`, `applications/`).
 
 Then welcome the user with a single message that lists three paths. The wording changes based on what was found.
 
@@ -67,7 +78,7 @@ Then welcome the user with a single message that lists three paths. The wording 
 >
 > Which would you like?
 
-Wait for the user's choice. If they pick A but the folder is still empty, tell them what to add (point at `documents/README.md`) and stop.
+STOP — wait for the user's choice. If they pick A but the folder is still empty, tell them what to add (point at `documents/README.md`) and stop.
 
 ---
 
@@ -75,11 +86,11 @@ Wait for the user's choice. If they pick A but the folder is still empty, tell t
 
 Reads structured documents in `documents/`, cross-references them for consistency, and merges extracted data into the seven profile skill files. Read-before-write and idempotent: changes already present will not be proposed again.
 
-Follow these steps **exactly in order**.
+Follow these steps in order.
 
 ### Step A1: Inventory
 
-Use Glob with `documents/**/*` to scan the full tree. Print:
+List every file matching `documents/**/*` to scan the full tree. Print:
 
 ```
 ## Documents Found
@@ -98,7 +109,7 @@ If every subfolder is empty, stop and tell the user to populate the folder. Poin
 
 ### Step A2: Read Existing Skill Files
 
-Read these in parallel before extracting anything. You must know what is already there to make the merge intelligent.
+Read these in parallel before extracting anything, so the merge knows what is already there.
 
 - `.claude/skills/job-application-assistant/01-candidate-profile.md`
 - `.claude/skills/job-application-assistant/02-behavioral-profile.md`
@@ -108,7 +119,7 @@ Read these in parallel before extracting anything. You must know what is already
 - `.claude/skills/job-application-assistant/06-cover-letter-templates.md`
 - `.claude/skills/job-application-assistant/07-interview-prep.md`
 
-Hold this content in context throughout Path A. Do not re-read.
+Hold this content in context throughout Path A and reuse it instead of re-reading.
 
 ### Step A3: Parse Documents
 
@@ -141,7 +152,7 @@ Before mapping anything to skill files, check for inconsistencies:
 - Education mismatches (degree name, graduation date)
 - Employer name variations
 
-If inconsistencies are found, present them as a numbered list and wait for the user to resolve each one before continuing:
+If inconsistencies are found, present them as a numbered list (STOP — wait for the user to resolve each one before continuing):
 
 ```
 ## Cross-Reference Issues Found
@@ -169,12 +180,12 @@ For each skill file, compare extracted document content against the current file
 **Inference rules** (apply when populating from inferred sources):
 
 - **`01-candidate-profile.md` (`## Independent Projects`):** Source is `projects/` documents. Extract structured project entries formatted as `- **[PROJECT_NAME]**: [DESCRIPTION with tech stack and measurable outcome]`. Ground all claims in the document text.
-- **`02-behavioral-profile.md`:** Source is LinkedIn About + recommendation letters. Extract recurring themes, adjectives, phrases about how the candidate works. Add only to "Strongest Behavioral Traits", "How [Candidate] Works Best", or "Management Style Preferences" sections. Do not overwrite existing scored assessments. Always label inferred additions: *[Inferred from LinkedIn About / Reference letter - review before relying on this]*
-- **`03-writing-style.md`:** Source is `cover_letter.tex` files. Extract recurring patterns. Add as observations under "## Patterns Observed in Past Applications". Do not modify existing rules. Only add if 2+ cover letters show a genuine pattern.
-- **`04-job-evaluation.md`:** Source is `job_posting.md` + `outcome.md` pairs. If an application reached interview or offer: note role type and sector as a confirmed strong-fit signal. If 2+ applications repeat a no-response or rejection pattern: note it. Add findings under "## Calibration from Past Applications". Do not modify the existing scoring framework.
+- **`02-behavioral-profile.md`:** Source is LinkedIn About + recommendation letters. Extract recurring themes, adjectives, phrases about how the candidate works. Add only to "Strongest Behavioral Traits", "How [Candidate] Works Best", or "Management Style Preferences" sections. Leave existing scored assessments as they are. Label every inferred addition: *[Inferred from LinkedIn About / Reference letter - review before relying on this]*
+- **`03-writing-style.md`:** Source is `cover_letter.tex` files. Extract recurring patterns. Add as observations under "## Patterns Observed in Past Applications", leaving existing rules as they are. Only add if 2+ cover letters show a genuine pattern.
+- **`04-job-evaluation.md`:** Source is `job_posting.md` + `outcome.md` pairs. If an application reached interview or offer: note role type and sector as a confirmed strong-fit signal. If 2+ applications repeat a no-response or rejection pattern: note it. Add findings under "## Calibration from Past Applications", leaving the existing scoring framework as it is.
 - **`05-cv-templates.md`:** Source is `cv_draft.tex` files. Extract any profile statement that does not already appear in templates. Label with: *[Used for: <company>_<role>]*. **Ground before extracting:** archived drafts are tailored outputs, not source documents - verify every factual claim in an extracted statement (titles, employers, metrics, technologies) against `01-candidate-profile.md` and drop or correct any claim the profile does not support, keeping only the framing. A tailored draft that drifted must never become a template future applications start from.
 - **`06-cover-letter-templates.md`:** Source is `cover_letter.tex` files. Extract opening patterns, bullet structures, closing formulations. Add only what is structurally distinct from existing templates.
-- **`07-interview-prep.md`:** Source is CV bullets, LinkedIn descriptions, reference letter quotes. Identify achievements not yet covered by an existing STAR example. Do NOT draft full STAR examples. Add stubs under "## STAR Candidates (Complete Manually)":
+- **`07-interview-prep.md`:** Source is CV bullets, LinkedIn descriptions, reference letter quotes. Identify achievements not yet covered by an existing STAR example. Add stubs only (the user completes the details, so nothing is invented) under "## STAR Candidates (Complete Manually)":
 
 ```markdown
 ### [Achievement title]
@@ -214,7 +225,7 @@ Then ask:
 > **Apply all additive changes?** These add new content without touching anything already in the files.
 > Reply **yes** to apply all, or list the numbers you want to skip.
 
-Wait for the response. Apply only the confirmed items.
+STOP — wait for the response. Apply only the confirmed items.
 
 **Conflicting changes** (one at a time):
 
@@ -233,13 +244,13 @@ Options:
   [manual] I'll edit this myself - skip for now
 ```
 
-Wait for the user's choice on each conflict. If no conflicts, state "No conflicting changes found." and skip this section.
+STOP — wait for the user's choice on each conflict before presenting the next. If no conflicts, state "No conflicting changes found." and skip this section.
 
 ### Step A7: Write Confirmed Changes and Fill Gaps
 
-Apply the confirmed changes with the Edit tool. Make targeted edits only. Do not rewrite entire files. State which changes were applied per file. If a file has no confirmed changes, state "No changes made to [filename]."
+Apply the confirmed changes as targeted edits, leaving the rest of each file untouched. State which changes were applied per file. If a file has no confirmed changes, state "No changes made to [filename]."
 
-Documents cover skills, experience, education, references, and behavioral signal. They do not cover everything `/apply` and `/scrape` need. After the writes, ask follow-up questions for gaps:
+Documents cover skills, experience, education, references, and behavioral signal. They do not cover everything `/apply` and `/scrape` need. After the writes, ask follow-up questions for gaps, one per turn:
 
 - Career goals and target role types
 - What excites the user in their next role
@@ -260,14 +271,14 @@ If the user provides a single CV/resume:
 1. Read the document thoroughly.
 2. Extract all structured information: name, contact, education, experience, skills, languages, publications, awards.
 3. Present a summary of what was extracted.
-4. Ask follow-up questions for gaps (behavioral profile, career goals, deal-breakers, languages and proficiency levels if not already extracted, salary expectations, references).
+4. Ask follow-up questions for gaps, one per turn (behavioral profile, career goals, deal-breakers, languages and proficiency levels if not already extracted, salary expectations, references).
 5. Proceed to Step 3 (file generation).
 
 ---
 
 ## Path C: Interview Mode
 
-Walk through each section conversationally. Ask questions naturally, not as a form. Let the user answer in their own words and you'll structure the data.
+Walk through each section conversationally, one question per turn. Ask questions naturally, not as a form. Let the user answer in their own words and you'll structure the data.
 
 ### Section 1: Identity & Contact
 Ask about:
@@ -340,10 +351,10 @@ Ask about:
 - **Key skills as search terms:** "Which of your skills are most likely to appear in job postings?" Pick 3-5 that are distinctive and searchable.
 - **Target companies (optional):** "Are there specific companies you'd like to monitor for openings?"
 - **Geographic scope:** "Which cities or regions should I search in? How far are you willing to commute?" Use this to define the location filter tiers (ideal, acceptable, borderline, too far).
-- **Job portals:** "The framework ships country-agnostic search CLIs (`linkedin-search`, `freehire-search`, enabled by default) plus Danish portal demos (Jobindex, Jobbank, Jobdanmark, Jobnet) that ship **disabled**. `/scrape` auto-discovers whatever portal skills are installed under `.agents/skills/` and skips any with `enabled: false`. Which portals fit your market?" **Then act on the answer:** if the user's market is Denmark (or they ask for the Danish boards), edit each of the four Danish `SKILL.md` files and set `enabled: true` in the frontmatter; otherwise leave them disabled and say so - they cost nothing while disabled and can be enabled later by flipping the flag. If the user needs a local board that is not shipped, guide them to `/add-portal` (market-specific skills live in their fork). WebSearch/`site:` queries remain the fallback for portals without a CLI skill.
+- **Job portals:** "The framework ships country-agnostic search CLIs (`linkedin-search`, `freehire-search`, enabled by default) plus Danish portal demos (Jobindex, Jobbank, Jobdanmark, Jobnet) that ship **disabled**. `/scrape` auto-discovers whatever portal skills are installed under `.agents/skills/` and skips any with `enabled: false`. Which portals fit your market?" **Then act on the answer:** if the user's market is Denmark (or they ask for the Danish boards), edit each of the four Danish `SKILL.md` files and set `enabled: true` in the frontmatter; otherwise leave them disabled and say so - they cost nothing while disabled and can be enabled later by flipping the flag. If the user needs a local board that is not shipped, guide them to `/add-portal` (market-specific skills live in their fork). Web search `site:` queries remain the fallback for portals without a CLI skill.
 - **CV language:** "Should your CVs be written in English (the default, accepted in most markets), or in your market's language?" Record the answer as a `CV language: <language>` line in CLAUDE.md's Identity section. Cover letters always match each posting's language automatically; this setting governs the CV only. If the user is unsure, keep English and note they can re-run `/setup --section search` to change it.
 
-**Important:** Also suggest role types the user may not have considered, based on their skill profile. For example:
+Also suggest role types the user may not have considered, based on their skill profile. For example:
 - If they have strong Python + domain expertise: "Have you considered roles like 'Technical Consultant' or 'Solutions Engineer' in your domain?"
 - If they have ML + a specific industry: "Companies in adjacent industries also hire for these skills. Should I include searches for [adjacent sector]?"
 - If they have project management experience alongside technical skills: "Would you also want to search for 'Technical Project Manager' or 'Team Lead' roles?"
@@ -354,10 +365,10 @@ This proactive suggestion step helps users discover career paths they might not 
 
 ## Step 3: Generate Profile Files
 
-Once data collection is complete, generate or finish populating the following files. **For Path A**, the seven skill files are already populated by Step A7; check each before writing and skip if its content is no longer placeholder text.
+Once data collection is complete, generate or finish populating the following files. **Write target:** per the Personal overlay note above, every file in this step, the master CV included, is written as its gitignored `<file>.personal` copy (`CLAUDE.md` -> `CLAUDE.md.personal`, `01-candidate-profile.md` -> `01-candidate-profile.md.personal`, `cv/main_example.tex` -> `cv/main_example.tex.personal`, ...): run `python3 tools/personal_overlay.py ensure <file>` first and edit the path it prints. The tracked files stay placeholder templates; the same applies to Step A7's writes. **For Path A**, the seven skill files are already populated by Step A7; check each before writing and skip if its content is no longer placeholder text.
 
 ### 1. Update `CLAUDE.md`
-Replace all `[PLACEHOLDER]` tokens with the user's actual information. Keep the structure, workflow, and verification checklist intact.
+Replace all `[PLACEHOLDER]` tokens with the user's actual information. Keep the template's structure and section headings intact.
 
 ### 2. Populate `01-candidate-profile.md` *(Path B and C; skip if Path A populated it)*
 Write the full candidate profile with structured sections: Identity (including Languages, with levels), Education, Professional Experience, Independent Projects, Technical Skills, Publications, Awards, References.
@@ -382,8 +393,8 @@ Personalise the contact line and the signature inside the file's LaTeX template:
 ### 7. Update `07-interview-prep.md` *(Path B and C; skip if Path A populated it)*
 Create STAR examples from their actual experience (at least 3-4 examples). Path A leaves STAR stubs under "## STAR Candidates (Complete Manually)" rather than full examples; if any stubs are present, mention them in Step 4 so the user knows to flesh them out.
 
-### 8. Update `cv/main_example.tex`
-Replace placeholder personal data with their actual name, contact info, and add their education and most recent experience entries.
+### 8. Update `cv/main_example.tex` (written as `cv/main_example.tex.personal`)
+Run `python3 tools/personal_overlay.py ensure cv/main_example.tex` and edit the path it prints. Replace placeholder personal data with their actual name, contact info, and add their education and most recent experience entries.
 
 ### 9. Generate `.claude/skills/job-scraper/search-queries.md`
 Replace all placeholder tokens in the search queries file with the user's actual information from Section 9 (or the equivalent follow-up questions in Path A's Step A7):
@@ -414,13 +425,16 @@ Present a summary:
 > - `.claude/skills/job-application-assistant/05-cv-templates.md` - CV templates with your profile statements and contact block
 > - `.claude/skills/job-application-assistant/06-cover-letter-templates.md` - Cover letter templates with your contact line and signature
 > - `.claude/skills/job-application-assistant/07-interview-prep.md` - STAR examples from your experience
-> - `cv/main_example.tex` - Your LaTeX CV template
+> - `cv/main_example.tex.personal` - Your master LaTeX CV
 > - `.claude/skills/job-scraper/search-queries.md` - Job search queries for `/scrape`
 >
-> **Privacy note:** the files above now contain your personal data and are *tracked by git*.
-> A GitHub fork of the template is always public (forks of public repos cannot be made
-> private), so do not push these commits to a fork. Keep them local, or push to a private
-> repository instead - see SETUP.md section 8 for the private-remote setup.
+> Each profile/data file above was written as its gitignored `<file>.personal` copy, which every
+> command reads in place of the template - your profile data stays out of git.
+>
+> **Privacy note:** the tracked files stay placeholder templates, so none of the above is
+> committed. A GitHub fork of the template is always public (forks of public repos cannot be
+> made private), so never force-add a `.personal` file to a fork - see SETUP.md section 8 for a
+> private remote if you want a backup.
 >
 > **Try it out:**
 > - Run `/scrape` to search for matching jobs right now
@@ -435,17 +449,16 @@ If Path A left any STAR stubs in `07-interview-prep.md`, also note:
 
 ## Final Step: Sync the Antigravity Skill Copies
 
-This command edits files under `.claude/`. `python3 tools/sync_agent_skills.py` must run before `python3 tools/set_mode.py operator` (the confirm step above does both, in that order) so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change while the framework is still writable, and the CI drift check stays green. Do this even if the user only runs Claude Code. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.
+This command edits files under `.claude/`. Run `python3 tools/sync_agent_skills.py` before `python3 tools/set_mode.py operator` (Step 4 does both, in that order), so the generated `.agents/skills/` copies pick up the change while the framework is still writable. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.
 
 ---
 
-## Design Principles
+## Final checklist
 
-- Three onboarding paths converge on the same skill files. Step 0 picks the right path based on what's in `documents/`. Steps 3 and 4 are shared.
-- Path A is read-before-write and idempotent. Re-running it as documents are added does not duplicate or overwrite existing content; conflicts are surfaced for explicit resolution.
-- Path A labels inferred behavioral or style additions so the user can review them critically before relying on them.
-- Each section in Path C is a natural conversation, not a form. The user can skip optional sections.
-- Synthesize answers into structured formats (the user does not need to know markdown or LaTeX).
-- Can be re-run with `--section <name>` to update specific sections (e.g., `/setup --section search` to reconfigure job search queries without re-doing the full profile).
-- Section 9 (search) in Path C, and the equivalent follow-up questions in Path A, proactively suggest role types the user may not have considered.
-- At the end, suggest running `/scrape` and `/apply` with a test job posting.
+Before ending the turn, confirm each item in your reply:
+- [ ] Origin preflight run (`git remote get-url origin`); quote its output, and the warning if one was shown
+- [ ] Every profile/data file written as its `<file>.personal` copy via `python3 tools/personal_overlay.py ensure <file>` (quote the printed path), `cv/main_example.tex.personal` included; no tracked file written
+- [ ] No `[PLACEHOLDER]` tokens left in the written `.personal` copies, the 05/06 contact blocks, or `cv/main_example.tex.personal`
+- [ ] `python3 tools/sync_agent_skills.py` run; quote the command output as evidence
+- [ ] `python3 tools/set_mode.py operator` run; quote the command output as evidence
+- [ ] Summary presented, with any Path A STAR stubs named

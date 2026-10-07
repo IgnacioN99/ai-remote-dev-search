@@ -1,16 +1,26 @@
+---
+description: >-
+  Scans Gmail for status signals on tracked applications (invites, assessments, offers,
+  rejections) and, after the user approves the batch, updates the tracker and outcome files.
+  Use when the user asks to sync application status from email. Also triggered by
+  /gmail-sync. Run only when the user types /gmail-sync or explicitly asks for it.
+argument-hint: "[company] [since YYYY-MM-DD]"
+disable-model-invocation: true
+---
+
 # /gmail-sync - Sync Application Status from Gmail
 
 You are scanning the user's Gmail for status signals on tracked job applications (interview invites, assessment links, offers, rejections) and, once approved, writing the detected changes into `job_search_tracker.csv` and `documents/applications/<company>_<role>/outcome.md` - the same two places `/outcome` writes to, in the same schema.
 
-Unlike `/outcome` (which asks the user what happened), `/gmail-sync` classifies real emails on its own - but it never writes on its own. Every classified change is presented as a batch **before** anything touches the tracker or `outcome.md`, and only proceeds once the user approves it (approving the whole batch at once is fine; writing first and flagging it after is not). Because a wrong write silently corrupts application history that `/setup` later calibrates from, every proposed change must cite its source email and every uncertain case must be surfaced instead of guessed. Never treat this command's job as "notice something in an inbox" - it is "propose a correct, sourced line for a permanent record, and write it only once the user says yes."
+Unlike `/outcome` (which asks the user what happened), `/gmail-sync` classifies real emails on its own - but it never writes on its own. Every classified change is presented as a batch **before** anything touches the tracker or `outcome.md`, and only proceeds once the user approves it (approving the whole batch at once is fine; writing first and flagging it after is not), because a wrong write silently corrupts the history `/setup` calibrates from. Every proposed change cites its source email, and every uncertain case is surfaced instead of guessed.
 
-Follow these steps **in order**.
+Follow these steps in order. At each STOP, wait for the user's reply before continuing.
 
 ---
 
 ## Step 0: Prerequisites
 
-Confirm the Gmail MCP tools (`mcp__claude_ai_Gmail__*`) are available. If not, tell the user to connect the Gmail integration (claude.ai Settings → Connectors → Gmail) and stop - do not attempt this via Bash, IMAP, or any other channel.
+Confirm the Gmail MCP tools (the claude.ai Gmail connector) are available. If not, tell the user to connect the Gmail integration (claude.ai Settings → Connectors → Gmail) and stop. Use only that connector - not the shell, IMAP or any other channel - because it is the access the user granted.
 
 ---
 
@@ -56,7 +66,7 @@ Example: `newer_than:30d -in:sent -in:drafts ({"Acme Corp" "BigCo"} OR {from:gre
 
 ## Step 4: Filter to New Messages
 
-For each returned thread, inspect its messages' IDs against `state.processed_message_ids`. Skip a thread entirely if every message in it is already processed. For threads with unprocessed messages, call `get_thread` with `messageFormat: FULL_CONTENT` to get full bodies - **classification in Step 5 must never be based on the snippet/subject alone**, since snippets truncate the exact phrase that distinguishes "we'd like to schedule a call" from "thanks for applying."
+For each returned thread, inspect its messages' IDs against `state.processed_message_ids`. Skip a thread entirely if every message in it is already processed. For threads with unprocessed messages, call `get_thread` with `messageFormat: FULL_CONTENT` to get full bodies - **classify in Step 5 from the full body, never the snippet/subject alone**, since snippets truncate the exact phrase that distinguishes "we'd like to schedule a call" from "thanks for applying."
 
 ---
 
@@ -112,7 +122,7 @@ If the Proposed Changes table would be empty, say so briefly and skip straight t
 
 ## Step 7: Wait for Approval
 
-Stop here and wait for the user's reply. Do not write anything from this run's classification before an explicit response arrives.
+STOP — wait for the user's reply. Write nothing from this run's classification before an explicit response arrives.
 
 - "approve all" / "yes" / equivalent → every row in the Proposed Changes table proceeds to Step 7a.
 - A partial response, e.g. "approve 1, skip 2" or "just the interview one" → only the specified rows proceed.
@@ -124,7 +134,7 @@ Approving the whole batch in one reply is expected UX - the requirement is that 
 
 For every row the user approved:
 
-1. **Tracker (`job_search_tracker.csv`):** update the matched row's `status` column per the Step 5 table, and append to `notes`: `<date> gmail-sync: <signal> ("<email subject>")`, **with every comma, double quote and line break deleted from the subject first**. No writer here emits a quoted tracker field and no reader unquotes one, so an unescaped comma splits the row identically for a naive split and for the `csv.DictReader` the shipped reader actually uses (`tools/rank_state.py`): `cv_file`, `cover_letter_file` and `source` each shift a column left. A line break is worse - it ends the row and starts a second one. The double quote is stripped as cheap insurance for the day something does quote a field; on today's readers it is harmless. The subject is a human-readable breadcrumb here, not data anything reads back - item 2 below keeps it verbatim in `outcome.md`, which is Markdown and carries no such constraint. This matters more than it looks: `/gmail-sync` is the only tracker writer that copies *third-party* text, and the only one that runs unattended, so nobody is watching the row it edits.
+1. **Tracker (`job_search_tracker.csv`):** update the matched row's `status` column per the Step 5 table, and append to `notes`: `<date> gmail-sync: <signal> ("<email subject>")`, **with every comma, double quote and line break deleted from the subject first**: tracker fields are never quoted, so a comma shifts `cv_file`, `cover_letter_file` and `source` a column left for `csv.DictReader` (`tools/rank_state.py`) and a line break splits the row. Item 2 below keeps the subject verbatim in `outcome.md`, which is Markdown and has no such constraint.
 
    Never restructure the CSV, reorder rows, or touch unrelated rows - same rule `/outcome` follows. The rewrite touches only `status`, `notes` (and `date` when the drafted-rule below fires): preserve every other field of the row, parsed or not, so the `deadline` column written by `/apply` Step 6b - or any column added in the future - is never blanked by a status sync.
 
@@ -147,7 +157,7 @@ Add every message ID processed this run - approved, skipped, unmatched, or filte
 
 ## Step 9: Staleness Check
 
-For open applications with **no** matching activity found this run, check the tracker's `date` column and the most recent dated Notes entry in their `outcome.md`. If the most recent of those is 30+ days old, flag the application as "needs follow-up" in the closing summary below. This is surfaced only - never write anything for staleness.
+For open applications with **no** matching activity found this run, check the tracker's `date` column and the most recent dated Notes entry in their `outcome.md`. If the most recent of those is 30+ days old, flag the application as "needs follow-up" in the closing summary below. This is surfaced only; staleness writes nothing.
 
 **Skip `drafted` rows here** - nothing was sent, so no one is late replying.
 
@@ -177,7 +187,7 @@ Confirm what actually happened, distinct from the Step 6 proposal:
 
 If nothing was proposed this run, a brief note is enough instead of an empty summary.
 
-If this run pushed the count of applications with a **final** `outcome.md` status to 3+ (or resolved a second application sharing a pattern), suggest the same `/setup` Path A calibration handoff `/outcome` suggests - do not duplicate that logic, just point the user there.
+If this run pushed the count of applications with a **final** `outcome.md` status to 3+ (or resolved a second application sharing a pattern), suggest the same `/setup` Path A calibration handoff `/outcome` suggests by pointing the user there.
 
 ---
 
@@ -186,9 +196,18 @@ If this run pushed the count of applications with a **final** `outcome.md` statu
 1. **Classify from full email bodies, never snippets.** A status-changing proposal requires having actually fetched and read the message via `get_thread`/`get_message`.
 2. **Nothing is written before the user approves the Step 6 batch.** Approving everything in one reply is fine UX; writing first and flagging it after is not.
 3. **Never propose `hired` or `offer_declined`.** Those require the user's real-world decision; `/gmail-sync` stops at proposing `offer` and flags it.
-4. **A conflicting signal against an already-final or already-written status is a manual-review flag, not a proposed overwrite.** When in doubt, don't propose it - surface it.
+4. **A conflicting signal against an already-final or already-written status is a manual-review flag, not a proposed overwrite.** When in doubt, surface it instead of proposing it.
 5. **Append-only to `outcome.md` Notes**, same as `/outcome`. Never rewrite or delete existing history.
 6. **Idempotent by message ID.** Re-running must never re-propose, or duplicate a tracker note or Notes entry for, the same email.
 7. **Never fabricate a match.** If the company can't be confidently identified from the email, it goes in "Unmatched," not a guess.
 8. **Read-only against Gmail itself.** This command reads and classifies; it does not label, archive, or delete anything in the user's mailbox.
-9. **All state is personal data.** `gmail_sync/state.json`, `job_search_tracker.csv`, and `documents/applications/**` are gitignored - never suggest committing them.
+9. **All state is personal data.** `gmail_sync/state.json`, `job_search_tracker.csv`, and `documents/applications/**` are gitignored; keep them out of commits.
+
+## Final checklist
+
+Before ending the turn, confirm each item in your reply:
+- [ ] Every proposed change cited its source email and was approved by the user before any write
+- [ ] Tracker writes touched only `status`, `notes` (and `date` when leaving `drafted`), with the subject sanitised
+- [ ] `outcome.md` Notes appended, never rewritten
+- [ ] `gmail_sync/state.json` updated with every processed message ID and `last_sync`
+- [ ] Closing summary presented (written, skipped, offers awaiting a decision, stale)

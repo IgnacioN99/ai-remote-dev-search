@@ -153,24 +153,26 @@ class ClaudeHookTests(GuardFixture):
                                      edits=[{"old_string": "framework", "new_string": "y"}])[0], "deny")
 
     def test_config_mode_unlocks_only_personalization_paths(self):
+        new_portal = self.main / ".agents/skills/new-portal/SKILL.md"
+        self.assertEqual(self.claude("Write", new_portal, content="x")[0], "deny")
+        self.assertIn("config", self.set_mode("config"))
+        self.assertEqual(self.claude("Write", new_portal, content="x")[0], "allow")
+        # Config mode never unlocks framework code, nor the profile/data templates:
+        # candidate data goes to their gitignored .personal copies.
+        self.assertEqual(self.claude("Write", self.main / "tools/x.py", content="x")[0], "deny")
         self.assertEqual(self.claude("Write", self.main / EVALUATION, content="x")[0], "deny")
         self.assertEqual(self.claude("Write", self.main / "CLAUDE.md", content="x")[0], "deny")
-        self.assertIn("config", self.set_mode("config"))
-        self.assertEqual(self.claude("Write", self.main / EVALUATION, content="x")[0], "allow")
-        self.assertEqual(self.claude("Write", self.main / "CLAUDE.md", content="x")[0], "allow")
-        self.assertEqual(self.claude("Write", self.main / ".agents/skills/new-portal/SKILL.md", content="x")[0], "allow")
-        # Config mode never unlocks framework code.
-        self.assertEqual(self.claude("Write", self.main / "tools/x.py", content="x")[0], "deny")
         self.set_mode("operator")
-        self.assertEqual(self.claude("Write", self.main / EVALUATION, content="x")[0], "deny")
+        self.assertEqual(self.claude("Write", new_portal, content="x")[0], "deny")
 
     def test_expired_config_mode_falls_back_to_operator(self):
         self.write(self.main / ".agents/state/mode",
                    json.dumps({"mode": "config", "since": int(time.time()) - 5 * 3600}))
         self.assertEqual(self.claude("Write", self.main / EVALUATION, content="x")[0], "deny")
 
-    def test_profile_is_always_writable(self):
-        self.assertEqual(self.claude("Edit", self.main / PROFILE, old_string="- Python", new_string="- Python, Go")[0], "allow")
+    def test_tracked_profile_template_is_denied_in_operator_mode(self):
+        # Regression: 01 used to be an 'always' grant. Facts now go to 01-*.md.personal.
+        self.assertEqual(self.claude("Edit", self.main / PROFILE, old_string="- Python", new_string="- Python, Go")[0], "deny")
 
     def test_portal_enabled_toggle_only(self):
         self.assertEqual(self.claude("Edit", self.main / PORTAL, old_string="enabled: true",
@@ -294,29 +296,36 @@ class CheckFrameworkImmutableTests(GuardFixture):
     def test_user_data_and_always_paths_pass(self):
         self.write(self.main / "tools/new_jobs_summary.md", "ignored\n")
         self.write(self.main / "notes/today.md", "user notes\n")
-        self.write(self.main / PROFILE, "# Candidate\n\n- Python\n- Rust\n")
         self.write(self.main / PORTAL, PORTAL_TEXT.replace("enabled: true", "enabled: false"))
         r = self.check()
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    def test_uncommitted_setup_output_is_not_drift_in_any_mode(self):
-        # Regression: /setup writes CLAUDE.md and the 02-06 skill files in config mode and leaves
-        # them uncommitted. Once back in operator mode, every /scrape|/rank|/apply drift check
-        # used to report (and file an issue for) them.
+    def test_operator_write_to_tracked_profile_is_drift(self):
+        self.write(self.main / PROFILE, "# Candidate\n\n- Python\n- Rust\n")
+        r = self.check()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn(PROFILE, r.stdout)
+
+    def test_setup_output_in_personal_copies_is_not_drift_in_any_mode(self):
+        # /setup writes CLAUDE.md.personal and the skill files' .personal copies; once back
+        # in operator mode, no /scrape|/rank|/apply drift check may report them.
+        with open(self.main / ".gitignore", "a", encoding="utf-8") as fh:
+            fh.write("*.personal\n")
+        self.git("add", ".gitignore")
+        self.git("commit", "-q", "-m", "ignore personal")
         self.set_mode("config")
-        self.write(self.main / EVALUATION, "# Evaluation\n\nStrong: Python\n")
-        self.write(self.main / "CLAUDE.md", "# Profile for Jane Doe\n")
+        self.write(self.main / (EVALUATION + ".personal"), "# Evaluation\n\nStrong: Python\n")
+        self.write(self.main / "CLAUDE.md.personal", "# Profile for Jane Doe\n")
         self.assertEqual(self.check().returncode, 0)
         self.set_mode("operator")
         r = self.check()
         self.assertEqual(r.returncode, 0, r.stdout)
-        # ...while a real framework change next to them is still reported, alone.
-        self.write(self.main / "tools/x.py", "changed\n")
+        # ...while the tracked templates themselves are framework: editing one is drift.
+        self.write(self.main / "CLAUDE.md", "# Profile for Jane Doe\n")
         r = self.check()
         self.assertEqual(r.returncode, 1)
-        self.assertIn("tools/x.py", r.stdout)
-        self.assertNotIn("CLAUDE.md", r.stdout)
-        self.assertNotIn(EVALUATION, r.stdout)
+        self.assertIn("CLAUDE.md", r.stdout)
+        self.assertNotIn("CLAUDE.md.personal", r.stdout)
 
     def test_existing_portal_and_template_code_changes_are_drift(self):
         # Regression: the personalization globs .agents/skills/** and templates/** must not hide
@@ -403,9 +412,17 @@ class PreCommitHookTests(GuardFixture):
         self.assertEqual(self.git("commit", "-q", "-m", "merge", env=env, check=False).returncode, 0)
 
     def test_personalization_commit_in_main_allowed(self):
+        self.write(self.main / PORTAL, PORTAL_TEXT.replace("enabled: true", "enabled: false"))
+        self.git("add", PORTAL)
+        self.assertEqual(self.git("commit", "-q", "-m", "toggle portal", check=False).returncode, 0)
+
+    def test_profile_template_commit_in_main_rejected(self):
+        # Personal data in a tracked template would be published by a push.
         self.write(self.main / "CLAUDE.md", "# Profile for Jane Doe\n")
         self.git("add", "CLAUDE.md")
-        self.assertEqual(self.git("commit", "-q", "-m", "profile", check=False).returncode, 0)
+        r = self.git("commit", "-q", "-m", "profile", check=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("CLAUDE.md", r.stderr)
 
     def test_framework_commit_in_worktree_allowed(self):
         self.write(self.wt / "tools/x.py", "fix\n")

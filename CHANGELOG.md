@@ -13,8 +13,35 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Added
+
+- **`/apply` quality gate enforced by a Stop hook in Claude Code and Antigravity.** `/apply` now
+  marks its run with `tools/apply_state.py start|done <slug>` (gitignored
+  `.agents/state/apply.json`); `.claude/hooks/apply_gate_stop.py` runs
+  `tools/gate_application.py <slug>` when the agent tries to stop with documents on disk and
+  sends it back while the gate fails (capped at 3 blocks per run, `stop_hook_active`-aware,
+  fail-open). Registered in `.claude/settings.json` and `.agents/hooks.json`, allowlisted in
+  `tools/security_guards.py`. Pinned by `tests/test_apply_gate_stop.py`.
+
 ### Changed
 
+- **Personal data moves to a gitignored `.personal` overlay.** Profile/data files
+  (`CLAUDE.md`, `job-application-assistant/01-*.md` ... `09-*.md`,
+  `job-scraper/search-queries.md`) stay placeholder templates; `/setup` and the other
+  writers put candidate data in `<file>.personal`, which every command reads instead of
+  the template when it exists (`CLAUDE.md` imports `CLAUDE.md.personal`). New
+  `tools/personal_overlay.py` (`resolve`/`ensure`/`status`) and
+  `tools/migrate_personal_overlay.py` (carry an in-place personalization over, dry run
+  by default, never overwrites). `02`, `04`, `05`, `07` and `search-queries.md` are
+  templates again.
+
+- **Antigravity runs skills as written.** `.agents/rules/core.md` rule 9: a skill invoked via
+  `/name` is executed step by step (no substitute plan, task list or walkthrough) and every
+  `tools/` check is reported with its real exit code and output. `AGENTS.md` and `SETUP.md`
+  recommend Fast mode (or Artifact Review Mode = always proceed) for skill runs.
+- **Generated Antigravity skills are tool-neutral.** `tools/sync_agent_skills.py` rewrites MCP tool
+  names and Read-tool PDF inspection, adds a "Tools this skill needs" line and "Also triggered
+  by /<name>." to every description, and fails when a Claude-only token survives.
 - **CI discovers portal CLIs instead of hardcoding them** (#310). The `cli-checks` matrix
   is now emitted by a `discover-clis` job that finds every `.agents/skills/*/cli/package.json`,
   so a portal skill added with `/add-portal` gets its `typecheck` and `test` scripts run by CI
@@ -22,8 +49,32 @@ per-file diff commands.
   coverage is unchanged (the discovered list on `master` is exactly the six shipped portals).
   `/add-portal`'s Register step now says so. Thanks @ayobamiseun.
 
+### Removed
+
+- **Unused subagents `job-application-agent` and `gemini-research-expert`.** Neither was
+  referenced by any command, skill or doc; `/apply` runs the drafter-reviewer flow itself
+  and research uses the general-purpose agent. `.claude/agents/` now ships only
+  `framework-dev`.
+
 ### Fixed
 
+- **PR #2 review follow-ups.** The `/apply` Stop hook counts only documents written since the
+  run's (now microsecond-precise) `started_at`, so a redraft is not blocked or cleared at its
+  consent step; it escapes the slug in globs, ignores stops from another cwd or session, and
+  writes its marker atomically. `/apply` owns all CV/cover-letter drafting; any later edit re-runs
+  its Step 5 and Step 6 checks. `gate_application.py` no longer flags lowercase "mit"
+  (Danish/German), requires the exact application folder, and scans review markers only in
+  agent-written drafts. Bare phone runs are redacted up to 15 digits again. Forbidden-token
+  checks in `sync_agent_skills.py` match whole words. The master CV joins the `.personal`
+  overlay (`cv/main_example.tex.personal`); the profile templates lose their operator/config
+  write grants and drift exemption. `migrate_personal_overlay.py` keeps the source
+  `framework_version`, measures personal lines against every post-overlay template version,
+  reports genuinely personal line counts, and is idempotent.
+- **`tools/report_issue.py` sanitizer follow-ups.** Personal-data sources resolve against the
+  main checkout when run from a linked worktree; `--body-file` refuses any `cv`/`cover_letters`/
+  `documents` path segment and any `.tex`; plain terms redact accented text ("Jose Pena" ->
+  "José Peña"); multi-word companies also match squashed/CamelCase; epoch timestamps and
+  repeated identical numbers are no longer redacted as `[phone]`.
 - **`/apply` archives the job posting while it still holds it** (#306). `/apply` drafted two
   documents and a tracker row from the full posting, then let the text die with the session;
   `/outcome` Step 3.2 tried to recover it by re-fetching a `source` URL the spec itself expects

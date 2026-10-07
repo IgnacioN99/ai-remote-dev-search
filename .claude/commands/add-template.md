@@ -1,3 +1,13 @@
+---
+description: >-
+  Registers, lists or switches a custom CV or cover letter template (LaTeX, Typst or any PDF
+  toolchain) and verifies it compiles. Use when the user wants to use their own CV or cover
+  letter template. Also triggered by /add-template.
+  Run only when the user types /add-template or explicitly asks for it.
+argument-hint: "[template-path] [--list] [--use <name>|default]"
+disable-model-invocation: true
+---
+
 # /add-template - Register a Custom CV or Cover Letter Template
 
 You are helping the user register their own CV or cover letter template with the AI Job Search framework — LaTeX, Typst, or any other toolchain that compiles to PDF from the command line. The framework ships with moderncv (banking style) for CVs and a custom `cover.cls` for cover letters. This command lets the user swap in their own template: store the template files, capture usage instructions (source extension, compile command, fonts, style rules, page limits), verify the template compiles, and wire it into the `/apply` workflow so every future application uses it.
@@ -7,6 +17,8 @@ You are helping the user register their own CV or cover letter template with the
 Follow these steps **in order**.
 
 **Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /add-template` before writing anything (see `tools/personalization_paths.json`).
+
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
@@ -150,7 +162,7 @@ Do not proceed to Step 5 until the test compile passes.
 
 ## Step 5: Activate the Template
 
-Activation wires the template into `/apply` by adding a **managed block** to the top of the relevant guidance file — `05-cv-templates.md` for CVs, `06-cover-letter-templates.md` for cover letters. `/apply` reads these files in both its drafting step and its compile step, so the block is all it takes.
+Activation wires the template into `/apply` by adding a **managed block** to the top of the relevant guidance file — `05-cv-templates.md` for CVs, `06-cover-letter-templates.md` for cover letters. Write the block into the file's `.personal` copy (Personal overlay note; `python3 tools/personal_overlay.py ensure <file>` creates it), since `/apply` reads that copy when it exists. `/apply` reads these files in both its drafting step and its compile step, so the block is all it takes.
 
 If Step 5 was reached from Switch Mode, use the template metadata resolved from `TEMPLATE.md`. If Step 5 was reached after registering a new template, use the metadata collected and verified in Steps 2-4.
 

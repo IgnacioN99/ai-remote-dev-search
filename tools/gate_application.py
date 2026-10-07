@@ -21,7 +21,9 @@ Enforces:
      - Candidate name and verified employers in text layer.
      - Zero unverified claims or hallucinated credentials (e.g. PhD, Rust Architect, CKA).
   6. Screening Questions Gate:
-     - Detects unresolved screening questions or review tags ([?], TODO, NEEDS_REVIEW).
+     - Detects unresolved screening questions or review tags ([?], TODO, NEEDS_REVIEW)
+       in agent-written drafts only (CV/cover-letter sources, form answers, notes),
+       never in job_posting.md or brief.md.
 
 Exit Codes:
   0: All gates PASSED. Ready for submission.
@@ -59,7 +61,10 @@ FORBIDDEN_OR_UNGROUNDED_CLAIMS = [
     r"\bdoctorate\b",
     r"\bharvard\b",
     r"\bstanford\b",
-    r"\bmit\b(?!\s*license)",
+    # Case-sensitive acronym: "mit" is an everyday word in Danish and German CVs
+    # ("mit arbejde", "mit Erfahrung"), and the MIT License is not a degree claim.
+    r"(?-i:\bMIT\b)(?!\s*licen[sc]e)",
+    r"\bmassachusetts\s+institute\s+of\s+technology\b",
     r"\bcka\b",
     r"\bkubernetes\s+administrator\b",
     r"\bgolang\s+architect\b",
@@ -77,8 +82,16 @@ REVIEW_FLAGS = [
 ]
 
 
+# Posting text and the generated brief are third-party / tool output, not agent
+# drafts: a "TODO" quoted from a posting must not hold the application for review.
+REVIEW_SCAN_EXCLUDE = {"job_posting.md", "job_description.md", "brief.md"}
+REVIEW_SCAN_SUFFIXES = {".md", ".txt", ".tex", ".typ"}
+
+
 def find_application_folder(target: str) -> Optional[Path]:
-    """Resolves target to application folder path."""
+    """Resolve target to its application folder: an existing directory path, or the
+    exact slug under documents/applications/. No fuzzy matching - a substring match
+    could gate a different application than the one being submitted."""
     target_path = Path(target)
     if target_path.is_dir():
         return target_path
@@ -87,13 +100,27 @@ def find_application_folder(target: str) -> Optional[Path]:
     if in_apps.is_dir():
         return in_apps
 
-    # Try matching by slug substring
-    if APPLICATIONS_DIR.is_dir():
-        for d in APPLICATIONS_DIR.iterdir():
-            if d.is_dir() and target.lower() in d.name.lower():
-                return d
-
     return None
+
+
+def review_scan_files(app_folder: Path) -> List[Path]:
+    """Agent-written drafts to scan for review markers: the slug's CV and cover-letter
+    sources plus the folder's own drafts (form answers, notes), never the posting or brief."""
+    slug = app_folder.name
+    files: List[Path] = []
+    for directory, prefixes in ((ROOT_DIR / "cv", ("main_",)),
+                                (ROOT_DIR / "cover_letters", ("cover_", "Cover_"))):
+        for prefix in prefixes:
+            for suffix in sorted(REVIEW_SCAN_SUFFIXES - {".md", ".txt"}):
+                path = directory / f"{prefix}{slug}{suffix}"
+                if path.is_file():
+                    files.append(path)
+    if app_folder.is_dir():
+        for path in sorted(app_folder.iterdir()):
+            if (path.is_file() and path.suffix.lower() in REVIEW_SCAN_SUFFIXES
+                    and path.name not in REVIEW_SCAN_EXCLUDE):
+                files.append(path)
+    return files
 
 
 def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional[Path]]:
@@ -197,7 +224,11 @@ def evaluate_gate(
 
     folder = find_application_folder(target)
     if not folder:
-        results["errors"].append(f"Application directory not found for target '{target}'.")
+        results["errors"].append(
+            f"Application directory not found for target '{target}': expected "
+            f"{APPLICATIONS_DIR / target}. Pass the exact <company>_<role> slug "
+            "(no partial matches) - /apply Step 0 creates the folder."
+        )
         return results
 
     results["app_folder"] = str(folder)
@@ -324,13 +355,13 @@ def evaluate_gate(
 
     # Check 5: Screening Questions / Subjective Review Gate
     review_items = []
-    for md_file in folder.glob("*.md"):
+    for draft in review_scan_files(folder):
         try:
-            text = md_file.read_text(encoding="utf-8")
+            text = draft.read_text(encoding="utf-8")
             for flag in REVIEW_FLAGS:
                 matches = re.findall(flag, text)
                 if matches:
-                    review_items.append(f"{md_file.name} contains '{flag}'")
+                    review_items.append(f"{draft.name} contains '{flag}'")
         except Exception:
             pass
 

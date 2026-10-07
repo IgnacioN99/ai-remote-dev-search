@@ -1,5 +1,5 @@
 ---
-framework_version: 1.2.6
+framework_version: 1.2.8
 ---
 
 # Job Evaluation Framework
@@ -60,9 +60,9 @@ How well do the required/preferred skills align with the candidate's capabilitie
 | 40-59 | Partial match, significant upskilling needed |
 | 0-39 | Fundamental mismatch |
 
-**Strong match areas:** Ruby on Rails, Ruby, backend API development, PostgreSQL, REST APIs, RSpec/testing, CI/CD
-**Moderate match areas:** React, TypeScript, JavaScript frontend, legacy Ruby/CoffeeScript, Java
-**Weak match areas:** non-Rails stacks (Python/Django, Node.js, Go, .NET), deep frontend/design, data/ML engineering, cloud-native infra beyond basic Azure
+**Strong match areas:** [YOUR_PRIMARY_SKILLS]
+**Moderate match areas:** [YOUR_SECONDARY_SKILLS]
+**Weak match areas:** [SKILLS_YOU_LACK]
 
 ### 2. Experience Match (0-100)
 Does work history align with what they're looking for? Match on the function and nature of the work performed, not the literal job title - a "Data Consultant" and a "Data Scientist" role can be functionally identical.
@@ -74,9 +74,9 @@ Does work history align with what they're looking for? Match on the function and
 | 40-59 | Adjacent experience, would need to make the case |
 | 0-39 | Unrelated experience |
 
-**Strong:** backend/API development in Ruby on Rails, full-stack web apps (Rails + React), PostgreSQL optimization
-**Moderate:** frontend (React/TypeScript), legacy system maintenance
-**Entry-level:** non-Rails stacks, data engineering, mobile, DevOps/infra
+**Strong:** [YOUR_DIRECT_EXPERIENCE_DOMAINS]
+**Moderate:** [YOUR_ADJACENT_EXPERIENCE]
+**Entry-level:** [ROLES_WITH_LIMITED_EXPERIENCE]
 
 ### 3. Behavioral/Culture Fit (0-100)
 Does the role and company culture match the behavioral profile?
@@ -88,20 +88,13 @@ Does the role and company culture match the behavioral profile?
 | 40-59 | Some friction areas |
 | 0-39 | Significant culture mismatch |
 
-**Review-Based Culture & Workplace Vetting (r/devsarg, Blind, Glassdoor):**
-- **Severe Penalty (-20 to -40 points & Deprioritization):** Companies with verified, recurring reports of abusive or uncompensated on-call guardias (e.g. frequent midnight alarms, "picadora de carne" culture like Mercado Libre), or recurring sudden mass layoffs and organizational instability (like Ualá). A role from such an employer must be heavily penalized in Behavioral Fit and dropped in overall ranking.
-- **Positive Boost (+10 to +20 points):** Companies with consistent praise for engineering camaraderie, high autonomy, developer-friendly culture, or mission-driven focus (e.g. Nous Research, Despegar's AI/Flights teams, Cocos Capital's dev team).
-- **High-Intensity / Top-Compensation Caveat:** Frontier AI labs or top tech with extreme pace and demanding WLB (OpenAI, Perplexity) or intense "writing-first" / lean operations (Stripe) are not automatically penalized if compensation and learning are top-tier, but must be surfaced with clear workload caveats.
-
-**Red flags to research:** Department disorganization, work dominated by maintenance over development, poor chemistry with leadership, toxic guardias, culture mismatches. Check r/devsarg, Glassdoor, Blind, Openqube, media coverage, and LinkedIn network contacts for insider perspective.
+**Red flags to research:** Department disorganization, work dominated by maintenance over development, poor chemistry with leadership, culture mismatches. Check reviews, media coverage, LinkedIn connections, and network contacts for insider perspective.
 
 ### 4. Location & Logistics (Pass/Fail + Notes)
-- **Remote (global / timezone compatible):** PASS — preferred
-- **On-site within [TARGET_COMMUTE_CITY]:** PASS
-- **On-site elsewhere / relocation:** FLAG — acceptable only for offers well above baseline (see salary tiers in Life situation alignment)
-- **Frequent international travel:** FLAG (discuss with user)
-
-**Employment Type Priority:** Refer to your candidate profile preferences in `CLAUDE.md` / `01-candidate-profile.md` for target preferences regarding remote B2B contractor vs. formal local employment.
+- Within commute range: PASS
+- Remote with occasional office: PASS
+- Requires relocation: FAIL (deal-breaker)
+- Frequent international travel: FLAG (discuss with user)
 
 ### 5. Career Alignment & Motivation (0-100)
 Does this role advance career goals and contain tasks that energize?
@@ -114,25 +107,25 @@ Does this role advance career goals and contain tasks that energize?
 | 0-39 | Dead end or backwards step |
 
 **Career goals:**
-- Grow in target role and primary stack as defined in `CLAUDE.md` / `01-candidate-profile.md`
-- Secure competitive remote-global or local target compensation
-- Continue shipping high-impact features in an innovative, collaborative engineering team
+- [YOUR_CAREER_GOAL_1]
+- [YOUR_CAREER_GOAL_2]
+- [YOUR_CAREER_GOAL_3]
 
 **Motivation filter:** Evaluate not just whether you *can* do the tasks, but whether the tasks will *energize* you. Consider:
-- Tasks that energize: developing new features, solving hard backend/performance problems, optimizing queries and APIs, working with a modern stack, learning new technologies
-- Tasks that drain: pure legacy maintenance without modernization, stagnation without learning
-- Non-task factors: remote-first, transparent culture, autonomy, code-review feedback
+- Tasks that energize: [YOUR_ENERGIZING_TASKS]
+- Tasks that drain: [YOUR_DRAINING_TASKS]
+- Non-task factors: leadership style, department culture, company values, degree of autonomy
 
-**Life situation alignment:** Consider personal constraints configured in `CLAUDE.md`:
-- **Security**: align with your configured compensation baselines (`[SALARY_BASELINE_CONTRACTOR_USD]` / `[SALARY_BASELINE_LOCAL_NET]`).
-- **Flexibility**: remote-first; open to on-site/relocation only for exceptional opportunities.
-- **Professional development**: values learning, high-velocity engineering, and career advancement.
+**Life situation alignment:** Consider personal constraints:
+- **Security**: [YOUR_FINANCIAL_SITUATION_CONTEXT]
+- **Flexibility**: [YOUR_SCHEDULE_CONSTRAINTS]
+- **Professional development**: [YOUR_GROWTH_PRIORITIES]
 
 ### 6. Salary Benchmark (Optional)
 
 If the salary lookup tool is configured (`salary_data.json` exists), look up the company:
 ```
-python salary_lookup.py "<Company Name>" --json
+python3 salary_lookup.py "<Company Name>" --json
 ```
 
 If a city is known from the posting, add `--city "<City>"` to narrow results.

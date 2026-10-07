@@ -1,10 +1,22 @@
+---
+description: >-
+  Destructively resets the profile files and/or the documents folder to a blank template
+  state after explicit confirmation. Use only when the user explicitly asks to reset or wipe
+  their profile data. Also triggered by /reset.
+  Run only when the user types /reset or explicitly asks for it.
+argument-hint: "[profile|documents|all]"
+disable-model-invocation: true
+---
+
 # /reset - Reset Candidate Profile Data
 
 You are resetting parts of the job search framework back to a blank state so the user can start fresh with `/setup`.
 
 **This command is destructive.** Nothing is deleted until the user explicitly confirms. Follow these steps exactly in order.
 
-**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /reset` before writing anything (see `tools/personalization_paths.json`).
+**Config mode:** like the other profile commands, this command runs in a config session, so run `python3 tools/set_mode.py config --by /reset` before writing anything (see `tools/personalization_paths.json`).
+
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
@@ -37,6 +49,8 @@ Wait for the user's response before continuing.
 Before doing anything, show the user precisely what will be wiped.
 
 ### If scope includes `profile`:
+
+**Overlay:** for each file below, the reset targets `<file>.personal` when it exists (that is where `/setup` wrote the candidate data). Report it in the preview, and in Step 3 apply the edits below to the `.personal` copy - or delete the copy when the user prefers, since the tracked file is already the blank template. Never edit the tracked file: it is a framework template, and operator mode reports any change to it as drift. If a tracked file itself still carries candidate data (a checkout personalized before the overlay existed), stop for that file and tell the user to run `python3 tools/migrate_personal_overlay.py --apply` (it moves the data into `.personal`) and then restore the tracked template.
 
 Read the current state of these files and report whether each has content or is already empty:
 
@@ -82,8 +96,8 @@ Present as:
 The following files are NOT touched (they contain framework rules, not candidate data):
   - 03-writing-style.md
 
-Outside the profile scope, still holding your personal data: CLAUDE.md and
-cv/main_example.tex. This scope covers skill files only.
+Outside the profile scope, still holding your personal data: CLAUDE.md.personal and
+cv/main_example.tex.personal. This scope covers skill files only.
 ```
 
 ### If scope includes `documents`:
@@ -283,7 +297,7 @@ Then tell the user what to do next based on what was reset:
 **If profile was reset:**
 > The skill files are now blank. Run `/setup` to repopulate them. The command auto-detects any files in your `documents/` folder and offers to read from there; otherwise it walks you through a CV import or interactive interview.
 >
-> Note that `CLAUDE.md` and `cv/main_example.tex` are outside the `profile` scope and still hold your personal data. If you are handing this fork over or making it public, clear them by hand.
+> Note that `CLAUDE.md.personal` and `cv/main_example.tex.personal` are outside the `profile` scope and still hold your personal data. They are gitignored; delete them by hand if you are handing this checkout over.
 
 **If documents were reset:**
 > The `documents/` folder is now empty. Add your career documents and run `/setup` to populate your profile. See `documents/README.md` for instructions on what to put where.

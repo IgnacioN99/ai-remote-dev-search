@@ -13,6 +13,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+try:  # run as a script (tools/ on sys.path) or imported as tools.candidate_profile
+    from personal_overlay import resolve as _overlay
+except ImportError:  # pragma: no cover - import-path variant
+    from tools.personal_overlay import resolve as _overlay
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 CLAUDE_MD_PATH = ROOT_DIR / "CLAUDE.md"
 PROFILE_MD_PATH = ROOT_DIR / ".claude" / "skills" / "job-application-assistant" / "01-candidate-profile.md"
@@ -281,7 +286,11 @@ def parse_profile_from_markdown(content: str) -> CandidateProfile:
 
 
 def load_candidate_profile(root: Optional[Path] = None) -> CandidateProfile:
-    """Loads candidate profile prioritizing candidate_profile.json, then CLAUDE.md, then 01-candidate-profile.md."""
+    """Loads candidate profile prioritizing candidate_profile.json, then CLAUDE.md, then 01-candidate-profile.md.
+
+    Markdown sources honor the personal overlay: `X.personal` is read instead of
+    `X` when it exists (see tools/personal_overlay.py).
+    """
     base = root or ROOT_DIR
 
     # 1. Config JSON if available
@@ -295,19 +304,19 @@ def load_candidate_profile(root: Optional[Path] = None) -> CandidateProfile:
             pass
 
     # 2. CLAUDE.md
-    claude_file = base / "CLAUDE.md"
+    claude_file = _overlay(base / "CLAUDE.md")
     if claude_file.is_file():
         try:
-            content = claude_file.read_text(encoding="utf-8")
+            content = claude_file.read_text(encoding="utf-8").replace("\r\n", "\n")
             return parse_profile_from_markdown(content)
         except Exception:
             pass
 
     # 3. 01-candidate-profile.md
-    prof_file = base / ".claude" / "skills" / "job-application-assistant" / "01-candidate-profile.md"
+    prof_file = _overlay(base / ".claude" / "skills" / "job-application-assistant" / "01-candidate-profile.md")
     if prof_file.is_file():
         try:
-            content = prof_file.read_text(encoding="utf-8")
+            content = prof_file.read_text(encoding="utf-8").replace("\r\n", "\n")
             return parse_profile_from_markdown(content)
         except Exception:
             pass

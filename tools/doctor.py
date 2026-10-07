@@ -454,6 +454,24 @@ def check_workspace_files() -> List[Dict[str, Any]]:
         "critical": True,
     })
 
+    # 4b. Personal overlay: stale .personal copies (template has a newer framework_version)
+    try:
+        from personal_overlay import status as overlay_status  # tools/ on sys.path as a script
+    except ImportError:
+        from tools.personal_overlay import status as overlay_status
+    rows = overlay_status(ROOT_DIR)
+    personal = [r for r in rows if r["has_personal"]]
+    stale = [str(r["reads"]) for r in rows if r["stale"]]
+    results.append({
+        "name": "Personal overlay (*.personal)",
+        "status": "WARN" if stale else "OK",
+        "detail": (
+            f"stale copies (template is newer, merge framework changes): {', '.join(stale)}"
+            if stale else f"{len(personal)} personal file(s) in use"
+        ),
+        "critical": False,
+    })
+
     # 5. Applications directory writable
     apps_dir = ROOT_DIR / "documents" / "applications"
     if apps_dir.exists() and os.access(apps_dir, os.W_OK):

@@ -13,5 +13,15 @@
         ]
       }
     ]
+  },
+  "apply-quality-gate": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python3 ../.claude/hooks/apply_gate_stop.py --antigravity",
+        "timeout": 120
+      }
+    ]
   }
 }

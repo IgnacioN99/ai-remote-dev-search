@@ -1,11 +1,12 @@
 {
   "_doc": [
     "Tracked files that commands legitimately write in the MAIN checkout (personalization, not framework development).",
+    "Profile/data TEMPLATES (CLAUDE.md, job-application-assistant 01-09, job-scraper/search-queries.md, cv/main_example.tex) are deliberately absent: candidate data goes to their gitignored <file>.personal copies (always writable), so any change to a tracked template is framework drift.",
     "Read by .claude/hooks/guard_framework.py and tools/check_framework_immutable.py (via tools/framework_paths.py).",
     "mode 'config': allowed only while .agents/state/mode says config (python3 tools/set_mode.py config). The config",
     "commands (/setup, /reset, /expand, /add-portal, /add-template) switch it on at their start and back to operator at the end.",
     "mode 'always': operator flows write it by design, so it is allowed in any mode.",
-    "Drift check (check_framework_immutable.py), any mode: 'drift_exempt' true = never drift (profile/config docs);",
+    "Drift check (check_framework_immutable.py), any mode: 'drift_exempt' true = never drift;",
     "'lines' = exempt only if every changed line vs HEAD matches 'lines'; 'new_dir' = exempt only untracked files inside a",
     "brand-new <dir_depth>-segment directory with no tracked files (a portal/template just created by /add-portal|/add-template).",
     "'lines' (optional regex): the 'always' grant only covers edits whose changed lines ALL match it; any other change",
@@ -14,30 +15,6 @@
     "file an issue with tools/report_issue.py or work in a linked git worktree."
   ],
   "paths": [
-    {
-      "glob": ".claude/skills/job-application-assistant/01-candidate-profile.md",
-      "mode": "always",
-      "used_by": [
-        "/apply standing rule (apply.md:7)",
-        "/interview exception (interview.md:111)",
-        "/setup",
-        "/reset",
-        "/expand"
-      ],
-      "why": "Facts confirmed during /apply or /interview must reach the profile in the same turn or the grounding audit strips them later.",
-      "drift_exempt": true
-    },
-    {
-      "glob": ".claude/skills/job-application-assistant/07-interview-prep.md",
-      "mode": "always",
-      "used_by": [
-        "/interview appends user-approved STAR examples (interview.md:109)",
-        "/setup",
-        "/reset"
-      ],
-      "why": "/interview is an operator flow and appends STAR examples on explicit user request.",
-      "drift_exempt": true
-    },
     {
       "glob": ".agents/skills/*/SKILL.md",
       "mode": "always",
@@ -48,43 +25,6 @@
       ],
       "why": "Only the enabled: toggle line; any other change to a portal skill is framework work.",
       "drift_exempt": "lines"
-    },
-    {
-      "glob": ".claude/skills/job-application-assistant/0[1-7]-*.md",
-      "mode": "config",
-      "used_by": [
-        "/setup (Step 3 and Path A)",
-        "/reset profile scope",
-        "/expand Step 5 (01, 02)",
-        "/add-template ACTIVE-TEMPLATE block (05, 06)"
-      ],
-      "drift_exempt": true
-    },
-    {
-      "glob": "CLAUDE.md",
-      "mode": "config",
-      "used_by": [
-        "/setup Step 3.1 and CV language (setup.md:342,357)"
-      ],
-      "drift_exempt": true
-    },
-    {
-      "glob": "cv/main_example.tex",
-      "mode": "config",
-      "used_by": [
-        "/setup Step 3.8"
-      ],
-      "drift_exempt": true
-    },
-    {
-      "glob": ".claude/skills/job-scraper/search-queries.md",
-      "mode": "config",
-      "used_by": [
-        "/setup Step 3.9",
-        "/reset profile scope",
-        "/add-portal Step 5 (optional placeholder queries)"
-      ],
-      "drift_exempt": true
     },
     {
       "glob": ".agents/skills/**",

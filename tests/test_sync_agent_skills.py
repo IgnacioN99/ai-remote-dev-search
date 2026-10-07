@@ -17,6 +17,8 @@ SCRIPT = REPO_ROOT / "tools" / "sync_agent_skills.py"
 LINTER = REPO_ROOT / "tools" / "lint_skills.py"
 
 APPLY_SRC = (
+    "---\ndescription: >-\n  Runs the full application workflow.\n  Use when the user applies.\n"
+    "argument-hint: \"<posting-url-or-text>\"\n---\n\n"
     "# /apply - Drafter-Reviewer Job Application Workflow\n\n"
     "The posting is `$ARGUMENTS`.\n\n"
     "- If `$ARGUMENTS` looks like a URL, use `WebFetch` to retrieve it.\n"
@@ -26,7 +28,18 @@ APPLY_SRC = (
     "Read `.claude/skills/job-application-assistant/04-job-evaluation.md` and `04-job-evaluation.md`.\n"
     "See `.claude/commands/rank.md` for ranking.\n"
 )
-RANK_SRC = "# /rank - Triage\n\nDispatch parallel `general-purpose` agents via the **Agent tool**.\n"
+GMAIL_SRC = (
+    "---\ndescription: Syncs Gmail.\n---\n\n"
+    "# /gmail-sync - Sync\n\n"
+    "Confirm the Gmail MCP tools (`mcp__claude_ai_Gmail__*`) are available.\n"
+    "Call `mcp__claude_ai_Gmail__search_threads` then mcp__gmail__get_thread.\n"
+    "Check tool names starting with `mcp__notion__` or similar; use mcp__notion__notion-search.\n"
+    "Also mcp__claude_ai_Slack__slack_send_message and `mcp__playwright__*`.\n"
+    "Then read both PDFs via the Read tool and verify.\n"
+    "Read the PDF with the Read tool. Use the Read tool on the PDF output.\n"
+    "Do NOT use the Read tool on the draft files.\n"
+)
+RANK_SRC = "---\ndescription: Triages scraped jobs.\n---\n\n# /rank - Triage\n\nDispatch parallel `general-purpose` agents via the **Agent tool**.\n"
 SCRAPER_SRC = (
     "---\nname: scrape\ndescription: >\n  Finds jobs.\n"
     "allowed-tools: Read, WebFetch, Agent\nmodel: opus\n---\n\n"
@@ -57,6 +70,7 @@ class FixtureRepo(unittest.TestCase):
         claude = self.root / ".claude"
         write(claude / "commands" / "apply.md", APPLY_SRC)
         write(claude / "commands" / "rank.md", RANK_SRC)
+        write(claude / "commands" / "gmail-sync.md", GMAIL_SRC)
         write(claude / "skills" / "job-scraper" / "SKILL.md", SCRAPER_SRC)
         write(claude / "skills" / "job-scraper" / "search-queries.md", "# queries\n")
         write(claude / "skills" / "job-application-assistant" / "SKILL.md", ASSISTANT_SRC)
@@ -81,7 +95,7 @@ class GenerationTests(FixtureRepo):
     def test_generates_every_command_and_skill(self):
         result = self.run_sync()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        for name in ("apply", "rank", "scrape", "job-application-assistant", "upskill"):
+        for name in ("apply", "rank", "gmail-sync", "scrape", "job-application-assistant", "upskill"):
             self.assertTrue((self.skills / name / "SKILL.md").is_file(), name)
         # job-scraper is published under its `name:`, not its folder.
         self.assertFalse((self.skills / "job-scraper").exists())
@@ -128,6 +142,56 @@ class GenerationTests(FixtureRepo):
         self.assertIn("`.agents/skills/apply/SKILL.md`", self.generated("job-application-assistant"))
         self.assertIn("general-purpose subagents via `invoke_subagent`", self.generated("rank"))
 
+    def test_mcp_tool_names_are_rewritten(self):
+        self.run_sync()
+        text = self.generated("gmail-sync")
+        self.assertNotIn("mcp__", text)
+        self.assertIn("Confirm the Gmail MCP tools are available.", text)
+        self.assertIn("Call the Gmail MCP tools (search_threads) then the Gmail MCP tools (get_thread).", text)
+        self.assertIn("tool names from the Notion MCP server or similar", text)
+        self.assertIn("use the Notion MCP tools (notion-search)", text)
+        self.assertIn("the Slack MCP tool `slack_send_message`", text)
+        self.assertIn("the playwright MCP tools.", text)
+
+    def test_pdf_read_tool_phrases_become_visual_inspection(self):
+        self.run_sync()
+        text = self.generated("gmail-sync")
+        self.assertIn("Then open both compiled PDFs and inspect each page visually "
+                      "(render to images if your runtime cannot view PDFs) and verify.", text)
+        self.assertIn("Open the compiled PDF and inspect each page visually", text)
+        self.assertIn("cannot view PDFs). Open the compiled PDF and inspect each page visually", text)
+        self.assertNotIn("Read tool on the PDF", text)
+        # A Read-tool mention that is not about a PDF is left alone.
+        self.assertIn("Do NOT use the Read tool on the draft files.", text)
+
+    def test_allowed_tools_become_a_neutral_tools_line(self):
+        self.run_sync()
+        scrape = self.generated("scrape")
+        self.assertIn("> Tools this skill needs: read and search files; fetch URLs (read_url_content); "
+                      "subagents (`invoke_subagent` if available, otherwise inline).", scrape)
+        self.assertIn("> Tools this skill needs: read and search files.", self.generated("job-application-assistant"))
+        self.assertNotIn("Tools this skill needs", self.generated("apply"))
+
+    def test_bash_allowed_tools_list_their_commands(self):
+        write(self.root / ".claude" / "skills" / "upskill" / "SKILL.md",
+              "---\nname: upskill\ndescription: Gaps.\n"
+              "allowed-tools: Read, Bash(python3 tools/job_key.py:*), Bash(bun run x/cli.ts *), AskUserQuestion\n"
+              "---\n\n# Upskill\n")
+        self.run_sync()
+        self.assertIn("> Tools this skill needs: read and search files; terminal "
+                      "(`python3 tools/job_key.py`, `bun run x/cli.ts`); ask the user in chat.",
+                      self.generated("upskill"))
+
+    def test_every_description_names_its_slash_command(self):
+        self.run_sync()
+        for name in ("apply", "rank", "gmail-sync", "scrape", "job-application-assistant", "upskill"):
+            with self.subTest(name=name):
+                front = self.generated(name).split("\n---\n", 1)[0]
+                desc = " ".join(line.strip() for line in front.split("description: >-\n", 1)[1]
+                                .split("\nframework_version:", 1)[0].splitlines())
+                self.assertTrue(desc.endswith(f"Also triggered by /{name}."), desc)
+                self.assertLessEqual(len(desc), 1024)
+
     def test_data_files_are_not_copied(self):
         self.run_sync()
         self.assertFalse((self.skills / "job-application-assistant" / "01-candidate-profile.md").exists())
@@ -147,6 +211,15 @@ class GenerationTests(FixtureRepo):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("refusing to overwrite hand-written skill", result.stdout + result.stderr)
         self.assertEqual(self.portal.read_text(encoding="utf-8"), PORTAL_SRC)
+
+    def test_description_comes_from_source_frontmatter(self):
+        self.run_sync()
+        apply_md = self.generated("apply")
+        frontmatter = apply_md.split("\n---\n", 1)[0]
+        self.assertIn("Runs the full application workflow. Use when the user applies.", frontmatter)
+        self.assertNotIn("argument-hint", frontmatter)
+        self.assertIn("Triages scraped jobs.", self.generated("rank"))
+        self.assertIn("Finds jobs.", self.generated("scrape"))
 
     def test_missing_description_fails_loudly(self):
         write(self.root / ".claude" / "commands" / "brand-new.md", "# /brand-new - X\n")
@@ -207,6 +280,37 @@ class CheckAndIdempotencyTests(FixtureRepo):
         self.assertTrue(self.portal.is_file())
 
 
+class ForbiddenTokenTests(FixtureRepo):
+    def test_unrewritable_token_fails_check_and_write(self):
+        self.run_sync()
+        write(self.root / ".claude" / "commands" / "rank.md", RANK_SRC + "Tools are prefixed mcp__ in Claude.\n")
+        check = self.run_sync("--check")
+        self.assertEqual(check.returncode, 1)
+        self.assertIn("still contain Claude-only tokens", check.stdout)
+        self.assertIn(".agents/skills/rank/SKILL.md: mcp__", check.stdout)
+        before = self.generated("rank")
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(self.generated("rank"), before, "a leaking skill must not be written")
+
+
+    def test_tokens_match_whole_words_only(self):
+        write(self.root / ".claude" / "commands" / "rank.md",
+              RANK_SRC + "A WebFetcher class and the Agent toolkit are fine.\n")
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        text = self.generated("rank")
+        self.assertIn("WebFetcher", text)
+        self.assertIn("Agent toolkit", text)
+        self.assertEqual(self.run_sync("--check").returncode, 0)
+
+    def test_prefix_token_still_caught_inside_identifiers(self):
+        write(self.root / ".claude" / "commands" / "rank.md", RANK_SRC + "Call mcp__slackbot directly.\n")
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("mcp__", result.stdout)
+
+
 class LintIntegrationTests(FixtureRepo):
     def test_lint_skills_fails_on_drift(self):
         shutil.copy(LINTER, self.root / "tools" / "lint_skills.py")
@@ -243,7 +347,7 @@ class RealRepoTests(unittest.TestCase):
         for name in names:
             with self.subTest(name=name):
                 text = (REPO_ROOT / ".agents" / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
-                for construct in ("WebFetch", "WebSearch", "AskUserQuestion", "Agent tool"):
+                for construct in ("WebFetch", "WebSearch", "AskUserQuestion", "Agent tool", "mcp__"):
                     self.assertNotIn(construct, text)
                 frontmatter = text.split("\n---\n", 1)[0]
                 self.assertNotIn("allowed-tools", frontmatter)

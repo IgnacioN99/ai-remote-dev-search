@@ -172,12 +172,11 @@ Or manually: fork on GitHub, then clone your fork.
 > under your GitHub identity, on a repo where you cannot delete it (#389).
 
 > **Before you go further: forks are public.** GitHub cannot make a fork of a public
-> repository private, and `/setup` (section 6) writes your personal data into **tracked**
-> files — pushing those commits to a fork publishes them. If this copy is for your own
-> job search rather than for contributing, prefer a **private repository** with this repo
-> as `upstream`: see section 8, step 1 for the exact commands and why committing your
-> personalization there is still the right move. Everything else in this guide works
-> identically either way.
+> repository private. `/setup` (section 6) keeps your personal data in gitignored
+> `<file>.personal` copies (see "Where your data lives" below), so it never enters a commit -
+> but never force-add one, and keep tailored CVs and the tracker out of a fork too. If you
+> want a remote backup of your own setup, prefer a **private repository** with this repo as
+> `upstream` (section 8, step 1). Everything else in this guide works identically either way.
 
 ## 3. Install job search CLI dependencies
 Run these from the repository root.
@@ -238,6 +237,16 @@ All three paths produce the same result: fully populated profile files.
 | `07-interview-prep.md` | STAR examples from your experience |
 | `cv/main_example.tex` | Your LaTeX CV with actual details |
 | `search-queries.md` | Job search queries for `/scrape` |
+
+### Where your data lives: the `.personal` overlay
+
+The tracked profile/data files (`CLAUDE.md`, `01-*.md` ... `09-*.md` under `.claude/skills/job-application-assistant/`, `job-scraper/search-queries.md`, and the master CV `cv/main_example.tex`) stay placeholder **templates**. `/setup` writes your data to a gitignored copy beside each one, `<file>.personal` (for example `CLAUDE.md.personal`), and every command reads that copy instead of the template when it exists. `CLAUDE.md` imports `CLAUDE.md.personal` on load, so Claude Code sees your profile automatically. Because `*.personal` is gitignored, your profile never lands in a commit or a public fork. `/apply` reads the master CV through `python3 tools/personal_overlay.py resolve cv/main_example.tex` and copies it into each tailored `cv/main_<company>_<role>.tex`; the `.personal` file itself is never compiled.
+
+- **Fresh clone, before `/setup`:** `CLAUDE.md.personal` does not exist yet, so the `@CLAUDE.md.personal` import in `CLAUDE.md` points at a missing file. Claude Code skips an import it cannot find (no error; at most a notice), and every command falls back to the placeholder template until `/setup` creates the copy. Run `/setup` first: until then fit evaluations and drafts have no real profile to work from.
+
+- `python3 tools/personal_overlay.py status` lists which copy each file resolves to.
+- A `.personal` file is a full copy, so later framework updates to its template (scoring rules, checklists) do not flow into it on their own. `status` (and `tools/doctor.py`) flags a copy whose template has a newer `framework_version`; merge the template change into your copy by hand.
+- **Upgrading a checkout that was personalized in place** (before the overlay existed): after pulling, run `python3 tools/migrate_personal_overlay.py` (dry run), then `--apply`. It copies your personalized versions into `<file>.personal` (keeping their original `framework_version`, so `status` then tells you which templates gained rules you should merge in), never overwrites an existing `.personal` file (it writes `<file>.incoming.personal` for you to merge instead, with a count of the lines that are genuinely yours), and backs up existing copies to `documents/memory/backup-<timestamp>/`. Re-running `--apply` is safe: with nothing left to do it writes nothing. A copy created by an earlier version of the script carries the template's newer `framework_version` instead of its source version; if you are unsure it holds the current framework rules, compare it with the template and lower the stamp by hand so `status` flags it. If you edited `cv/main_example.tex` in place, it is copied to `cv/main_example.tex.personal`; then discard your edits to the tracked file.
 
 ### Re-running setup
 
@@ -309,7 +318,7 @@ Upstream keeps improving the methodology files your fork has personalized, so pl
 
 **Prefer releases over raw `master`.** Tagged [releases](../../releases) are vetted checkpoints, each described in [CHANGELOG.md](CHANGELOG.md). Updating to a tag pulls a stable, documented state instead of whatever `master` happens to be mid-review. Fetch tags with `git fetch upstream --tags` and merge a release (for example `git merge v1.0.0`) when you want stability; pull `master` directly only when you specifically want the latest unreleased changes. The steps below apply either way - substitute the release tag for `upstream/master` where you see it.
 
-1. **Commit your personalization - but know where those commits land.** `/setup` edits CLAUDE.md and the profile skill files in place; those edits are *yours*, and committing them is what lets updates merge cleanly. But a GitHub **fork of this repo is public** - forks of public repositories cannot be made private - so anything you commit *and push to a fork* is visible to anyone. If you want your profile in a remote at all, don't push it to a fork: create a **private** repository, push there, and add this repo as the `upstream` remote (`git remote add upstream https://github.com/MadsLorentzen/ai-job-search.git`) to keep receiving updates. Committing locally without pushing is also fine. The genuinely sensitive files (tracker, salary data, `documents/`, application archives) are gitignored and never enter git either way. An uncommitted working tree is the most common reason `git pull` refuses to merge at all (`Your local changes ... would be overwritten`).
+1. **Keep your personalization out of commits.** `/setup` writes your profile to gitignored `<file>.personal` copies, so the tracked files stay templates and upstream updates merge without conflicts; `python3 tools/personal_overlay.py status` then flags any copy whose template gained framework rules. If you also commit anything of your own, remember that a GitHub **fork of this repo is public** - forks of public repositories cannot be made private - so anything you commit *and push to a fork* is visible to anyone. If you want your profile in a remote at all, don't push it to a fork: create a **private** repository, push there, and add this repo as the `upstream` remote (`git remote add upstream https://github.com/MadsLorentzen/ai-job-search.git`) to keep receiving updates. Committing locally without pushing is also fine. The genuinely sensitive files (tracker, salary data, `documents/`, application archives) are gitignored and never enter git either way. An uncommitted working tree is the most common reason `git pull` refuses to merge at all (`Your local changes ... would be overwritten`).
 2. **Preview what changed before pulling:**
    ```bash
    git remote add upstream https://github.com/MadsLorentzen/ai-job-search.git   # first time only, if you cloned your own fork
@@ -345,6 +354,8 @@ python3 tools/sync_agent_skills.py --check  # exit 1 if anything drifted (CI run
 ```
 
 Never edit the generated `SKILL.md` copies by hand - the next sync overwrites them. Profile and data files (`.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `search-queries.md`) are not copied: the generated skills read and write them at their `.claude/` paths.
+
+**Use Fast mode for skill runs.** In Antigravity, run `/apply`, `/rank`, `/scrape` and the other skills in **Fast** mode, or set **Artifact Review Mode** to *always proceed*. In Planning mode the agent tends to replace the skill with its own Implementation Plan, Task List and Walkthrough artifacts and pause for review, skipping or reordering the skill's steps; the skills already stop where your decision is needed (fit evaluation, before submission).
 
 **WSL notes.** Antigravity's global configuration lives in `~/.gemini/config/` (inside the WSL home when the agent runs in WSL, not the Windows profile). Workspace MCP servers for Antigravity go in `.agents/mcp_config.json` (generated from `.mcp.json`; see the MCP section of the README). Open the repo from the WSL filesystem path so `python3`, `bun` and `lualatex` resolve to the Linux toolchain.
 
@@ -388,6 +399,10 @@ python3 tools/report_issue.py --kind bug --title "test" --body "x" --dry-run   #
 
 Claude Code is pre-approved via `.claude/settings.json`. In **Antigravity**, add the allow-list entry `command(python3 tools/report_issue.py)` in Settings (it can only be set in the UI); keep raw `gh issue` behind approval.
 
+**`/apply` quality gate is enforced at stop time (both runtimes).** `/apply` marks its run with `python3 tools/apply_state.py start <company>_<role>` (gitignored `.agents/state/apply.json`) and clears it with `done` once the gate passes. While the marker exists and the run's CV or cover letter exists, the Stop hook `.claude/hooks/apply_gate_stop.py` (registered in `.claude/settings.json` and `.agents/hooks.json`) runs `python3 tools/gate_application.py <slug>` whenever the agent tries to end its turn; a failing gate (exit 1) sends the agent back with the violations (Claude Code: `decision: block`; Antigravity: `decision: continue`). Exit 0 allows the stop and clears the marker; exit 2 (pending human review) allows it so the agent can ask you. It blocks at most 3 times per run, does not block again in Claude Code once `stop_hook_active` is set after one of its own blocks, ignores markers older than 12 hours, never fires before this run has written documents (fit evaluation, declined postings, or a redraft still at its consent step - files older than the marker do not count), ignores stops from another project directory or another session than the one it first blocked, and fails open with a stderr warning on internal errors. If you cancel a run, `/apply` clears the marker with `python3 tools/apply_state.py done <slug>`; `python3 tools/apply_state.py status` shows the current marker.
+   - **Antigravity has no `stop_hook_active` flag**, so a run whose gate keeps failing can be sent back up to 3 times (the per-run cap) before the stop is allowed.
+   - **Native Windows:** the hooks run `python3 ...`; make sure `python3` is on `PATH` (the python.org installer only adds `python` and `py`; enable the App Execution Alias or add a `python3` shim). Under WSL this already holds.
+
 ## Operator mode: keeping the framework read-only
 
 Day-to-day commands (`/scrape`, `/rank`, `/apply`, `/interview`, `/outcome`, ...) run in **operator mode**: they must not change framework files in your main checkout. Problems they find are filed as issues on your fork (`tools/report_issue.py`), and fixes happen later in a linked git worktree. Three layers enforce this:
@@ -395,7 +410,7 @@ Day-to-day commands (`/scrape`, `/rank`, `/apply`, `/interview`, `/outcome`, ...
 1. **Edit-time hook** (on by default): `.claude/hooks/guard_framework.py`, registered in `.claude/settings.json` for Claude Code and in `.agents/hooks.json` for Antigravity. It denies edits to tracked files (and new files under `tools/`, `.claude/`, `.agents/`, `tests/`, `.github/`, `.githooks/`, `templates/`) in the main checkout. Gitignored outputs and linked worktrees are never blocked. In every checkout it also denies writes inside a git directory (`.git/config`, `.git/hooks/*`) and to `.claude/settings.local.json` (your personal permissions; `.claude/settings.json` adds the deny rule `Edit(/.claude/settings.local.json)` too). Claude Code's own "Yes, and don't ask again" still saves rules there, because Claude Code writes that file itself rather than through the Edit tool; edit it yourself or use `/permissions`. The hook needs git 2.31 or later. With an older git, or when git fails, it prints a warning to stderr and allows the edit.
    - **Shell writes are not hooked.** The hook sees only the file-edit tools (Edit/Write/MultiEdit/NotebookEdit, and Antigravity's write/replace tools). A `python`, `sed` or `>` redirect run through the shell bypasses it. The drift check below is the backstop.
    - **Antigravity prompts.** For every write it does not deny, the Antigravity hook answers `"ask"` so that Antigravity's own review flow decides. Depending on your review policy, that can mean a prompt for each file write. If that gets annoying, pick **Always Allow** on the prompt (Antigravity caches that choice), or relax the file-edit review policy in Antigravity's agent settings. Denied framework writes stay denied either way.
-2. **Drift check**: `python3 tools/check_framework_immutable.py [--report]`, run as the last step of `/scrape`, `/rank`, `/apply`, `/interview` and `/outcome`. It catches shell writes the hook cannot see. Personalization paths (`tools/personalization_paths.json`, such as `CLAUDE.md` and profile skill files left uncommitted by `/setup`) are never reported as drift, whatever the mode.
+2. **Drift check**: `python3 tools/check_framework_immutable.py [--report]`, run as the last step of `/scrape`, `/rank`, `/apply`, `/interview` and `/outcome`. It catches shell writes the hook cannot see. Gitignored files (your `<file>.personal` profile copies included) are never drift; editing a tracked profile template such as `CLAUDE.md` or `01-candidate-profile.md` is.
 3. **Pre-commit hook** (opt-in, once per clone):
 
    ```bash

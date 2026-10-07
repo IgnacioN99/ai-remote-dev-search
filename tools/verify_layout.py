@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Measure a compiled CV or cover letter's page layout, instead of eyeballing it.
 
-The compile-and-inspect loop in `05-cv-templates.md` and the verification checklist in
-CLAUDE.md already require the layout properties below. Nothing executes them: they are
+The compile-and-inspect loop in `05-cv-templates.md` and `/apply` Step 5 (5b, the
+canonical layout check in `.claude/commands/apply.md`) already require the layout
+properties below. Nothing executes them: they are
 checked by looking at the rendered page, which is exactly how they get missed. Each
 failure below produces a clean compile, a correct page count, and a PDF that passes
 `tools/verify_pdf.py`:

@@ -72,6 +72,10 @@ ALLOWED_PERMISSIONS = {
     "Bash(python3 tools/check_framework_immutable.py:*)",
     "Bash(python tools/sync_mcp_config.py:*)",
     "Bash(python3 tools/sync_mcp_config.py:*)",
+    # Writes/clears the gitignored /apply marker (.agents/state/apply.json)
+    # that the Stop hook below reads. No network, no other files.
+    "Bash(python tools/apply_state.py:*)",
+    "Bash(python3 tools/apply_state.py:*)",
     "Bash(pdftotext:*)",
 }
 
@@ -150,9 +154,10 @@ ALLOWED_IGNORE_NEGATIONS = {
 }
 
 # Hook commands the template legitimately ships, as "<Event>:<command>" strings.
-# One reviewed hook: the operator-mode framework guard. It is stdlib Python shipped in
-# this repo, only reads the edit target's git status, and can only DENY an edit (it
-# never runs network or shell commands of its own) - see .claude/hooks/guard_framework.py.
+# Reviewed hooks: the operator-mode framework guard (stdlib Python shipped in this repo,
+# only reads the edit target's git status, can only DENY an edit, never runs network or
+# shell commands of its own - see .claude/hooks/guard_framework.py) and the /apply
+# quality gate (see its entry's comment below).
 #
 # A hook is strictly more dangerous than a permissions.allow entry. A permission
 # pre-approves something Claude may choose to do; a hook runs unconditionally when
@@ -163,6 +168,11 @@ ALLOWED_IGNORE_NEGATIONS = {
 # https://research.jfrog.com/post/shai-hulud-is-back-august/
 ALLOWED_HOOKS: set[str] = {
     'PreToolUse:python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/guard_framework.py',
+    # The /apply quality gate (.claude/hooks/apply_gate_stop.py): stdlib Python that
+    # only acts while tools/apply_state.py has marked an /apply run in progress, then
+    # runs this repo's tools/gate_application.py and can only keep the agent working
+    # (block the stop, capped at 3 per run). No network, no other commands.
+    'Stop:python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/apply_gate_stop.py',
 }
 
 FORBIDDEN_SCRIPTS = {"preinstall", "install", "postinstall", "prepare", "prepack"}

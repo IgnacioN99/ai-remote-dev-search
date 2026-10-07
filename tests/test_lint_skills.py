@@ -168,6 +168,29 @@ class SkillAndCommandCheckTests(LinterRepoFixture):
         self.assertEqual(result.returncode, 1)
         self.assertIn("must start with a '# /<name>' title", result.stdout)
 
+    def test_command_with_frontmatter_and_slash_title_passes(self):
+        command = self.root / ".claude" / "commands" / "setup.md"
+        command.write_text(
+            "---\ndescription: >-\n  Onboards the profile.\nargument-hint: \"[cv-path]\"\n"
+            "disable-model-invocation: true\n---\n\n# /setup - Profile Onboarding\n",
+            encoding="utf-8",
+        )
+
+        result = run_linter(self.root)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_command_frontmatter_without_description_fails(self):
+        command = self.root / ".claude" / "commands" / "setup.md"
+        command.write_text(
+            "---\nargument-hint: x\n---\n\n# /setup - Profile Onboarding\n", encoding="utf-8"
+        )
+
+        result = run_linter(self.root)
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("setup.md: frontmatter missing required key 'description'", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
