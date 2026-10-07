@@ -141,6 +141,13 @@ class GenerationTests(FixtureRepo):
             self.assertIn(pattern, ignore.splitlines())
         self.assertFalse((self.skills / "apply" / ".skillignore").exists())
 
+    def test_refuses_to_overwrite_hand_written_skill(self):
+        write(self.root / ".claude" / "commands" / "linkedin-search.md", "# /linkedin-search - X\n")
+        result = self.run_sync()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("refusing to overwrite hand-written skill", result.stdout + result.stderr)
+        self.assertEqual(self.portal.read_text(encoding="utf-8"), PORTAL_SRC)
+
     def test_missing_description_fails_loudly(self):
         write(self.root / ".claude" / "commands" / "brand-new.md", "# /brand-new - X\n")
         result = self.run_sync()

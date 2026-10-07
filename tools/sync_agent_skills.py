@@ -277,6 +277,15 @@ def render(name: str, source: Path, is_command: bool) -> str:
     return "\n".join(parts)
 
 
+def guard_hand_written(target: Path) -> None:
+    """Never overwrite a hand-written skill (e.g. a portal) that shares a name."""
+    if target.is_file() and GENERATED_MARKER not in read_text(target):
+        sys.exit(
+            f"sync_agent_skills: refusing to overwrite hand-written skill {rel(target)} - "
+            "rename the .claude/ source that maps to it"
+        )
+
+
 def expected_outputs() -> dict[Path, str]:
     """Every generated path -> its exact expected content."""
     outputs: dict[Path, str] = {}
@@ -285,6 +294,7 @@ def expected_outputs() -> dict[Path, str]:
 
     for cmd in command_names():
         source = ROOT / ".claude" / "commands" / f"{cmd}.md"
+        guard_hand_written(skills_root / cmd / "SKILL.md")
         outputs[skills_root / cmd / "SKILL.md"] = render(cmd, source, True)
         generated_names.add(cmd)
     for src_dir, name in SKILL_SOURCES.items():
@@ -293,6 +303,7 @@ def expected_outputs() -> dict[Path, str]:
             continue
         if name in generated_names:
             sys.exit(f"sync_agent_skills: name collision - '{name}' is both a command and a skill")
+        guard_hand_written(skills_root / name / "SKILL.md")
         outputs[skills_root / name / "SKILL.md"] = render(name, source, False)
         generated_names.add(name)
 

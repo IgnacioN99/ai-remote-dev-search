@@ -1,6 +1,5 @@
 ---
 trigger: always_on
-description: Non-negotiable rules for the AI Job Search workspace (command routing, page limits, honesty, naming).
 ---
 
 # Core rules (always on)
