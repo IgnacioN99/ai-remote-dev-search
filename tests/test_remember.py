@@ -27,17 +27,17 @@ class RememberTests(unittest.TestCase):
 
     def test_record_insight_creates_valid_entry(self):
         entry = record_insight(
-            text="MODO prioritizes high-throughput transaction experience",
+            text="Acmepay prioritizes high-throughput transaction experience",
             tags=["node", "fintech", "nest"],
-            company="MODO",
+            company="Acmepay",
             source="interview",
             memory_file=self.ledger,
         )
 
         self.assertTrue(entry["id"].startswith("ins_"))
-        self.assertEqual(entry["text"], "MODO prioritizes high-throughput transaction experience")
+        self.assertEqual(entry["text"], "Acmepay prioritizes high-throughput transaction experience")
         self.assertEqual(entry["tags"], ["node", "fintech", "nest"])
-        self.assertEqual(entry["company"], "modo")
+        self.assertEqual(entry["company"], "acmepay")
         self.assertEqual(entry["source"], "interview")
         self.assertIs(entry["superseded"], False)
 
@@ -71,13 +71,13 @@ class RememberTests(unittest.TestCase):
     def test_filtering_by_tag_company_query(self):
         ledger = self.ledger
         record_insight("Perry Street values dry-monads", tags=["ruby", "dry-monads"], company="perry-street-software", memory_file=ledger)
-        record_insight("Despegar uses SOFIA travel AI", tags=["python", "ai"], company="despegar", memory_file=ledger)
+        record_insight("Globex uses an in-house travel AI", tags=["python", "ai"], company="globex", memory_file=ledger)
         record_insight("TechCorp microservices architecture", tags=["backend", "distributed"], company="techcorp", memory_file=ledger)
 
         # Filter by company
-        res_comp = get_active_insights(memory_file=ledger, company="despegar")
+        res_comp = get_active_insights(memory_file=ledger, company="globex")
         self.assertEqual(len(res_comp), 1)
-        self.assertEqual(res_comp[0]["company"], "despegar")
+        self.assertEqual(res_comp[0]["company"], "globex")
 
         # Filter by tag
         res_tag = get_active_insights(memory_file=ledger, tag="dry-monads")
@@ -87,7 +87,7 @@ class RememberTests(unittest.TestCase):
         # Filter by query substring
         res_query = get_active_insights(memory_file=ledger, query="SOFIA")
         self.assertEqual(len(res_query), 1)
-        self.assertEqual(res_query[0]["company"], "despegar")
+        self.assertEqual(res_query[0]["company"], "globex")
 
     def test_invalid_arguments_raise_errors(self):
         ledger = self.ledger

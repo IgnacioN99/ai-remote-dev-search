@@ -154,7 +154,7 @@ class CheckConsistencyTests(unittest.TestCase):
 
     def test_reconciliation_heals_drift(self):
         # 1. Add orphan folder with status.md
-        orphan_dir = self.ws["apps_dir"] / "bridgenext_sr-rails-dev"
+        orphan_dir = self.ws["apps_dir"] / "initech_sr-rails-dev"
         orphan_dir.mkdir()
         (orphan_dir / "status.md").write_text(
             "Role: Sr Rails Dev\nStatus: drafted\nPosting URL: https://example.com/bn", encoding="utf-8"
@@ -178,7 +178,7 @@ class CheckConsistencyTests(unittest.TestCase):
         with open(self.ws["tracker"], "r", encoding="utf-8") as f:
             rows = list(csv.DictReader([line for line in f if line.strip()]))
         self.assertEqual(len(rows), 2)
-        self.assertTrue(any("bridgenext" in r["company"].lower() for r in rows))
+        self.assertTrue(any("initech" in r["company"].lower() for r in rows))
 
 
 if __name__ == "__main__":
