@@ -48,6 +48,11 @@ per-file diff commands.
 
 ### Fixed
 
+- **`tools/report_issue.py` sanitizer follow-ups.** Personal-data sources resolve against the
+  main checkout when run from a linked worktree; `--body-file` refuses any `cv`/`cover_letters`/
+  `documents` path segment and any `.tex`; plain terms redact accented text ("Jose Pena" ->
+  "José Peña"); multi-word companies also match squashed/CamelCase; epoch timestamps and
+  repeated identical numbers are no longer redacted as `[phone]`.
 - **`/apply` archives the job posting while it still holds it** (#306). `/apply` drafted two
   documents and a tracker row from the full posting, then let the text die with the session;
   `/outcome` Step 3.2 tried to recover it by re-fetching a `source` URL the spec itself expects
