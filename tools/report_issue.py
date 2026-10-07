@@ -216,28 +216,70 @@ _GENERIC_TERMS = {
 }
 
 
-def _walk_strings(value: Any, key_hint: bool = False) -> Iterable[str]:
+def _walk_strings(value: Any, key: str = "", hinted: bool = False) -> Iterable[Tuple[str, str]]:
+    """Yield (nearest key, string) for every string under an identity-hinted key."""
     if isinstance(value, dict):
-        for key, item in value.items():
-            yield from _walk_strings(item, key_hint or bool(_PROFILE_KEY_HINT.search(str(key))))
+        for k, item in value.items():
+            k = str(k)
+            yield from _walk_strings(item, k, hinted or bool(_PROFILE_KEY_HINT.search(k)))
     elif isinstance(value, list):
         for item in value:
-            yield from _walk_strings(item, key_hint)
-    elif isinstance(value, str) and key_hint:
-        yield value
+            yield from _walk_strings(item, key, hinted)
+    elif isinstance(value, str) and hinted:
+        yield key, value
+
+
+def _name_parts(value: str) -> List[str]:
+    """"Jane Q. Doe" -> ["Jane", "Doe"]: a full name also leaks through its parts."""
+    parts = []
+    for part in value.split():
+        part = part.strip(".,;:()\"'")
+        if len(part) >= 3 and part[0].isalpha() and part.lower() not in _GENERIC_TERMS:
+            parts.append(part)
+    return parts
+
+
+_NAME_KEYS = {"name", "full_name", "first_name", "last_name", "candidate_name", "preferred_name"}
 
 
 def load_profile_strings(profile_path: Path = PROFILE_JSON) -> List[str]:
-    """Identity strings from the gitignored candidate_profile.json (if present)."""
+    """Identity strings from the gitignored candidate_profile.json (if present).
+
+    Values are redacted as whole strings; only person-name fields are also split
+    into words, so employer/education values like "State University" do not
+    turn every "university" in a bug report into [redacted].
+    """
     try:
         data = json.loads(Path(profile_path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    return list(_walk_strings(data))
+    terms: List[str] = []
+    for key, value in _walk_strings(data):
+        value = value.strip()
+        if not value:
+            continue
+        terms.append(value)
+        k = key.lower()
+        if k in _NAME_KEYS:
+            terms.extend(_name_parts(value))
+        if re.search(r"phone|mobile|tel", k):
+            digits = re.sub(r"\D", "", value)
+            if len(digits) >= 7:
+                terms.append(digits)
+        if re.match(r"https?://", value):
+            handle = value.rstrip("/").rsplit("/", 1)[-1]
+            if len(handle) >= 3:
+                terms.append(handle)
+    return terms
 
 
 def load_claude_identity(claude_md: Path = CLAUDE_MD) -> List[str]:
-    """Filled-in values from CLAUDE.md's Identity section (placeholders skipped)."""
+    """Filled-in Name and Location from CLAUDE.md's Identity section.
+
+    Only those two: the headline and status are generic career words ("Senior
+    Backend Engineer", "Open to work") whose redaction would gut every report.
+    Placeholders like [YOUR_NAME] are skipped.
+    """
     try:
         text = Path(claude_md).read_text(encoding="utf-8")
     except OSError:
@@ -245,19 +287,23 @@ def load_claude_identity(claude_md: Path = CLAUDE_MD) -> List[str]:
     match = re.search(r"^### Identity\s*\n(.*?)(?=^#{2,3} |\Z)", text, re.MULTILINE | re.DOTALL)
     if not match:
         return []
-    values = []
+    values: List[str] = []
     for line in match.group(1).splitlines():
         item = re.match(r"^\s*-\s*\*\*(?P<key>[^*]+?):?\*\*:?\s*(?P<val>.+)$", line)
         if not item:
             continue
-        if item.group("key").strip().lower().startswith(("languages", "cv language")):
-            continue
+        key = item.group("key").strip().lower()
         val = re.sub(r"<!--.*?-->", "", item.group("val")).strip().strip('"').strip()
         if not val or _PLACEHOLDER.search(val):
             continue
-        values.append(val)
-        # "City, Country (constraints)" -> also redact the pieces
-        values.extend(p.strip() for p in re.split(r"[,()]", val) if p.strip())
+        if key == "name":
+            values.append(val)
+            values.extend(_name_parts(val))
+        elif key == "location":
+            values.append(val)
+            # "City, Country (constraints)" -> also redact City and Country
+            pieces = re.split(r"[,()]", val)
+            values.extend(piece.strip() for piece in pieces[:2] if piece.strip())
     return values
 
 
@@ -268,18 +314,12 @@ def _sensitive_terms(strings: Iterable[str]) -> List[str]:
         if len(s) < 3 or s.lower() in _GENERIC_TERMS or _PLACEHOLDER.fullmatch(s):
             continue
         terms.add(s)
-        # A full name also leaks through its parts ("Jane Doe" -> "Jane", "Doe").
-        if " " in s and len(s) <= 60 and "@" not in s and "/" not in s:
-            for part in s.split():
-                part = part.strip(".,;:()\"'")
-                if len(part) >= 3 and part[0].isalpha() and part.lower() not in _GENERIC_TERMS:
-                    terms.add(part)
     return sorted(terms, key=len, reverse=True)
 
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _URL_QUERY = re.compile(r"(https?://[^\s?#<>\"')]+)[?#][^\s<>\"')]*")
-_SOCIAL = re.compile(r"((?:www\.)?(?:linkedin\.com/in|github\.com|x\.com|twitter\.com)/)[\w.%-]+", re.I)
+_SOCIAL = re.compile(r"((?:www\.)?(?:linkedin\.com/in|x\.com|twitter\.com)/)[\w.%-]+", re.I)
 _PHONE = re.compile(
     r"(?<![\w.])\+\d[\d\s().-]{6,}\d(?!\w)"
     r"|(?<![\w.])\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?![\w-])"
@@ -465,7 +505,7 @@ def _gh(args: List[str], repo: str, runner: Runner, input_text: Optional[str] = 
 
 def find_existing(issue: Dict[str, Any], repo: str, runner: Runner) -> Optional[Dict[str, Any]]:
     fp_marker = f"fp:{issue['fingerprint']}"
-    searches = [issue["fingerprint"] + " in:body", f'"{issue["title"]}" in:title']
+    searches = [issue["fingerprint"] + " in:body", f'"{issue["title"].replace(chr(34), "")}" in:title']
     for query in searches:
         proc = _gh(
             ["issue", "list", "-R", repo, "--state", "open", "--search", query,

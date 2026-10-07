@@ -207,6 +207,23 @@ class SanitizerRemovesPII(Base):
         self.assertIn("Springfield", values)
         self.assertFalse(any("[YOUR_" in v for v in values))
 
+    def test_generic_career_words_are_not_over_redacted(self):
+        md = self.tmp / "CLAUDE.md"
+        md.write_text("### Identity\n- **Name:** Jane Q Public\n- **Status:** Open to work\n"
+                      '- **LinkedIn headline:** "Senior Backend Engineer | Python"\n### Education\n',
+                      encoding="utf-8")
+        profile = self.tmp / "p.json"
+        profile.write_text(json.dumps({"name": "Jane Doe", "education": ["State University of Computer Science"],
+                                       "employers": ["Acme Widgets ApS"]}), encoding="utf-8")
+        sanitizer = report_issue.Sanitizer.from_repo(profile, md)
+        text = "work on Senior backend issue at a University with Computer Science grads"
+        self.assertEqual(sanitizer.clean(text), text)
+        self.assertNotIn("Public", sanitizer.clean("Jane Q Public filed it"))
+        self.assertNotIn("Acme Widgets ApS", sanitizer.clean("at Acme Widgets ApS"))
+
+    def test_digits_only_phone_from_profile_is_redacted(self):
+        self.assertNotIn("4512345678", self.sanitizer.clean("call 4512345678 now"))
+
     def test_body_emptied_by_sanitizer_is_refused(self):
         code, out = self.invoke(["--kind", "bug", "--title", "x", "--body", "jane.doe@example.com Jane Doe",
                                  "--json"], FakeRunner())
