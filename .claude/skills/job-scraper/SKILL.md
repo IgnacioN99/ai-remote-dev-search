@@ -5,7 +5,7 @@ description: >
   (LinkedIn, local job boards, and any skills added with /add-portal). Deduplicates
   across runs. Triggers on: job scrape, find jobs, search jobs, new jobs, job search,
   scrape jobs, /scrape
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run .agents/skills/*/cli/src/cli.ts *), Bash(python tools/job_key.py:*), Bash(python3 tools/job_key.py:*), WebFetch, WebSearch, Agent, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run .agents/skills/*/cli/src/cli.ts *), Bash(python tools/job_key.py:*), Bash(python3 tools/job_key.py:*), Bash(python3 tools/report_issue.py:*), WebFetch, WebSearch, Agent, AskUserQuestion
 ---
 
 # Job Scraper
@@ -72,7 +72,7 @@ For each **enabled** portal skill:
 
 Run all portal CLI calls in parallel where possible using the Agent tool. Collect all `results` arrays into a single pool for Step 2, keeping each result tagged with its source portal skill (for Step 2 `detail` lookups).
 
-If a CLI tool exits with a non-zero code, log the error message and continue — do not abort the whole search.
+If a CLI tool exits with a non-zero code, log the error message and continue — do not abort the whole search. If the failure is the CLI itself (crash, parse error - not a 429/block page or network outage), file it and move on: `python3 tools/report_issue.py --kind bug --component <portal-name> --title "<portal-name> CLI fails: <short error>" --body "<command, exit code, error excerpt>"`.
 
 #### 1c. WebSearch fallback
 
@@ -218,6 +218,8 @@ Scraper-based portal CLIs rot silently: when a portal changes its markup, the pa
 **Escalation (bounded, on suspicion only).** A suspect portal gets **one** sentinel probe: run its documented `search` with the example query from its own SKILL.md (that query provably worked when the skill was registered), the portal's limit flag capped at 3, `--format json`. If that returns nothing, retry **once** with a single common word. Only then is the verdict **broken**. A 429 or block page is **never** evidence of breakage - record the portal as **inconclusive (rate-limited)**, back off, and do not retry.
 
 **Verdicts.** Healthy portals get silence - no table, no line. Anything else surfaces in the Step 5 summary as a health line.
+
+**Report.** For each **broken** or **degraded** verdict only (never inconclusive/rate-limited), file it - do not edit the portal skill: `python3 tools/report_issue.py --kind portal-health --component <portal-name> --title "<portal-name> <broken|degraded>: <criterion>" --body "<evidence from this step, no job data beyond counts>"`.
 
 **Probe-only mode (`/scrape health`).** Skip Steps 1-4 and this step's free pass (there is no fresh run to scan); instead probe every installed portal directly - enabled ones by default, a disabled one only when named explicitly (e.g. `/scrape health jobnet`). Each portal gets the sentinel probe above, the degraded criteria applied to whatever it returns, and - since the user explicitly asked for diagnosis - one `detail` fetch on the first result of each healthy portal (description must be readable decoded text; a failure downgrades to degraded). Report all statuses in this mode, including healthy. Volume stays bounded: one search, at most one retry, at most one detail per portal.
 
