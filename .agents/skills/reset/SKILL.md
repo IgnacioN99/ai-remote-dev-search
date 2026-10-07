@@ -17,6 +17,8 @@ You are resetting parts of the job search framework back to a blank state so the
 
 **This command is destructive.** Nothing is deleted until the user explicitly confirms. Follow these steps exactly in order.
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /reset` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Parse Scope from Arguments
@@ -274,6 +276,8 @@ rm -rf documents/applications/*/
 ---
 
 ## Step 4: Confirm What Was Done and Next Steps
+
+Run `python3 tools/set_mode.py operator` first - also when the command stops early or fails - so the framework is read-only again.
 
 After the reset is complete, report:
 

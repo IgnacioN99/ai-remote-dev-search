@@ -21,6 +21,8 @@ The generator is **country-agnostic**: it works for any portal in any market and
 
 Follow these steps **in order**.
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /add-portal` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Parse Arguments
@@ -148,6 +150,8 @@ Do not proceed to Step 5 until search, detail, and tests all pass.
 ---
 
 ## Step 6: Confirm
+
+Run `python3 tools/set_mode.py operator` first - also when the command stops early or fails - so the framework is read-only again.
 
 Present a summary:
 

@@ -63,6 +63,14 @@ ALLOWED_PERMISSIONS = {
     # upstream, pins -R). Raw `gh issue` stays behind approval.
     "Bash(python tools/report_issue.py:*)",
     "Bash(python3 tools/report_issue.py:*)",
+    "Bash(python tools/sync_agent_skills.py:*)",
+    "Bash(python3 tools/sync_agent_skills.py:*)",
+    "Bash(python tools/set_mode.py:*)",
+    "Bash(python3 tools/set_mode.py:*)",
+    "Bash(python tools/check_framework_immutable.py:*)",
+    "Bash(python3 tools/check_framework_immutable.py:*)",
+    "Bash(python tools/sync_mcp_config.py:*)",
+    "Bash(python3 tools/sync_mcp_config.py:*)",
     "Bash(pdftotext:*)",
 }
 

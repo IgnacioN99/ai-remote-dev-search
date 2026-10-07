@@ -171,7 +171,7 @@ Read these reference files — and only these — to ground your critique:
 Do NOT read `.claude/skills/job-application-assistant/05-cv-templates.md` or `.claude/skills/job-application-assistant/06-cover-letter-templates.md` — those govern template structure the drafter already applied and are not needed for content critique.
 
 ### 3. Factual Grounding Audit
-Compare every date, employer, job title, and quantitative metric in both drafts against the union of three sources: `.claude/skills/job-application-assistant/01-candidate-profile.md` + the master CV baseline template (`cv/main_example.tex`) + `CLAUDE.md`'s Candidate Profile section. A claim is grounded if ANY of these sources supports it. Mismatches between these three sources themselves must be reported to the user as a profile-consistency warning rather than treated as draft drift. Draft mismatches must be flagged as Part A edits with `"reason": "grounding"` so they can be distinguished from style changes. Keep the tolerance honest: reframed emphasis is fine; changed facts and escalated numbers are not.
+Compare every date, employer, job title, and quantitative metric in both drafts against the union of three sources: `.claude/skills/job-application-assistant/01-candidate-profile.md` + the master CV baseline template (`cv/main_example.tex`) + `CLAUDE.md`'s Candidate Profile section. A claim is grounded if ANY of these sources supports it. Mismatches between these three sources themselves must be reported to the user as a profile-consistency warning rather than treated as draft drift. If the mismatch comes from tooling rather than the user's data (e.g. a tool or template overwrote or failed to sync a profile file), also run `python3 tools/report_issue.py --kind drift --component apply --title "profile sources drift: <which files>" --body "<file names and field names only - never the values>"`. Draft mismatches must be flagged as Part A edits with `"reason": "grounding"` so they can be distinguished from style changes. Keep the tolerance honest: reframed emphasis is fine; changed facts and escalated numbers are not.
 
 ### 4. Drafts to Review
 Both drafts are provided inline below. Do NOT use the Read tool on the draft files — use these exact texts.
@@ -255,7 +255,7 @@ cd ../cover_letters && xelatex -interaction=nonstopmode cover_<company>_<role>.t
 - **Stock cover letter** uses **xelatex** — cover.cls requires fontspec.
 - **Custom template active:** run its declared `<CV_COMPILE>`/`<COVER_COMPILE>` command instead, substituting the actual filename for `<file>`. Never fall back to lualatex/xelatex when a custom template's compile command is a different toolchain (e.g. `typst compile`) — that command is what the manifest actually verified in `/add-template` Step 4.
 
-If either compile fails, fix the error and re-compile until clean.
+If either compile fails, fix the error and re-compile until clean. If the failure is in the template or toolchain rather than the drafted content (it also breaks `cv/main_example.tex` / `cover_letters/cover_example.tex`, or a class/package error), file it instead of patching the template: `python3 tools/report_issue.py --kind bug --component apply --title "<cv|cover> template compile fails: <error>" --body "<compiler, command, log excerpt>"`.
 
 ### 5b. Inspect layout
 
@@ -276,7 +276,7 @@ The hole check is the one a visual read misses. A moderncv `\cventry` renders as
 
 If Poppler is missing, or the `pdftotext` first in PATH is the xpdf build Git for Windows ships (no `-bbox`), the script exits 2 with `skipped:` — note the degraded mode in the Step 6 report and rely on the visual inspection alone. Exit 2 is never a layout verdict.
 
-The thresholds are calibrated for the stock moderncv and `cover.cls` geometry; a template registered via `/add-template` may report a phantom hole above a footer the 90pt band does not cover.
+The thresholds are calibrated for the stock moderncv and `cover.cls` geometry; a template registered via `/add-template` may report a phantom hole above a footer the 90pt band does not cover. A layout failure the content cannot fix (it reproduces on the example files, or `verify_pdf.py`/`verify_layout.py` itself errors) is a framework issue: `python3 tools/report_issue.py --kind bug --component tools/verify_layout.py --title "<short symptom>" --body "<command, exit code, output>"`.
 
 Then read both PDFs via the Read tool and verify:
 
@@ -415,3 +415,4 @@ Check whether the posting or the portal it came from asks for free-text fields t
 ### Next Steps
 - **Submitted?** `/outcome <company>` moves the `drafted` row to `applied` and starts the per-application record that `/setup` later uses to calibrate the fit framework.
 - **Interview scheduled?** `/interview` builds a stage-specific prep pack from this posting and the documents you just created.
+- **Final step (always):** run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).

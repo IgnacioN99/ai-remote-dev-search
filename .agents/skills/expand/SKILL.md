@@ -17,6 +17,8 @@ You are enriching the candidate profile by discovering competencies hidden in do
 
 Follow these steps **exactly in order**. Do not skip steps.
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /expand` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Read Existing Profile Files
@@ -208,6 +210,8 @@ For each addition, add a brief source annotation in a comment or parenthetical: 
 ---
 
 ## Step 6: Summary Report
+
+Run `python3 tools/set_mode.py operator` first - also when the command stops early or fails - so the framework is read-only again.
 
 After writing, present:
 

@@ -17,6 +17,8 @@ You are running the onboarding setup for the AI Job Search framework. Your goal 
 
 There are three paths into setup. Step 0 picks the right one; all three converge on Step 3 (file generation) and Step 4 (confirmation).
 
+**Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /setup` before writing anything (see `tools/personalization_paths.json`).
+
 ---
 
 ## Step 0: Welcome & Choose Path
@@ -411,6 +413,8 @@ Replace all placeholder tokens in the search queries file with the user's actual
 ---
 
 ## Step 4: Confirm & Next Steps
+
+Run `python3 tools/set_mode.py operator` first - also when the command stops early or fails - so the framework is read-only again.
 
 Present a summary:
 
