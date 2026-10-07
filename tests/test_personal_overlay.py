@@ -213,6 +213,15 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(incoming.stat().st_mtime_ns, older, "incoming must not be rewritten")
         self.assertEqual(sorted((self.root / "documents" / "memory").glob("backup-*")), backups)
 
+    def test_copy_stamped_by_earlier_migration_needs_no_merge(self):
+        # The earlier migration stamped the template's version onto the copy; the
+        # source still says 1.0.0. A version line alone is not personal data.
+        self.write(EVAL + ".personal", "---\nframework_version: 1.0.1\n---\nScoring\nStrong: Fortran, COBOL\n")
+        out = self.run_mig("--apply", files=(EVAL,))
+        self.assertIn("every personalized line is already in .personal", out)
+        self.assertFalse((self.root / (EVAL + ".incoming.personal")).exists())
+        self.assertIn("Nothing to write", out)
+
     def test_stale_incoming_with_only_template_text_is_reported_safe(self):
         self.write(EVAL + ".personal", "---\nframework_version: 1.0.0\n---\nScoring\nStrong: Fortran, COBOL\n")
         self.write(EVAL + ".incoming.personal",

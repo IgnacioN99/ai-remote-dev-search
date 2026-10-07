@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import difflib
+import re
 import shutil
 import subprocess
 import sys
@@ -110,8 +111,13 @@ def content_at(root: Path, rev: str, rel: str) -> Optional[str]:
     return _norm(out) if rc == 0 else None
 
 
+_VERSION_LINE = re.compile(r"^framework_version:")
+
+
 def _lines(text: str) -> set:
-    return {ln.strip() for ln in text.splitlines() if ln.strip()}
+    """Non-blank stripped lines, minus framework_version stamps: a copy stamped with
+    another version (e.g. by an earlier migration) differs there without holding data."""
+    return {ln.strip() for ln in text.splitlines() if ln.strip() and not _VERSION_LINE.match(ln.strip())}
 
 
 def template_lines(root: Path, rel: str) -> set:
