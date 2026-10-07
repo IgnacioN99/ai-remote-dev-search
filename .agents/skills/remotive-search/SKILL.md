@@ -1,7 +1,10 @@
 ---
 name: remotive-search
 description: >-
-  Search remote tech jobs on Remotive (remotive.com). Covers software development, frontend, backend, fullstack, AI, DevOps, data, product, QA, and tech roles worldwide. Triggers on: remotive, remotive jobs, remotive remote, remote software jobs on remotive.
+  Searches remote tech job postings on Remotive (remotive.com). Use ONLY when
+  invoked from the /scrape workflow, or when the user explicitly names Remotive.
+  For a general job search ("find jobs", "search jobs") use the /scrape skill
+  instead.
 ---
 
 # Remotive Search Skill

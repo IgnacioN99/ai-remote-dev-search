@@ -433,6 +433,12 @@ If Path A left any STAR stubs in `07-interview-prep.md`, also note:
 
 ---
 
+## Final Step: Sync the Antigravity Skill Copies
+
+This command edits files under `.claude/`. Run `python3 tools/sync_agent_skills.py` as the very last action so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change and the CI drift check stays green. Do this even if the user only runs Claude Code.
+
+---
+
 ## Design Principles
 
 - Three onboarding paths converge on the same skill files. Step 0 picks the right path based on what's in `documents/`. Steps 3 and 4 are shared.

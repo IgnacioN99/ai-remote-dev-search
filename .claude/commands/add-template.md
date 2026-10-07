@@ -199,6 +199,12 @@ Present a summary:
 
 ---
 
+## Final Step: Sync the Antigravity Skill Copies
+
+This command edits files under `.claude/`. Run `python3 tools/sync_agent_skills.py` as the very last action so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change and the CI drift check stays green. Do this even if the user only runs Claude Code.
+
+---
+
 ## Design Principles
 
 - Registration is idempotent: re-running with the same name offers to update the existing template rather than duplicating it.

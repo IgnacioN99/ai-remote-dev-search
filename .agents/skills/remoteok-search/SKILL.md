@@ -1,14 +1,11 @@
 ---
 name: remoteok-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search for remote jobs or look up a
-  specific job posting on RemoteOK, the global remote-work job board. Covers
-  remote positions worldwide in English — software engineering, design,
-  marketing, sales, ops, customer support, and other remote roles. Trigger
-  phrases: remote jobs, remote work, remoteok, work remotely, "are there any
-  remote X jobs", "find remote X roles", look up this RemoteOK posting, remote
-  job search.
+version: 1.1.0
+description: >-
+  Searches and looks up remote job postings on RemoteOK (remoteok.com). Use ONLY
+  when invoked from the /scrape workflow, or when the user explicitly names
+  RemoteOK. For a general job search ("find jobs", "search jobs") use the /scrape
+  skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/remoteok-search/cli/src/cli.ts *)

@@ -1,14 +1,11 @@
 ---
 name: company-careers-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search for job listings on a specific
-  company's career page, look up openings at a named employer, or find a company's
-  job board. Works for any company whose careers page runs on Greenhouse, Lever, or
-  Ashby (Anthropic, Despegar, GitLab, Stripe, Datadog, Spotify, Notion, and hundreds
-  more). Trigger phrases: company jobs, career page, jobs at <company>, openings at
-  <company>, busco trabajo en <empresa>, vacantes en <empresa>, buscar empleo en una
-  empresa.
+version: 1.1.0
+description: >-
+  Searches job openings on a named company's own careers page (Greenhouse, Lever
+  or Ashby boards). Use ONLY when invoked from the /scrape workflow, or when the
+  user explicitly names a specific employer's careers page. For a general job
+  search ("find jobs", "search jobs") use the /scrape skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/company-careers-search/cli/src/cli.ts *)
