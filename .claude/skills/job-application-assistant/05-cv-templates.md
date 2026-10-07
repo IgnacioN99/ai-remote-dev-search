@@ -1,5 +1,5 @@
 ---
-framework_version: 1.4.6
+framework_version: 1.4.7
 ---
 
 # CV Templates and Tailoring Guide
@@ -20,7 +20,7 @@ All CVs use the moderncv LaTeX package with the "banking" style and "blue" color
 cd cv && lualatex -interaction=nonstopmode main_<company>_<role>.tex
 ```
 
-Expected output: `Output written on main_<company>_<role>.pdf (2 pages, ...)`. Any page count other than 2 is a failure that must be fixed before presenting to the user.
+Expected output: `Output written on main_<company>_<role>.pdf (2 pages, ...)`. Any other page count is a failure to fix before presenting. The full compile, page-count, layout and ATS procedure lives in `/apply` Step 5 (`.claude/commands/apply.md`); this file holds the template knowledge it refers to.
 
 ## Document Structure
 
@@ -239,14 +239,9 @@ Two failure modes deserve special care:
 
 Related trap: a bullet whose text begins with a literal `[` must be braced - `\item {[text]}` - or LaTeX parses the bracketed text as `\item`'s optional label and renders it clipped off the left page edge with a clean compile. The example CV's placeholder bullets are braced for exactly this reason.
 
-## Compile-and-Inspect Loop (MANDATORY)
+## Page-Break Fixes
 
-After writing the CV and before presenting to the user, always compile and visually inspect the PDF. Iterate until the layout is clean. Workflow:
-
-1. Run `lualatex -interaction=nonstopmode main_<company>_<role>.tex`
-2. Check the output page count: must be exactly 2
-3. Read the PDF via the Read tool and visually inspect both pages
-4. Check for **orphaned entries**: a `\cventry` title line must never sit alone at the bottom of page 1 with its bullets on page 2
+Run the compile-and-inspect loop in `/apply` Step 5a-5c. When it shows one of these problems, apply the matching fix.
 
 ### Fixing common page-break problems
 
@@ -271,20 +266,11 @@ Restore the highest-relevance item that was previously cut — a CV that ends mi
 
 ## ATS Parseability
 
-Most employers run CVs through an ATS before a human sees them, and the ATS reads the PDF's embedded **text layer**, not the rendered page. A CV can pass visual inspection and still extract as garbage. After the layout passes the compile-and-inspect loop, verify the text layer:
+An ATS reads the PDF's embedded **text layer**, not the rendered page. The extraction procedure and its checks (contact details as literal text, no `(cid:NNN)`/`�` garbage, reading order, keyword coverage) are `/apply` Step 5d. Template-level facts it relies on:
 
-```bash
-python3 tools/verify_pdf.py cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt
-```
-
-Extraction tries **pypdf** first (`pip install pypdf`, BSD license), then Poppler `pdftotext`. If a fallback still uses `pdftotext -layout`, it must also pass `-enc UTF-8`: Xpdf-based builds default to Latin-1, which makes every non-ASCII character in a perfectly good CV read back as a replacement character. If neither extractor is available, skip the mechanical check with a warning and rely on the visual PDF read for keyword coverage.
-
-What to check in the extraction:
-
-- **Contact details as literal text.** The stock template's fontawesome contact icons extract as glyph names (`MOBILE-ALT`, `Envelope`) - harmless noise, because the actual address and number are printed beside them. The failure mode is a contact detail carried *only* by an icon or a hyperlink (like the `LinkedIn` link text, whose URL is not in the text layer): invisible to an ATS. The email address must always appear as printed text.
-- **No garbled output.** `(cid:NNN)` markers or `�` characters mean a font is embedded without a Unicode mapping - an ATS sees the same garbage. This shows up with unusual fonts in custom templates, not with the stock moderncv setup under lualatex.
-- **Reading order.** The stock banking style is single-column, so extraction order matches visual order. Custom templates (via `/add-template`) with sidebars or multi-column layouts can interleave unrelated lines; if extraction order is scrambled, the user is trading ATS compatibility for looks and should be told.
-- **Keyword coverage.** Match the posting's required/preferred terms against the extracted text, in the posting's language. Prefer the posting's exact term over a synonym when it is truthfully applicable - ATS matching is often literal. Never add a keyword the profile does not support. `verify_pdf.py --contains` folds both sides for whitespace, Unicode normalization (NFC) and LaTeX's typographic substitutions before comparing - `'` reaches the text layer as U+2019 and `--` as U+2013, so `--contains "Master's degree"` and `--contains "2016-2024"` match what the template actually renders. The dumped `.txt` is never folded: it is the raw layer the ATS sees, which is why the date-range check below reads the dump, not `--contains`.
+- **Contact details as literal text.** The stock template prints the email and phone beside their icons, so the icon glyph names (`MOBILE-ALT`, `Envelope`) are harmless noise. A detail carried *only* by an icon or a hyperlink is invisible to an ATS; print the email as text in any custom template.
+- **Garbled output** (`(cid:NNN)`, `�`) comes from fonts embedded without a Unicode mapping, typically in custom templates, not the stock moderncv setup under lualatex.
+- **Keyword matching.** `verify_pdf.py --contains` folds both sides for whitespace, Unicode normalization (NFC) and LaTeX's typographic substitutions before comparing - `'` reaches the text layer as U+2019 and `--` as U+2013, so `--contains "Master's degree"` and `--contains "2016-2024"` match what the template actually renders. The dumped `.txt` is never folded: it is the raw layer the ATS sees, which is why the date-range check below reads the dump, not `--contains`.
 - **Accents intact (pdflatex fallback).** Under pdflatex without T1 font encoding the text layer stores accented letters decomposed (`e` + combining grave instead of `è`); pypdf reads that as `Gen` `eve` with a stray spacing accent, and neither form matches a typed keyword. The stock template guards this with `\ifpdftex\usepackage[T1]{fontenc}\fi`; keep the line in tailored CVs and custom templates that may be compiled with pdflatex. It is a no-op under lualatex.
 
 ### Date fields must be ASCII ranges (confirmed ATS import failure)
@@ -310,11 +296,11 @@ Two independent causes, both easy to avoid:
 
    Where a genuine range exists, use it even when a single year would be factually accurate - a degree written `1995` is true but imports worse than `1992-1995`. Do not invent a start date you do not have; a lone graduation year is fine, just expect it to be typed in by hand.
 
-**Add this to the step 5d checks**: after extracting the text layer, confirm every experience entry shows a start *and* an end separated by an ASCII hyphen. Because the failure is silent and invisible in the PDF, the candidate otherwise discovers it only while filling in the application form.
+`/apply` Step 5d checks this: after extracting the text layer, it confirms every experience entry shows a start *and* an end separated by an ASCII hyphen. Because the failure is silent and invisible in the PDF, the candidate otherwise discovers it only while filling in the application form.
 
 ## Page Budget - Hard 2-Page Limit
 
-The CV **must** fit on exactly 2 pages when compiled. Use these content limits as a guide:
+The CV fits on exactly 2 pages when compiled (`/apply` Step 5b and the gate enforce it). These are the content limits; the section guidance above uses the same numbers:
 
 | Section | Max budget |
 |---------|-----------|

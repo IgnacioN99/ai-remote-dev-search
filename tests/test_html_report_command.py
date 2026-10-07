@@ -23,6 +23,14 @@ LINT_SCRIPT = REPO_ROOT / "tools" / "lint_skills.py"
 GITIGNORE = REPO_ROOT / ".gitignore"
 
 
+
+def title_line(text):
+    """First line after the optional Claude Code frontmatter block."""
+    text = text.replace("\r\n", "\n").lstrip()
+    if text.startswith("---\n"):
+        text = text[text.index("\n---", 4) + 4:].lstrip()
+    return text.splitlines()[0]
+
 class HtmlReportCommandFileTests(unittest.TestCase):
     """Structural checks on the command file itself."""
 
@@ -32,7 +40,7 @@ class HtmlReportCommandFileTests(unittest.TestCase):
     def test_command_file_starts_with_correct_header(self):
         """lint_skills.py rejects command files that don't start with '# /<name>'."""
         text = COMMAND_FILE.read_text(encoding="utf-8")
-        first_line = text.lstrip().splitlines()[0]
+        first_line = title_line(text)
         self.assertTrue(
             first_line.startswith("# /html-report"),
             f"Command file must start with '# /html-report', got: {first_line!r}",

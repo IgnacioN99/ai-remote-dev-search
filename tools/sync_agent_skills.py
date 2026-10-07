@@ -21,8 +21,9 @@ their canonical `.claude/skills/...` paths instead.
 While copying, Claude-only constructs are rewritten to agent-neutral wording
 with Antigravity tool names (WebFetch -> read_url_content, WebSearch ->
 search_web, Agent tool -> invoke_subagent or inline, AskUserQuestion -> ask
-in chat), `allowed-tools`/`model:` frontmatter is dropped, and a header note
-explains `$ARGUMENTS`.
+in chat), Claude-only frontmatter (`allowed-tools`, `model:`, `argument-hint`,
+`disable-model-invocation`) is dropped, the `description:` is taken from the
+source's own frontmatter, and a header note explains `$ARGUMENTS`.
 
 Usage:
   python3 tools/sync_agent_skills.py           # write/refresh generated files
@@ -61,94 +62,6 @@ DEFAULT_FRAMEWORK_VERSION = "1.0.0"
 
 SKILLIGNORE = "node_modules/\n**/node_modules/**\nbun.lock\nbun.lockb\npackage-lock.json\ndist/\n"
 
-# Trigger-friendly descriptions. The primary agent picks skills by these, so
-# each names the slash command and the plain-language requests it covers.
-DESCRIPTIONS = {
-    "apply": (
-        "Runs the full /apply drafter-reviewer job application workflow: fit "
-        "evaluation, tailored CV (exactly 2 pages) and cover letter (1 page), "
-        "review, compile, quality gate and tracker update. Use when the user types "
-        "/apply or asks to apply to, tailor a CV for, or write a cover letter for a "
-        "specific job posting (URL or pasted text)."
-    ),
-    "rank": (
-        "Runs /rank: batch-scores scraped jobs in job_scraper/seen_jobs.json against "
-        "the fit framework and returns a ranked shortlist. Use when the user types "
-        "/rank or asks to rank, triage, score or shortlist the scraped jobs."
-    ),
-    "setup": (
-        "Runs /setup profile onboarding: collects the candidate's career information "
-        "and populates CLAUDE.md, the profile files and search queries. Use when the "
-        "user types /setup or asks to set up, onboard, or (re)build their candidate "
-        "profile."
-    ),
-    "interview": (
-        "Runs /interview: builds a stage-specific interview prep pack (and optional "
-        "mock interview) for a tracked application. Use when the user types "
-        "/interview or asks to prepare for an upcoming interview with a company."
-    ),
-    "outcome": (
-        "Runs /outcome: records the result or progress of a tracked application "
-        "(interview, offer, rejection, no response) and drafts follow-ups for stale "
-        "ones. Use when the user types /outcome or reports news about an application."
-    ),
-    "expand": (
-        "Runs /expand: discovers competencies hidden in the user's documents and "
-        "public online presence and proposes additive profile updates. Use when the "
-        "user types /expand or asks to enrich or expand their profile/competencies."
-    ),
-    "reset": (
-        "Runs /reset: destructively resets profile files and/or the documents folder "
-        "to a blank state after explicit confirmation. Use only when the user types "
-        "/reset or explicitly asks to reset or wipe their profile data."
-    ),
-    "gmail-sync": (
-        "Runs /gmail-sync: scans Gmail for status signals on tracked applications "
-        "and, after approval, updates the tracker and outcome files. Use when the "
-        "user types /gmail-sync or asks to sync application status from email."
-    ),
-    "notion-sync": (
-        "Runs /notion-sync: pushes ranked jobs and applications to a read-only Notion "
-        "database view. Use when the user types /notion-sync or asks to sync the job "
-        "search to Notion."
-    ),
-    "html-report": (
-        "Runs /html-report: generates a self-contained HTML dashboard from the "
-        "application tracker. Use when the user types /html-report or asks for an "
-        "application dashboard or tracker report."
-    ),
-    "add-portal": (
-        "Runs /add-portal: investigates a job board and scaffolds a new portal search "
-        "skill (CLI) for it. Use when the user types /add-portal or asks to add "
-        "support for a new job portal or job board."
-    ),
-    "add-template": (
-        "Runs /add-template: registers, lists or switches a custom CV or cover letter "
-        "template. Use when the user types /add-template or asks to use their own CV "
-        "or cover letter template."
-    ),
-    "scrape": (
-        "Runs /scrape: finds new job postings matching the profile across all "
-        "installed portal-search CLIs and deduplicates them across runs. Use when the "
-        "user types /scrape or asks to find, search or scrape new jobs in general "
-        "(without naming a single portal)."
-    ),
-    "upskill": (
-        "Runs /upskill: compares tracked job postings against the candidate profile "
-        "to find skill gaps and produce a prioritized learning plan. Use when the "
-        "user types /upskill or asks about skill gaps, what to learn, or a learning "
-        "plan."
-    ),
-    "job-application-assistant": (
-        "Assists with ad-hoc job application work outside a slash command: "
-        "evaluating a job posting's fit, tailoring CVs, writing cover letters, "
-        "answering application-form questions and interview prep. Use when the user "
-        "asks about a job posting, CV, cover letter, resume, job fit or interview "
-        "prep without typing a slash command."
-    ),
-}
-
-
 def read_text(path: Path) -> str:
     """Read UTF-8 text with line endings normalized to LF (WSL/autocrlf safe)."""
     return path.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -168,6 +81,35 @@ def split_frontmatter(text: str) -> tuple[dict[str, str], str]:
             data[key.strip()] = value.strip().strip('"').strip("'")
     body = text[end + 4:]
     return data, body.lstrip("\n")
+
+
+def frontmatter_description(text: str) -> str:
+    """The source's own `description:` frontmatter value, as one line.
+
+    Descriptions live in the .claude/ sources (Claude Code reads them there),
+    so the generated copies reuse them instead of keeping a second list here.
+    Handles a plain or quoted scalar and folded/literal blocks (`>`, `>-`,
+    `|`, `|-`); returns "" when there is no frontmatter or no description.
+    """
+    if not text.startswith("---\n"):
+        return ""
+    end = text.find("\n---", 4)
+    if end == -1:
+        return ""
+    lines = text[4:end].splitlines()
+    for i, line in enumerate(lines):
+        if not line.startswith("description:"):
+            continue
+        value = line.split(":", 1)[1].strip()
+        if value and value[0] not in ">|":
+            return value.strip('"').strip("'")
+        block = []
+        for cont in lines[i + 1:]:
+            if cont and not cont[0].isspace():
+                break
+            block.append(cont.strip())
+        return " ".join(part for part in block if part)
+    return ""
 
 
 def data_file_names() -> dict[str, str]:
@@ -254,11 +196,13 @@ def yaml_folded(text: str) -> str:
 
 
 def render(name: str, source: Path, is_command: bool) -> str:
-    fm, body = split_frontmatter(read_text(source))
-    if name not in DESCRIPTIONS:
+    text = read_text(source)
+    fm, body = split_frontmatter(text)
+    description = frontmatter_description(text)
+    if not description:
         sys.exit(
-            f"sync_agent_skills: no description for '{name}' - add one to DESCRIPTIONS "
-            "in tools/sync_agent_skills.py"
+            f"sync_agent_skills: no description for '{name}' - add a `description:` "
+            f"to the frontmatter of {source.relative_to(ROOT).as_posix()}"
         )
     version = fm.get("framework_version") or DEFAULT_FRAMEWORK_VERSION
     rel_source = source.relative_to(ROOT).as_posix()
@@ -266,7 +210,7 @@ def render(name: str, source: Path, is_command: bool) -> str:
         "---",
         f"name: {name}",
         "description: >-",
-        yaml_folded(DESCRIPTIONS[name]),
+        yaml_folded(description),
         f"framework_version: {version}",
         "---",
         HEADER_COMMENT.format(source=rel_source),

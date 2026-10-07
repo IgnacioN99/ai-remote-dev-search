@@ -22,10 +22,18 @@ COMMAND = REPO / ".claude" / "commands" / "notion-sync.md"
 GITIGNORE = REPO / ".gitignore"
 
 
+
+def title_line(text):
+    """First line after the optional Claude Code frontmatter block."""
+    text = text.replace("\r\n", "\n").lstrip()
+    if text.startswith("---\n"):
+        text = text[text.index("\n---", 4) + 4:].lstrip()
+    return text.splitlines()[0]
+
 class NotionSyncCommandSpec(unittest.TestCase):
     def test_command_file_exists_with_lint_compliant_header(self):
         self.assertTrue(COMMAND.is_file(), "command spec missing")
-        first_line = COMMAND.read_text(encoding="utf-8").splitlines()[0]
+        first_line = title_line(COMMAND.read_text(encoding="utf-8"))
         self.assertTrue(
             first_line.startswith("# /notion-sync"),
             f"header must start with '# /notion-sync' (lint_skills.py enforces it), got: {first_line!r}",

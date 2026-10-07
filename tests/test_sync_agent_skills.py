@@ -17,6 +17,8 @@ SCRIPT = REPO_ROOT / "tools" / "sync_agent_skills.py"
 LINTER = REPO_ROOT / "tools" / "lint_skills.py"
 
 APPLY_SRC = (
+    "---\ndescription: >-\n  Runs the full application workflow.\n  Use when the user applies.\n"
+    "argument-hint: \"<posting-url-or-text>\"\n---\n\n"
     "# /apply - Drafter-Reviewer Job Application Workflow\n\n"
     "The posting is `$ARGUMENTS`.\n\n"
     "- If `$ARGUMENTS` looks like a URL, use `WebFetch` to retrieve it.\n"
@@ -26,7 +28,7 @@ APPLY_SRC = (
     "Read `.claude/skills/job-application-assistant/04-job-evaluation.md` and `04-job-evaluation.md`.\n"
     "See `.claude/commands/rank.md` for ranking.\n"
 )
-RANK_SRC = "# /rank - Triage\n\nDispatch parallel `general-purpose` agents via the **Agent tool**.\n"
+RANK_SRC = "---\ndescription: Triages scraped jobs.\n---\n\n# /rank - Triage\n\nDispatch parallel `general-purpose` agents via the **Agent tool**.\n"
 SCRAPER_SRC = (
     "---\nname: scrape\ndescription: >\n  Finds jobs.\n"
     "allowed-tools: Read, WebFetch, Agent\nmodel: opus\n---\n\n"
@@ -147,6 +149,15 @@ class GenerationTests(FixtureRepo):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("refusing to overwrite hand-written skill", result.stdout + result.stderr)
         self.assertEqual(self.portal.read_text(encoding="utf-8"), PORTAL_SRC)
+
+    def test_description_comes_from_source_frontmatter(self):
+        self.run_sync()
+        apply_md = self.generated("apply")
+        frontmatter = apply_md.split("\n---\n", 1)[0]
+        self.assertIn("Runs the full application workflow. Use when the user applies.", frontmatter)
+        self.assertNotIn("argument-hint", frontmatter)
+        self.assertIn("Triages scraped jobs.", self.generated("rank"))
+        self.assertIn("Finds jobs.", self.generated("scrape"))
 
     def test_missing_description_fails_loudly(self):
         write(self.root / ".claude" / "commands" / "brand-new.md", "# /brand-new - X\n")

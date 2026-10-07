@@ -1,3 +1,10 @@
+---
+description: >-
+  Discovers competencies hidden in the user's documents and public online presence and
+  proposes additive profile updates for approval. Use when the user asks to enrich, expand
+  or find missing skills in their profile. Also triggered by /expand.
+---
+
 # /expand - Competency Expansion from Documents and Online Presence
 
 You are enriching the candidate profile by discovering competencies hidden in documents and public online presence. This command is additive only — it never modifies existing profile content, only extends it.

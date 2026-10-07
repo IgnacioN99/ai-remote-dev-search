@@ -7,13 +7,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 EXPAND_COMMAND_FILE = REPO_ROOT / ".claude" / "commands" / "expand.md"
 
 
+
+def title_line(text):
+    """First line after the optional Claude Code frontmatter block."""
+    text = text.replace("\r\n", "\n").lstrip()
+    if text.startswith("---\n"):
+        text = text[text.index("\n---", 4) + 4:].lstrip()
+    return text.splitlines()[0]
+
 class ExpandCommandTests(unittest.TestCase):
     def test_expand_command_file_exists(self):
         self.assertTrue(EXPAND_COMMAND_FILE.exists(), "expand.md must exist under .claude/commands/")
 
     def test_expand_command_file_starts_with_correct_header(self):
         text = EXPAND_COMMAND_FILE.read_text(encoding="utf-8")
-        first_line = text.lstrip().splitlines()[0]
+        first_line = title_line(text)
         self.assertTrue(
             first_line.startswith("# /expand"),
             f"Command file must start with '# /expand', got: {first_line!r}",

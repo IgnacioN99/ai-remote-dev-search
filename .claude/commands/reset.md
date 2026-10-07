@@ -1,3 +1,12 @@
+---
+description: >-
+  Destructively resets the profile files and/or the documents folder to a blank template
+  state after explicit confirmation. Use only when the user explicitly asks to reset or wipe
+  their profile data. Also triggered by /reset.
+argument-hint: "[profile|documents|all]"
+disable-model-invocation: true
+---
+
 # /reset - Reset Candidate Profile Data
 
 You are resetting parts of the job search framework back to a blank state so the user can start fresh with `/setup`.

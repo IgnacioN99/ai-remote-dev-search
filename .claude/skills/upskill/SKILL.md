@@ -1,9 +1,9 @@
 ---
 name: upskill
-description: >
+description: >-
   Compares tracked job postings against the candidate profile to identify skill gaps and generate
-  a prioritized learning plan with study resources. Triggers on: /upskill, upskill, skill gaps,
-  what should I learn, learning plan
+  a prioritized learning plan with study resources. Use when the user asks about skill gaps, what
+  to learn next, or a learning plan. Also triggered by /upskill.
 allowed-tools: Read, Write, Glob, Grep, WebFetch, WebSearch
 ---
 
