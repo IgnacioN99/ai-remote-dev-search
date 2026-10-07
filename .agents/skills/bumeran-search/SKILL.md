@@ -1,14 +1,11 @@
 ---
 name: bumeran-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search for jobs in Argentina on
-  Bumeran (www.bumeran.com.ar), one of the country's largest job boards.
-  Invoke for open positions, vacancies, and hiring across any sector or role
-  (software, data, design, marketing, finance, operations, etc.). Trigger
-  phrases: buscar trabajo, búsqueda de empleo, ofertas de empleo, vacantes,
-  empleos en <ciudad/provincia>, trabajos de <rol> en Argentina, empleo en
-  bumeran, job search, job openings, vacancies, hiring, jobs in Argentina.
+version: 1.1.0
+description: >-
+  Searches and looks up job postings on Bumeran (bumeran.com.ar), a large
+  Argentine job board. Use ONLY when invoked from the /scrape workflow, or when
+  the user explicitly names Bumeran. For a general job search ("find jobs",
+  "search jobs") use the /scrape skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/bumeran-search/cli/src/cli.ts *)

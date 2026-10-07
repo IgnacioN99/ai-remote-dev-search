@@ -1,14 +1,11 @@
 ---
 name: torre-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search tech, software engineering,
-  data, product, design, or remote job listings on Torre (torre.ai / torre.co),
-  one of the most prominent platforms for tech talent in Colombia and Latin America
-  founded by Alexander Torrenegra. Invoke for roles in Colombia, Latin America,
-  and global remote positions with explicit salary ranges (USD/COP).
-  Trigger phrases: torre, torre.ai, torre.co, torre jobs, empleos torre, vacantes torre,
-  trabajo remoto torre, empleos tech colombia, buscar trabajo remoto torre.
+version: 1.1.0
+description: >-
+  Searches and looks up tech job postings on Torre (torre.ai), a Latin American
+  talent platform. Use ONLY when invoked from the /scrape workflow, or when the
+  user explicitly names Torre. For a general job search ("find jobs", "search
+  jobs") use the /scrape skill instead.
 context: fork
 enabled: true
 allowed-tools: Bash(bun run .agents/skills/torre-search/cli/src/cli.ts *)

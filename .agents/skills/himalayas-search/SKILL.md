@@ -1,7 +1,10 @@
 ---
 name: himalayas-search
 description: >-
-  Search remote tech job listings from Himalayas (himalayas.app). Features remote software engineering, frontend, backend, fullstack, AI, DevOps, design, and product roles across global remote and regional hiring bounds. Triggers on: himalayas, himalayas jobs, remote tech jobs, remote engineering jobs, find remote jobs on himalayas.
+  Searches remote tech job postings on Himalayas (himalayas.app). Use ONLY when
+  invoked from the /scrape workflow, or when the user explicitly names Himalayas.
+  For a general job search ("find jobs", "search jobs") use the /scrape skill
+  instead.
 ---
 
 # Himalayas Search Skill

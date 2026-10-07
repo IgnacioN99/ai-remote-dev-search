@@ -1,23 +1,11 @@
 ---
 name: jobbank-search
-version: 1.0.0
-description: >
-  Make sure to use this skill whenever the user mentions anything related to job
-  searching on Akademikernes Jobbank, jobbank.dk, or looking for academic or
-  highly educated positions in Denmark — even if they don't mention jobbank.dk
-  explicitly. Also invoke this skill for questions about Danish job listings,
-  graduate trainee positions, Ph.d. jobs, or finding work in specific industries
-  or regions in Denmark. Trigger phrases include:
-  jobbank, akademikernes jobbank, jobs denmark, academic jobs denmark, find job
-  denmark, highly educated jobs, graduate job denmark, trainee position denmark,
-  ph.d. position denmark, postdoc denmark, studiejob, fuldtidsjob, deltidsjob,
-  vikariat, freelance job, praktikplads, job søgning, jobsøgning, søg job,
-  ledige stillinger, nye jobs, it jobs denmark, engineering jobs denmark,
-  marketing jobs denmark, finance jobs denmark, healthcare jobs denmark,
-  remote job denmark, fjernarbejde, job københavn, job aarhus, job odense,
-  nyuddannede job, job til nyuddannede, international job denmark,
-  jobbank søgning, find stilling, data scientist job, software developer job,
-  projektleder stilling, konsulent job, data analyse job.
+version: 1.1.0
+description: >-
+  Searches and looks up academic / graduate job postings on Akademikernes Jobbank
+  (jobbank.dk), Denmark. Use ONLY when invoked from the /scrape workflow, or when
+  the user explicitly names Jobbank / jobbank.dk. For a general job search ("find
+  jobs", "search jobs") use the /scrape skill instead.
 context: fork
 enabled: false  # Danish demo portal - ships opt-in; /setup enables it when your market is Denmark, or set true here yourself
 allowed-tools: Bash(bun run .agents/skills/jobbank-search/cli/src/cli.ts *)

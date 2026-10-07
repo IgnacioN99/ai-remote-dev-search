@@ -1,39 +1,60 @@
 ---
-framework_version: 1.0.0
+framework_version: 1.1.0
 ---
 
 # Agent Guidelines: AI Job Search
 
-This workspace is structured to manage job search activities, scraper tools, CVs, cover letters, and interview preparation.
+Job-search workspace: portal scrapers, ranked shortlists, tailored LaTeX CVs and cover letters, interview prep. Claude Code is the reference runtime; this file and `.agents/` make the same workflows run in Google Antigravity, Codex and other Agent Skills runtimes.
 
-## Thin-Pointer Design (Single Source of Truth)
+## Hard rule: commands route to skills
 
-To prevent duplication and configuration drift across different AI agent frameworks (Claude Code, Google Antigravity, Codex, Cursor, Gemini CLI, etc.), this workspace uses a unified thin-pointer design. All agent runtimes should load the canonical specifications and candidate profiles from the files and directories below:
+When the user types `/X` (or asks for X's workflow in words), **load skill `X` from `.agents/skills/X/SKILL.md` and follow it step by step, in order.** Never use a built-in, guided or generic flow instead, never improvise steps, never skip the verification steps. Text typed after `/X` is the skill's `$ARGUMENTS`.
 
-1. **Personal Candidate Profile:**
-   - The candidate profile, contact details, education, and target preferences are defined in [CLAUDE.md](CLAUDE.md) and the individual profile methodology files under [.claude/skills/job-application-assistant/](.claude/skills/job-application-assistant/) (specifically `01-*.md` etc.).
-2. **Canonical Workflow Specifications:**
-   - The step-by-step instructions and triggers for tasks (setup, scrape, rank, apply, upskill, interview) are defined in the [.claude/](.claude/) directory (specifically under [.claude/skills/](.claude/skills/) and [.claude/commands/](.claude/commands/)).
-   - Do not duplicate these rules or specifications. Treat `.claude/` files as the single source of truth.
-3. **Portal Search Skills:**
-   - Job-portal search CLIs live under [.agents/skills/](.agents/skills/) in the portable Agent Skills format (with a `SKILL.md` per portal). Codex and Antigravity discover these automatically; the `/scrape` workflow in [.claude/skills/job-scraper/](.claude/skills/job-scraper/) orchestrates them.
-4. **Subagent Delegation & Context Isolation (Antigravity / AGY & Autonomous Agents):**
-   - High-token, multi-step operations (such as multi-portal scraping across 15+ portals, web searches, company culture audits on r/devsarg / Blind / Glassdoor, and salary benchmarks) MUST be delegated to isolated subagents (using `invoke_subagent` with the `research` agent or custom subagents like `gemini-research-expert` defined in [.claude/agents/](.claude/agents/)).
-   - The subagent executes the external commands, parses the voluminous search output in its own isolated context, and returns ONLY the synthesized findings and ranked results to the parent session.
-   - This keeps the main session context clean, preventing token bloat so that candidate profile evaluation, CV tailoring, and direct user interaction retain full context window capacity.
-5. **PDF Naming for Applications & ATS Uploads:**
-   - Before uploading or emailing PDFs to any recruiter, employer, or ATS platform (Greenhouse, Lever, Zoho Recruit, Ashby, Workday, etc.), always export/name the files using the candidate format:
-     `<CandidateName>_CV.pdf` (or `<CandidateName>_CV_<Company>.pdf`)
-     `<CandidateName>_CoverLetter.pdf` (or `<CandidateName>_CoverLetter_<Company>.pdf`)
-   - Never upload files named with internal repo conventions (e.g. `main_<company>_<role>.pdf` or `cover_<company>_<role>.pdf`).
-6. **Autonomous Job Application Subagent (`job-application-agent`):**
-   - Defined under [.claude/agents/job-application-agent.md](.claude/agents/job-application-agent.md).
-   - Can be invoked directly via `invoke_subagent` (`TypeName: "job-application-agent"`).
-   - Orchestrates the end-to-end application pipeline: fit evaluation, tailored CV/Cover letter creation and layout verification, browser automation via Playwright/Stagehand MCP, pre-screening assessment formulation with human review gate, and tracker synchronization.
-   - **Notion Sync:** Automatically syncs new applications and status transitions to the **[Job Search Tracker](https://app.notion.com/p/a3336e871ae6498d99e405f766f33fd1)** database in Notion (data source: `307df559-778a-4b97-b15e-d6d04e63cb1a`).
-7. **Deterministic Verification & Invariant Integrity Toolchain:**
-   - **Environment Health:** `python tools/doctor.py` — audits local tools (Python >= 3.10, uv, LuaLaTeX, XeLaTeX, Poppler, Bun/Node, Playwright) and state file integrity.
-   - **State Drift Detection & Auto-Reconciliation:** `python tools/check_consistency.py` (with optional `--fix` / `--reconcile`) — audits sync between `job_search_tracker.csv`, `seen_jobs.json`, and `documents/applications/`.
-   - **Deterministic Brief Builder:** `python tools/prime_job.py <slug|url>` — extracts vacancy requirements, crosses with candidate profile (SSOT), and queries memory insights to emit a token-budgeted `brief.md` anchor.
-   - **Pre-Submit Quality Gate:** `python tools/gate_application.py <slug>` — mechanical gate enforcing ATS naming (`<CandidateName>_CV*.pdf`), exact page counts (CV=2, CL=1), text layer extraction, contact verification, and anti-hallucination checks. Exit 0 = pass, 1 = fail, 2 = human review needed.
-   - **Append-Only Memory Ledger:** `python tools/remember.py` — records learnings from interviews, rejections, and ATS quirks in `documents/memory/insights.jsonl` with tombstone support.
+| Command | Skill file | Purpose |
+|---|---|---|
+| `/setup` | `.agents/skills/setup/SKILL.md` | Profile onboarding |
+| `/scrape` | `.agents/skills/scrape/SKILL.md` | Find new jobs across all portal CLIs |
+| `/rank` | `.agents/skills/rank/SKILL.md` | Score scraped jobs into a shortlist |
+| `/apply` | `.agents/skills/apply/SKILL.md` | Evaluate fit, tailor CV + cover letter, gate, track |
+| `/interview` | `.agents/skills/interview/SKILL.md` | Interview prep pack / mock interview |
+| `/outcome` | `.agents/skills/outcome/SKILL.md` | Record application results, follow-ups |
+| `/upskill` | `.agents/skills/upskill/SKILL.md` | Skill-gap analysis and learning plan |
+| `/expand` | `.agents/skills/expand/SKILL.md` | Mine documents for extra competencies |
+| `/gmail-sync` | `.agents/skills/gmail-sync/SKILL.md` | Sync application status from Gmail |
+| `/notion-sync` | `.agents/skills/notion-sync/SKILL.md` | Push jobs/applications to Notion |
+| `/html-report` | `.agents/skills/html-report/SKILL.md` | HTML tracker dashboard |
+| `/add-portal` | `.agents/skills/add-portal/SKILL.md` | Scaffold a new portal search CLI |
+| `/add-template` | `.agents/skills/add-template/SKILL.md` | Register a custom CV / cover letter template |
+| `/reset` | `.agents/skills/reset/SKILL.md` | Reset profile data (destructive, confirm first) |
+| (no slash) | `.agents/skills/job-application-assistant/SKILL.md` | Ad-hoc questions about a posting, CV, cover letter |
+
+Portal skills (`.agents/skills/*-search/`) are tools for `/scrape`; use one directly only when the user names that portal.
+
+## Tool translation (source specs are written for Claude Code)
+
+| Spec says | Use |
+|---|---|
+| `WebFetch` | `read_url_content` (or a browser tool for JS-heavy pages) |
+| `WebSearch` | `search_web` |
+| Agent tool / subagent | `invoke_subagent` if available; otherwise do the work inline, sequentially |
+| `AskUserQuestion` | Ask the user in chat and wait for the answer |
+| Read / Write / Edit / Glob / Grep / Bash | Your file-view, file-edit, file-search and terminal tools |
+
+## Sources of truth
+
+- `.claude/commands/*.md` and `.claude/skills/*/SKILL.md` are the canonical specs. `.agents/skills/{apply,rank,setup,...}/SKILL.md` are **generated** copies: never edit them; edit the `.claude/` source and run `python3 tools/sync_agent_skills.py`.
+- Candidate profile: `CLAUDE.md` plus `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`. Read and write profile/data files at those `.claude/` paths.
+
+## Always-on rules
+
+- [.agents/rules/core.md](.agents/rules/core.md) - non-negotiable output and honesty rules
+- [.agents/rules/issue-reporting.md](.agents/rules/issue-reporting.md) - how to report framework problems
+- [.agents/rules/operator-mode.md](.agents/rules/operator-mode.md) - never edit the framework while running workflows
+
+## Verification toolchain
+
+- `python3 tools/doctor.py` - toolchain and state-file health
+- `python3 tools/check_consistency.py [--fix]` - tracker / seen jobs / archive drift
+- `python3 tools/prime_job.py <slug|url>` - deterministic `brief.md` for a posting
+- `python3 tools/gate_application.py <slug>` - pre-submit gate (ATS naming, CV=2 pages, CL=1 page, contacts, anti-hallucination). Exit 0 pass, 1 fail, 2 human review
+- `python3 tools/remember.py "<insight>"` - append-only learnings ledger

@@ -1,15 +1,12 @@
 ---
 name: computrabajo-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search for jobs on Computrabajo
-  Argentina (https://ar.computrabajo.com), Argentina's largest general job board.
-  Postings are in Spanish and the market is Argentina (Buenos Aires, CABA, Córdoba,
-  Rosario, Mendoza, remote). Use it to find job listings, search for openings, or
-  look up a specific posting on this board. Trigger phrases: "buscar trabajo",
-  "ofertas laborales", "empleos", "bolsa de trabajo", "computrabajo", as well as
-  English equivalents like find a job, job search, search for jobs, job openings,
-  vacancies, hiring, look up this job posting (on Computrabajo Argentina).
+version: 1.1.0
+description: >-
+  Searches and looks up job postings on Computrabajo Argentina
+  (ar.computrabajo.com), Argentina's largest general job board. Use ONLY when
+  invoked from the /scrape workflow, or when the user explicitly names
+  Computrabajo. For a general job search ("find jobs", "search jobs") use the
+  /scrape skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/computrabajo-search/cli/src/cli.ts *)

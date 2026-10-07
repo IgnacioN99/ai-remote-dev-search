@@ -1,16 +1,11 @@
 ---
 name: weworkremotely-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search for remote jobs on We Work
-  Remotely — a global, English-language remote-only job board with strong software
-  development coverage (Rails, Python, React, DevOps, design, product, marketing,
-  customer support, and more). All listings are remote. Invoke for fully remote
-  openings, remote-first roles, or a specific remote role/skill, e.g. "ruby on
-  rails", "backend developer", "react", "remote DevOps", "remote design job".
-  Trigger phrases: remote jobs, work remotely, fully remote, remote role, remote
-  software jobs, remote ruby on rails, remote developer jobs, "find me a remote
-  <role> job".
+version: 1.1.0
+description: >-
+  Searches and looks up remote job postings on We Work Remotely
+  (weworkremotely.com). Use ONLY when invoked from the /scrape workflow, or when
+  the user explicitly names We Work Remotely. For a general job search ("find
+  jobs", "search jobs") use the /scrape skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/weworkremotely-search/cli/src/cli.ts *)

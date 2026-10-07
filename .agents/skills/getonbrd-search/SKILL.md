@@ -1,16 +1,11 @@
 ---
 name: getonbrd-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search tech jobs on Get on Board
-  (getonbrd.com) — the leading job board in Latin America for tech, software
-  engineering, product, and data roles with strong remote and USD salary
-  coverage. Invoke it for searching open positions, finding full-stack / backend /
-  frontend / DevOps / data roles in Latin America or remote, checking salary
-  ranges, or looking up a specific Get on Board posting — whether or not the user
-  names the site. Trigger phrases: get on board, getonboard, getonbrd, jobs at getonbrd,
-  trabajo remoto en getonboard, empleos remotos latam, desarrollador remoto américa latina,
-  trabajo en usd argentina, ofertas laborales tech latam, buscar trabajo en getonboard.
+version: 1.1.0
+description: >-
+  Searches and looks up tech job postings on Get on Board (getonbrd.com), a Latin
+  American tech job board. Use ONLY when invoked from the /scrape workflow, or
+  when the user explicitly names Get on Board / getonbrd. For a general job search
+  ("find jobs", "search jobs") use the /scrape skill instead.
 context: fork
 enabled: true
 allowed-tools: Bash(bun run .agents/skills/getonbrd-search/cli/src/cli.ts *)

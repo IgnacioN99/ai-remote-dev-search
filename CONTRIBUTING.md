@@ -52,10 +52,12 @@ One practical warning: when you open a PR from a fork, GitHub targets this upstr
 
 Claude Code is the reference runtime: it is what the maintainer runs daily and what every methodology change is verified on. A parallel command tree for another runtime (Codex, Antigravity, Gemini CLI, ...) would ship untested on every change - CI cannot run those harnesses - and each accepted runtime makes the next one harder to refuse. It is the same arithmetic that keeps market-specific portals in forks.
 
-What upstream maintains for other runtimes instead:
+How this fork supports Google Antigravity without a hand-maintained parallel tree:
 
-- The portal search skills in `.agents/skills/` use the portable Agent Skills format (`SKILL.md` per portal) and are auto-discovered by Codex and Antigravity today.
-- The root `AGENTS.md` points any agent at the canonical workflow specs and the profile entry point.
+- **`.claude/` is the single source of truth.** Edit only `.claude/commands/*.md` and `.claude/skills/*/`.
+- **`.agents/skills/<command>/SKILL.md` is generated** by `python3 tools/sync_agent_skills.py`: a full copy of each command and of the `scrape`/`upskill`/`job-application-assistant` skills, with Claude-only tool names translated. Never edit those copies; re-run the generator and commit its output in the same PR. `tools/lint_skills.py` (CI) runs `sync_agent_skills.py --check` and fails on drift.
+- The portal search skills in `.agents/skills/*-search/` are hand-written in the portable Agent Skills format and are not touched by the generator (beyond a `.skillignore`).
+- `AGENTS.md` (command -> skill routing table) and `.agents/rules/*.md` (always-on rules) are the Antigravity entry points; keep them terse - Antigravity gives all always-on rules a shared 20k-token budget.
 - Framework instruction files carry `framework_version` markers, so a runtime fork can track methodology changes precisely (`python3 tools/check_upstream_updates.py`).
 
 Announce your runtime fork in the pinned [Community forks & adaptations](https://github.com/MadsLorentzen/ai-job-search/discussions/78) discussion and it gets listed alongside the market adaptations. The proven shape is a thin pointer: reference the specs here instead of copying them, so upstream improvements reach your fork on rebase.

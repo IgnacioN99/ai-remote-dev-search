@@ -1,21 +1,11 @@
 ---
 name: silverdev-search
-version: 1.0.0
-description: >
-  Use this skill whenever the user wants to search job openings on Silver.dev
-  (silver.dev/jobs) — a curated job board for Latin American software engineers
-  hired by US/global (often VC-backed / YC) startups, with USD salary
-  transparency and remote-global / LatAm roles. Invoke it for searching open
-  positions, finding full-stack / backend / frontend / data roles, checking USD
-  salary ranges, or looking up a specific Silver.dev posting — whether or not
-  the user names the site. Trigger phrases: silver.dev, silverdev, jobs at
-  silver.dev, silver jobs, LatAm remote jobs, latin american remote software
-  jobs, remote jobs Argentina, remote work for LatAm developers, jobs with USD
-  salary, remote software engineer, full stack remote, backend remote, busqueda
-  de trabajo remoto, empleos remotos, trabajo remoto en español, ofertas
-  laborales remotas, salario en USD, empleos para desarrolladores de América
-  Latina, trabajos remotos en Argentina, desarrollo remoto, buscar empleo
-  remoto, vacantes remotas, empleo en inglés remoto.
+version: 1.1.0
+description: >-
+  Searches and looks up postings on Silver.dev (silver.dev/jobs), a curated board
+  for LatAm software engineers at US/global startups. Use ONLY when invoked from
+  the /scrape workflow, or when the user explicitly names Silver.dev. For a
+  general job search ("find jobs", "search jobs") use the /scrape skill instead.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
 allowed-tools: Bash(bun run .agents/skills/silverdev-search/cli/src/cli.ts *)

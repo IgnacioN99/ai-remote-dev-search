@@ -53,7 +53,7 @@ Output quality is directly bound to input fidelity. The framework establishes a 
 
 ### The Three Onboarding Paths
 
-When you run `/setup` inside your agent (Claude Code, Google Antigravity, Gemini CLI, Cursor, Cline), the assistant auto-detects what materials you provide:
+When you run `/setup` inside your agent (Claude Code, or Google Antigravity via the generated skills in `.agents/skills/` - see [Using Google Antigravity](SETUP.md#9-optional-using-google-antigravity)), the assistant auto-detects what materials you provide:
 
 1. **Path A — Career Documents Folder (Recommended):**
    Drop your existing career files into the `documents/` directory:
@@ -334,7 +334,7 @@ done
 ```
 
 ### 4. Configure Your Candidate Profile
-Edit [`CLAUDE.md`](CLAUDE.md) or run `/setup` inside Claude Code / Antigravity / Gemini CLI:
+Edit [`CLAUDE.md`](CLAUDE.md) or run `/setup` inside Claude Code or Google Antigravity:
 * **Name & Contact Information**
 * **Primary & Secondary Tech Stack** (Go, Rust, Python, Node, React, Java, Rails, etc.)
 * **Verified Experience & Bullets**
@@ -349,6 +349,8 @@ python3 tools/multi_scrape_runner.py
 /scrape
 /apply <job-url>
 ```
+
+**Claude Code** reads the commands from `.claude/` directly. **Google Antigravity** only discovers skills in `.agents/skills/`, so every command (`/setup`, `/scrape`, `/rank`, `/apply`, ...) is also published there as a generated full copy, plus `AGENTS.md` and `.agents/rules/core.md` for routing. `.claude/` is the source of truth: after editing anything under `.claude/commands` or `.claude/skills` (or after `/setup`, `/reset`, `/add-template`, `/add-portal`), run `python3 tools/sync_agent_skills.py`. CI fails if the copies drift. Other runtimes (Gemini CLI, Cursor, Cline, Codex) are not tested.
 
 ---
 

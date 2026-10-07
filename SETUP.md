@@ -329,6 +329,27 @@ Upstream keeps improving the methodology files your fork has personalized, so pl
      Forks also inherit a `.github/workflows/upstream-watch.yml` that runs this weekly and writes the result into a single rolling issue (it no-ops on the upstream template itself, and stays disabled on a fork until you enable Actions).
 3. **Merge normally.** `git merge upstream/master` (or `git pull`) three-way-merges upstream's edits around your personalization; because methodology edits rarely touch the lines `/setup` filled in, most updates land cleanly. A conflict in a personalized file is a *feature*, not a failure — it means upstream changed methodology in a section you customized, and the version marker plus its changelog commit tell you why. Resolve by keeping your data and adopting the methodology change around it.
 
+## 9. Optional: Using Google Antigravity
+
+Claude Code reads `.claude/` directly. Google Antigravity does not: it only exposes as `/name` the skills in `.agents/skills/<name>/SKILL.md`, and it reads `AGENTS.md` plus `.agents/rules/*.md` as always-on rules. The repo ships both:
+
+- `.agents/skills/<command>/SKILL.md` - a generated **full copy** of every `.claude/commands/*.md` command and of the `scrape`, `upskill` and `job-application-assistant` skills, with tool names translated (`WebFetch` -> `read_url_content`, `WebSearch` -> `search_web`, subagents -> `invoke_subagent` or inline).
+- `AGENTS.md` - the command -> skill table and the rule "when the user types `/X`, load skill X and follow it step by step".
+- `.agents/rules/core.md` - the non-negotiable rules (2-page CV, 1-page cover letter, no hallucination, ATS file naming).
+
+**Keep the copies in sync.** `.claude/` is the source of truth. After editing anything under `.claude/commands/` or `.claude/skills/`, and after `/setup`, `/reset`, `/add-template` or `/add-portal` (those commands run it as their last step), run:
+
+```bash
+python3 tools/sync_agent_skills.py          # regenerate .agents/skills copies
+python3 tools/sync_agent_skills.py --check  # exit 1 if anything drifted (CI runs this via tools/lint_skills.py)
+```
+
+Never edit the generated `SKILL.md` copies by hand - the next sync overwrites them. Profile and data files (`.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `search-queries.md`) are not copied: the generated skills read and write them at their `.claude/` paths.
+
+**WSL notes.** Antigravity's global configuration lives in `~/.gemini/config/` (inside the WSL home when the agent runs in WSL, not the Windows profile). Workspace MCP servers for Antigravity go in `.agents/mcp_config.json` (generated from `.mcp.json`; see the MCP section of the README). Open the repo from the WSL filesystem path so `python3`, `bun` and `lualatex` resolve to the Linux toolchain.
+
+**Quick check.** Open the repo in Antigravity, type `/` and confirm `/apply`, `/rank`, `/setup`, `/scrape` appear in the slash menu; run `/rank` and confirm the agent says it is following `.agents/skills/rank/SKILL.md` rather than starting a generic flow.
+
 ## Troubleshooting
 
 ### "salary_data.json not found"
