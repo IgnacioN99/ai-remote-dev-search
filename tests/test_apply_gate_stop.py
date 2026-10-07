@@ -75,9 +75,25 @@ class Base(unittest.TestCase):
     def state(self):
         return apply_state.load(self.root)
 
+    def write_old_docs(self, slug: str = SLUG, age: float = 3600) -> None:
+        """A previous run's CV, cover letter and exports, all modified before the marker."""
+        self.write_docs(slug)
+        (self.root / "cover_letters").mkdir(exist_ok=True)
+        (self.root / "cover_letters" / f"cover_{slug}.tex").write_text("x", encoding="utf-8")
+        app = self.root / "documents" / "applications" / slug
+        app.mkdir(parents=True, exist_ok=True)
+        (app / "Jane_Doe_CV.pdf").write_bytes(b"%PDF")
+        started = hook.started_at(self.state()).timestamp()
+        for path in (self.root / "cv" / f"main_{slug}.tex",
+                     self.root / "cover_letters" / f"cover_{slug}.tex", app / "Jane_Doe_CV.pdf"):
+            os.utime(path, (started - age, started - age))
+
     def decide(self, payload=None, antigravity=False, gate=None):
         gate = gate or FakeGate(1)
-        return hook.decide(dict(payload or CLAUDE_PAYLOAD), antigravity, self.root, gate), gate
+        payload = dict(payload or CLAUDE_PAYLOAD)
+        if not antigravity and payload.get("cwd") == CLAUDE_PAYLOAD["cwd"]:
+            payload["cwd"] = str(self.root)  # the stop happens inside this repo
+        return hook.decide(payload, antigravity, self.root, gate), gate
 
 
 class DecideTests(Base):
@@ -191,6 +207,90 @@ class DecideTests(Base):
         (other / "Jane_Doe_CV.pdf").write_bytes(b"%PDF")
         self.assertTrue(hook.documents_exist(self.root, "acme_dev"))
 
+    def test_redraft_with_stale_failing_docs_at_step1_allows_and_keeps_marker(self):
+        # Step 6b item 4 redraft: last run's files exist; this run is at the consent STOP.
+        self.start()
+        self.write_old_docs()
+        reason, gate = self.decide()
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [], "old files must not trigger the gate")
+        self.assertIsNotNone(self.state(), "marker kept: the redraft has not run yet")
+
+    def test_redraft_with_stale_passing_docs_does_not_clear_marker(self):
+        self.start()
+        self.write_old_docs()
+        reason, gate = self.decide(gate=FakeGate(0, "GATE VERDICT: [PASSED]"))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        self.assertIsNotNone(self.state())
+
+    def test_redraft_new_docs_after_start_failing_blocks(self):
+        self.start()
+        self.write_old_docs()
+        (self.root / "cv" / f"main_{SLUG}.tex").write_text("redrafted", encoding="utf-8")
+        reason, gate = self.decide()
+        self.assertEqual(gate.calls, [SLUG])
+        self.assertIn("quality gate FAILED", reason)
+
+    def test_redraft_new_docs_after_start_passing_allows_and_clears(self):
+        self.start()
+        self.write_old_docs()
+        (self.root / "cv" / f"main_{SLUG}.tex").write_text("redrafted", encoding="utf-8")
+        reason, gate = self.decide(gate=FakeGate(0, "GATE VERDICT: [PASSED]"))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [SLUG])
+        self.assertIsNone(self.state())
+
+    def test_started_at_keeps_sub_second_precision(self):
+        self.start()
+        self.assertIn(".", self.state()["started_at"], "microseconds are stored")
+
+    def test_glob_metacharacters_in_slug_are_literal(self):
+        self.start("acme_[dev]")
+        (self.root / "cv").mkdir()
+        (self.root / "cv" / "main_acme_d.tex").write_text("other", encoding="utf-8")
+        reason, gate = self.decide()
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        (self.root / "cv" / "main_acme_[dev].tex").write_text("mine", encoding="utf-8")
+        reason, gate = self.decide()
+        self.assertEqual(gate.calls, ["acme_[dev]"])
+
+    def test_stop_from_foreign_cwd_allows(self):
+        self.start()
+        self.write_docs()
+        other = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, other, ignore_errors=True)
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, cwd=str(other)))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        self.assertIsNotNone(self.state())
+
+    def test_stop_from_repo_subdirectory_enforces(self):
+        self.start()
+        self.write_docs()
+        reason, _ = self.decide(dict(CLAUDE_PAYLOAD, cwd=str(self.root / "cv")))
+        self.assertIsNotNone(reason)
+
+    def test_first_block_records_session_and_other_sessions_are_ignored(self):
+        self.start()
+        self.write_docs()
+        reason, _ = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-a"))
+        self.assertIsNotNone(reason)
+        self.assertEqual(self.state()["session_id"], "sess-a")
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-b"))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        self.assertEqual(self.state()["blocks"], 1, "other session's stop changes nothing")
+        reason, _ = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-a"))
+        self.assertIsNotNone(reason)
+
+    def test_save_state_is_atomic_and_leaves_no_temp_files(self):
+        hook.save_state(self.root, {"slug": SLUG, "started_at": apply_state.now_iso(), "blocks": 2})
+        state_dir = self.root / ".agents" / "state"
+        self.assertEqual([p.name for p in state_dir.iterdir()], ["apply.json"])
+        self.assertEqual(self.state()["blocks"], 2)
+
     def test_traversal_slug_in_marker_is_ignored(self):
         apply_state.save({"slug": "../x", "started_at": apply_state.now_iso(), "blocks": 0}, self.root)
         self.assertIsNone(hook.load_state(self.root))
@@ -210,6 +310,8 @@ class EndToEndTests(Base):
 
     def run_hook(self, payload, *args, rc=1, raw=None):
         env = dict(os.environ, APPLY_GATE_ROOT=str(self.root), FAKE_GATE_RC=str(rc))
+        if isinstance(payload, dict) and "cwd" in payload:
+            payload = dict(payload, cwd=str(self.root))
         proc = subprocess.run(
             [sys.executable, str(HOOK), *args],
             input=raw if raw is not None else json.dumps(payload),

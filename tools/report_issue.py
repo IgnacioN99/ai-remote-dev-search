@@ -495,12 +495,16 @@ _PHONE = re.compile(
 # Dots and colons are not separators, so versions, IPs, ports and times survive;
 # the callback keeps anything under 9 digits and ISO dates.
 _PHONE_GROUPS = re.compile(
-    r"(?<![\w.:/#-])\d{10,13}(?![\w.])"
+    r"(?<![\w.:/#-])\d{10,15}(?![\w.])"
     r"|(?<![\w.:/#-])\(?\d{2,5}\)?(?:[ -]\(?\d{2,5}\)?){1,5}(?![\w:.-])"
 )
 _PHONE_INTL = re.compile(r"(?<![\w.])\+\d[\d\s().-]{6,}\d(?!\w)")
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 # Unix timestamps in seconds (2017-2033) or milliseconds: log lines, not phones.
+# Bare runs go up to 15 digits (E.164 max; "00" + 13-digit international) - the
+# fullmatch below is what spares 10/13-digit timestamps. Known edge: an unformatted
+# 10-digit number starting 15-19 (e.g. "1534567890") reads as an epoch and survives;
+# real phones in that shape are rare and almost always written with separators.
 _EPOCH = re.compile(r"1[5-9]\d{8}(?:\d{3})?")
 
 

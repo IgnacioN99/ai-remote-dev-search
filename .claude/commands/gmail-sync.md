@@ -3,7 +3,7 @@ description: >-
   Scans Gmail for status signals on tracked applications (invites, assessments, offers,
   rejections) and, after the user approves the batch, updates the tracker and outcome files.
   Use when the user asks to sync application status from email. Also triggered by
-  /gmail-sync.
+  /gmail-sync. Run only when the user types /gmail-sync or explicitly asks for it.
 argument-hint: "[company] [since YYYY-MM-DD]"
 disable-model-invocation: true
 ---

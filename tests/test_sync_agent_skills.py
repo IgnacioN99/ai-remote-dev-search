@@ -294,6 +294,23 @@ class ForbiddenTokenTests(FixtureRepo):
         self.assertEqual(self.generated("rank"), before, "a leaking skill must not be written")
 
 
+    def test_tokens_match_whole_words_only(self):
+        write(self.root / ".claude" / "commands" / "rank.md",
+              RANK_SRC + "A WebFetcher class and the Agent toolkit are fine.\n")
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        text = self.generated("rank")
+        self.assertIn("WebFetcher", text)
+        self.assertIn("Agent toolkit", text)
+        self.assertEqual(self.run_sync("--check").returncode, 0)
+
+    def test_prefix_token_still_caught_inside_identifiers(self):
+        write(self.root / ".claude" / "commands" / "rank.md", RANK_SRC + "Call mcp__slackbot directly.\n")
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("mcp__", result.stdout)
+
+
 class LintIntegrationTests(FixtureRepo):
     def test_lint_skills_fails_on_drift(self):
         shutil.copy(LINTER, self.root / "tools" / "lint_skills.py")

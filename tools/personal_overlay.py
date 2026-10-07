@@ -2,7 +2,8 @@
 """Personal overlay: keep candidate data out of tracked framework files.
 
 The tracked profile/data files (CLAUDE.md, the job-application-assistant
-01-09 files, job-scraper/search-queries.md) are TEMPLATES with [PLACEHOLDER]
+01-09 files, job-scraper/search-queries.md, the master CV cv/main_example.tex)
+are TEMPLATES with [PLACEHOLDER]
 tokens. A candidate's real version of any of them lives next to it as
 `<file>.personal` (gitignored by the `*.personal` rule in .gitignore), so a
 public fork never publishes personal data.
@@ -53,6 +54,9 @@ OVERLAY_FILES: List[str] = [
     f"{_SKILL}/08-application-forms.md",
     f"{_SKILL}/09-web-research.md",
     ".claude/skills/job-scraper/search-queries.md",
+    # The master CV. LaTeX never compiles the .personal copy in place: /apply
+    # copies the resolved file to cv/main_<company>_<role>.tex first.
+    "cv/main_example.tex",
 ]
 
 PathLike = Union[str, Path]

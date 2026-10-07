@@ -28,7 +28,7 @@ Follow these steps in order and complete each one before starting the next. Each
 - Run the verification checklist once, in Step 6. The reviewer critiques content only.
 - Step 5 (compile, inspect, export, gate) always runs: page breaks are unpredictable, and sources that look fine often compile into broken PDFs.
 
-**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
@@ -42,7 +42,7 @@ Follow these steps in order and complete each one before starting the next. Each
 - Extract: **company name**, **role title**, **department** (if mentioned), **location**, **application deadline** (if the posting states one), and **language** of the posting.
 - Store these for use throughout the workflow, and keep the **full posting text verbatim** alongside them for Step 6b to archive - never a summary.
 - Derive the application slug `<company>_<role>` once, by the **Subfolder naming** rule in `documents/README.md`, and reuse that exact value for the CV and cover letter filenames, the archive folder, the brief and the gate below.
-- Run `python3 tools/apply_state.py start <company>_<role>`. This marks the `/apply` run as in progress so the runtime can hold the session open until the Step 5g gate passes.
+- Run `python3 tools/apply_state.py start <company>_<role>`. This marks the `/apply` run as in progress so the runtime can hold the session open until the Step 5g gate passes. If the user abandons or cancels the run at any step, run `python3 tools/apply_state.py done <company>_<role>` before ending the turn.
 - Write the posting text verbatim to `documents/applications/<company>_<role>/job_posting.md`, creating the folder if absent. If the file already exists, leave it (Step 6b item 7 explains why). The gate in Step 5g requires this file.
 - Run `python3 tools/prime_job.py <company>_<role>`. It reads that `job_posting.md` and writes `documents/applications/<company>_<role>/brief.md`: the candidate's verified facts, the posting's skills matched against the profile, and historical insights from `documents/memory/insights.jsonl`. Read `brief.md`; it anchors the evaluation in Step 1 and the drafting in Step 2. If the command fails, quote its error, note it in the Step 6 report and continue from the profile files alone.
 
@@ -105,7 +105,9 @@ Also read the most recent existing CV and cover letter files for concrete struct
 - Read any existing `cv/main_*<CV_EXT>` file as a structural reference
 - Read any existing `cover_letters/cover_*<COVER_EXT>` or `cover_letters/Cover_*<COVER_EXT>` file as a structural reference
 
-*The master candidate profile (`.claude/skills/job-application-assistant/01-candidate-profile.md`), the master CV (`cv/main_example.tex`), and CLAUDE.md's Candidate Profile section are the sole source of truth for facts; existing tailored CVs may be read for structure and phrasing only, never as a source of claims.*
+*The master candidate profile (`.claude/skills/job-application-assistant/01-candidate-profile.md`), the master CV, and CLAUDE.md's Candidate Profile section are the sole source of truth for facts; existing tailored CVs may be read for structure and phrasing only, never as a source of claims.*
+
+**Master CV path:** run `python3 tools/personal_overlay.py resolve cv/main_example.tex` once and call the printed path `<MASTER_CV>` (it is `cv/main_example.tex.personal` once `/setup` has run, else the placeholder template). Read the master CV only from `<MASTER_CV>`. To start the tailored CV from it, copy its content into `cv/main_<company>_<role><CV_EXT>` and edit that file; never compile `<MASTER_CV>` itself (a `.tex.personal` file gives LaTeX a wrong jobname and output path).
 
 ### Requirement coverage (both documents)
 - **Every requirement the posting states gets addressed - matched or honestly gapped, never silently omitted.** A stated requirement the candidate lacks (a tool, a clearance, years of experience) is acknowledged with an honest bridge ("not in my daily toolkit yet; a natural extension of X"), because omission reads as hiding once an interviewer asks. Build the requirement list from Step 1 and check both drafts against it before Step 3.
@@ -120,7 +122,7 @@ Also read the most recent existing CV and cover letter files for concrete struct
 - Tailor the profile statement and experience bullets to the specific role
 - Reframe skills and achievements to match job requirements
 - Keep to 2 pages
-- **Grounding Audit:** Before writing to disk, audit all tailored bullet points against the union of three sources: `.claude/skills/job-application-assistant/01-candidate-profile.md` + the master CV (`cv/main_example.tex`) + `CLAUDE.md`'s Candidate Profile section to verify that all dates, roles, and metrics match exactly (zero profile drift or fabrication).
+- **Grounding Audit:** Before writing to disk, audit all tailored bullet points against the union of three sources: `.claude/skills/job-application-assistant/01-candidate-profile.md` + the master CV (`<MASTER_CV>`) + `CLAUDE.md`'s Candidate Profile section to verify that all dates, roles, and metrics match exactly (zero profile drift or fabrication).
 
 ### Cover Letter (`cover_letters/cover_<company>_<role><COVER_EXT>`)
 - **Write it in the posting's language** (the language extracted in Step 0)
@@ -166,13 +168,13 @@ Read these reference files — and only these — to ground your critique:
 - `.claude/skills/job-application-assistant/02-behavioral-profile.md` — use this specifically to check whether the cover letter's voice matches the candidate's natural register. A "Collaborator" PI profile, for example, should not be given a combative, solo-hero tone; a "Persuader" profile should not be given over-hedged, apologetic phrasing.
 - `.claude/skills/job-application-assistant/03-writing-style.md`
 - `.claude/skills/job-application-assistant/04-job-evaluation.md`
-- The master CV baseline template (`cv/main_example.tex`)
+- The master CV (`<MASTER_CV>`, the path `python3 tools/personal_overlay.py resolve cv/main_example.tex` printed in Step 2; pass it in this prompt)
 - The workspace root `CLAUDE.md` file (specifically the Candidate Profile section)
 
 Skip `.claude/skills/job-application-assistant/05-cv-templates.md` and `.claude/skills/job-application-assistant/06-cover-letter-templates.md`: they govern template structure, which the drafter already applied.
 
 ### 3. Factual Grounding Audit
-Compare every date, employer, job title, and quantitative metric in both drafts against the union of three sources: `.claude/skills/job-application-assistant/01-candidate-profile.md` + the master CV baseline template (`cv/main_example.tex`) + `CLAUDE.md`'s Candidate Profile section. A claim is grounded if ANY of these sources supports it. Mismatches between these three sources themselves must be reported to the user as a profile-consistency warning rather than treated as draft drift. If the mismatch comes from tooling rather than the user's data (e.g. a tool or template overwrote or failed to sync a profile file), also run `python3 tools/report_issue.py --kind drift --component apply --title "profile sources drift: <which files>" --body "<file names and field names only - never the values>"`. Draft mismatches must be flagged as Part A edits with `"reason": "grounding"` so they can be distinguished from style changes. Keep the tolerance honest: reframed emphasis is fine; changed facts and escalated numbers are not.
+Compare every date, employer, job title, and quantitative metric in both drafts against the union of three sources: `.claude/skills/job-application-assistant/01-candidate-profile.md` + the master CV (`<MASTER_CV>`) + `CLAUDE.md`'s Candidate Profile section. A claim is grounded if ANY of these sources supports it. Mismatches between these three sources themselves must be reported to the user as a profile-consistency warning rather than treated as draft drift. If the mismatch comes from tooling rather than the user's data (e.g. a tool or template overwrote or failed to sync a profile file), also run `python3 tools/report_issue.py --kind drift --component apply --title "profile sources drift: <which files>" --body "<file names and field names only - never the values>"`. Draft mismatches must be flagged as Part A edits with `"reason": "grounding"` so they can be distinguished from style changes. Keep the tolerance honest: reframed emphasis is fine; changed facts and escalated numbers are not.
 
 ### 4. Drafts to Review
 Both drafts are provided inline below. Critique these exact texts rather than the files on disk.
@@ -327,7 +329,7 @@ cd cv && pdftotext -layout -enc UTF-8 main_<company>_<role>.pdf main_<company>_<
 - [ ] **Text extracted at all**, with no garbage runs: no `(cid:NNN)` markers, no `�` replacement characters, no stretches of missing text that are visible in the PDF
 - [ ] **Email and phone survive as literal text.** Icon fonts extract as glyph names (the stock template's contact line extracts as `MOBILE-ALT [+XX ...] • Envelope [your.email@...]`) — that noise is harmless, but the actual address and digits must be present. A contact detail carried only by an icon or a hyperlink target (like the `LinkedIn` link text) is invisible to an ATS; the email must be printed as text.
 - [ ] **Reading order matches the visual order** — section headings appear in the same sequence as on the page, and lines from different sections are not interleaved. The stock banking template is single-column and safe; custom templates registered via `/add-template` with sidebars or multi-column layouts are where this breaks.
-- [ ] **Dates recognizable** — each role and degree has its years present in the extraction.
+- [ ] **Dates recognizable** — each role and degree has its years present in the extraction, and every experience entry shows a start *and* an end separated by an ASCII hyphen (`Mar 2016 - Jul 2016`, `2019 - Present`); an en-dash or a lone year imports without an end date (`.claude/skills/job-application-assistant/05-cv-templates.md`, ATS dates).
 
 Failures here are template-level problems: fix them in the `<CV_EXT>` source (e.g. print the email as text rather than icon-only), then re-run 5a–5c and re-extract. If a custom template's layout fundamentally scrambles extraction order, tell the user prominently — they may be trading ATS compatibility for looks.
 
@@ -431,7 +433,7 @@ Do this before the optional offer below, and before ending the turn for any othe
    date,company,sector,role,role_type,channel,status,contact_person,fit_rating,notes,cv_file,cover_letter_file,source,deadline
    ```
    **If the file exists and its header does not end in `,deadline`, append `,deadline` to the header line only** - no data row is touched. Legacy rows then read as an empty deadline.
-2. Match existing rows case-insensitively on company and role. **On no match, or when every match holds a final status, append a new row. On a match that is still open, update it.** "Final" and "open" are defined by the **Tracker status vocabulary** in `/outcome` — the legacy space spellings `no response` / `offer declined` count as final, so a closed application never gets its row overwritten. When you append alongside a final row, say so — the earlier application to that role keeps its own row and its own outcome.
+2. Match existing rows case-insensitively on company and role. **On no match, or when every match holds a final status, append a new row. On a match that is still open, update it.** "Final" and "open" are defined by the **Tracker status vocabulary** in `/outcome` (`.agents/skills/outcome/SKILL.md`) — the legacy space spellings `no response` / `offer declined` count as final, so a closed application never gets its row overwritten. When you append alongside a final row, say so — the earlier application to that role keeps its own row and its own outcome.
 3. Values for a new row:
 
    | Column | Value |
@@ -448,7 +450,7 @@ Do this before the optional offer below, and before ending the turn for any othe
 4. **Updating an open row: never move it backwards.** Refresh `cv_file`, `cover_letter_file`, `fit_rating`, `source` and `deadline` (leave an existing deadline alone when this run extracted none - absence is not a correction), and append an undated `redrafted` marker to `notes` (undated deliberately — `/outcome` reads the latest *dated* note as the last contact with the employer, and re-drafting a CV is not that). Leave `status` alone, and leave `date` alone unless the status is still `drafted`, in which case it becomes today.
 5. Never restructure the CSV, reorder rows, or touch other rows.
 6. **Do not modify `job_scraper/seen_jobs.json`.** Dedup runs off the tracker instead: `/rank` builds its exclusion set from company+role there regardless of status.
-7. **Archive the posting now** (Step 0 normally wrote it already; this item is the backstop, and the report below says which run wrote it). Write the posting text you are holding from Step 0, verbatim and never a fresh fetch, to `documents/applications/<company>_<role>/job_posting.md`, creating the folder if absent. Derive `<company>_<role>` from the `company` and `role` values this tracker row ends up holding, by the same rule `/outcome` Step 1.4 uses. **If the file already exists, leave it** - the archived copy is what was actually submitted (a re-application to the same company and role collides here and keeps the older posting, as it does in `/outcome` today). **If you no longer hold the posting text, write nothing** - say so in the report and never reconstruct it from memory; `/outcome` Step 3.2 archives it later.
+7. **Archive the posting now** (Step 0 normally wrote it already; this item is the backstop, and the report below says which run wrote it). Write the posting text you are holding from Step 0, verbatim and never a fresh fetch, to `documents/applications/<company>_<role>/job_posting.md`, creating the folder if absent. Use the `<company>_<role>` slug derived once in Step 0 (by the **Subfolder naming** rule, the same rule `/outcome` Step 1.4 uses) - do not re-derive it, so the archive, the documents and the gate always name the same folder. **If the file already exists, leave it** - the archived copy is what was actually submitted (a re-application to the same company and role collides here and keeps the older posting, as it does in `/outcome` today). **If you no longer hold the posting text, write nothing** - say so in the report and never reconstruct it from memory; `/outcome` Step 3.2 archives it later.
 
 Name the tracker row in the "Files Created" report above, and the archived posting - saying explicitly when an existing `job_posting.md` was left in place rather than written.
 

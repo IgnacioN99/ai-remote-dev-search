@@ -3,6 +3,7 @@ description: >-
   Publishes ranked jobs and tracked applications to a read-only Notion database view; the
   repo files stay the system of record. Use when the user asks to sync or publish the job
   search to Notion. Also triggered by /notion-sync.
+  Run only when the user types /notion-sync or explicitly asks for it.
 argument-hint: "[--min-score N] [--all] [--rebuild]"
 disable-model-invocation: true
 ---

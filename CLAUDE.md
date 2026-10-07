@@ -97,11 +97,12 @@ automatically from your Languages table above - don't duplicate them here. -->
 - `documents/memory/` - Append-only historical learnings ledger (`insights.jsonl`)
 - `.claude/skills/` - AI skill definitions for the application workflow
 - `.agents/skills/` - Portal search CLIs (hand-written) plus Antigravity copies of every command and skill, generated from `.claude/` by `python3 tools/sync_agent_skills.py` (edit the `.claude/` source, never the copy)
-- **Personal overlay** - tracked profile/data files (`CLAUDE.md`, `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `.claude/skills/job-scraper/search-queries.md`) are templates. For any of them, if `<file>.personal` exists, read it **instead of** `<file>` (a full copy, not a patch); write profile/data updates to `<file>.personal`, creating it as a copy of `<file>` first (`python3 tools/personal_overlay.py ensure <file>`). `*.personal` is gitignored, so personal data never reaches the public repo
+- **Personal overlay** - tracked profile/data files (`CLAUDE.md`, `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `.claude/skills/job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) are templates. For any of them, if `<file>.personal` exists, read it **instead of** `<file>` (a full copy, not a patch); write profile/data updates to `<file>.personal`, creating it as a copy of `<file>` first (`python3 tools/personal_overlay.py ensure <file>`). `*.personal` is gitignored, so personal data never reaches the public repo
 
 ## Workflows
 The procedures live in the commands; this file holds the profile they read.
 - **New application:** `/apply <posting-url-or-text>` - fit evaluation first, then the tailored CV (exactly 2 pages) and cover letter (exactly 1 page), compile, ATS export, the blocking `python3 tools/gate_application.py <company>_<role>` gate, and the tracker row. Its Step 5 is the canonical compile/page/ATS procedure and its Step 6 the canonical verification checklist.
+- **Any CV or cover-letter create or edit** (even one bullet, even outside `/apply`): run `/apply` Step 5 (compile, layout, ATS, export, gate) and the Step 6 checklist before presenting it.
 - **Find and triage jobs:** `/scrape`, then `/rank`. **Interviews:** `/interview <company>`. **Results:** `/outcome`.
 - **Upload names:** send recruiters and ATS portals only the exported `<CandidateName>_CV.pdf` / `<CandidateName>_CoverLetter.pdf` copies (optionally `_<Company>`), never the internal `main_*`/`cover_*` files.
 - When a CV or cover letter mentions agentic coding or AI tooling, name **Claude Code** explicitly.

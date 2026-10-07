@@ -3,6 +3,7 @@ description: >-
   Registers, lists or switches a custom CV or cover letter template (LaTeX, Typst or any PDF
   toolchain) and verifies it compiles. Use when the user wants to use their own CV or cover
   letter template. Also triggered by /add-template.
+  Run only when the user types /add-template or explicitly asks for it.
 argument-hint: "[template-path] [--list] [--use <name>|default]"
 disable-model-invocation: true
 ---
@@ -17,7 +18,7 @@ Follow these steps **in order**.
 
 **Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /add-template` before writing anything (see `tools/personalization_paths.json`).
 
-**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 

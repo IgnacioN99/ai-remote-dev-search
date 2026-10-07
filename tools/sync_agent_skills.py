@@ -65,6 +65,12 @@ SKILL_SOURCES = {
 # phrasing the rewrites below do not cover fails the sync loudly instead of
 # shipping a tool name Antigravity does not have.
 FORBIDDEN_TOKENS = ("mcp__", "AskUserQuestion", "WebFetch", "WebSearch", "Agent tool")
+# Whole-word matches only ("WebFetcher", "Agent toolkit" are fine); a token ending
+# in "_" is a prefix ("mcp__slack__send"), so it gets no trailing boundary.
+_FORBIDDEN_RES = tuple(
+    (token, re.compile(r"(?<!\w)" + re.escape(token) + ("" if token.endswith("_") else r"(?!\w)")))
+    for token in FORBIDDEN_TOKENS
+)
 
 # Antigravity caps a skill description at 1024 characters.
 MAX_DESCRIPTION_CHARS = 1024
@@ -175,7 +181,7 @@ def rewrite_body(body: str) -> str:
     body = re.sub(r"\bWebFetch\b", "read_url_content", body)
     body = re.sub(r"\bWebSearch\b", "search_web", body)
     body = re.sub(
-        r"(?:the )?\*{0,2}Agent tool\*{0,2}",
+        r"(?:\bthe )?\*{0,2}\bAgent tool\b\*{0,2}",
         "`invoke_subagent` (if available; otherwise do the work inline yourself)",
         body,
     )
@@ -295,7 +301,7 @@ def description_for(name: str, description: str) -> str:
 
 
 def forbidden_tokens(text: str) -> list[str]:
-    return [token for token in FORBIDDEN_TOKENS if token in text]
+    return [token for token, pattern in _FORBIDDEN_RES if pattern.search(text)]
 
 
 def header_note(name: str, is_command: bool, tools_line: str = "") -> str:

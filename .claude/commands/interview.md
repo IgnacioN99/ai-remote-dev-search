@@ -15,7 +15,7 @@ You are preparing the user for a real, scheduled interview on one of their appli
 
 Follow these steps in order. Ask one question per turn; at each STOP, wait for the user's reply before continuing.
 
-**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
@@ -24,7 +24,7 @@ Follow these steps in order. Ask one question per turn; at each STOP, wait for t
 `$ARGUMENTS` may contain a company name (optionally with a role), e.g. `/interview acme`.
 
 - **With an argument:** match against `job_search_tracker.csv` rows (case-insensitive on company, then role). One match → proceed. Several → list them. None → this application isn't tracked; suggest `/outcome <company>` to register it first, or accept the posting and role details directly if the user wants to prep anyway.
-- **Without an argument:** list tracker rows whose status suggests a live process — an open status per the **Tracker status vocabulary** in `/outcome` (`interview`, `offer`, or recently `applied`; `drafted` is open but nothing was sent, so it never qualifies) — and list them. If the tracker is empty, ask for the company, role, and posting.
+- **Without an argument:** list tracker rows whose status suggests a live process — an open status per the **Tracker status vocabulary** in `/outcome` (`.claude/commands/outcome.md`; `interview`, `offer`, or recently `applied`; `drafted` is open but nothing was sent, so it never qualifies) — and list them. If the tracker is empty, ask for the company, role, and posting.
 
 STOP — when there is more than one candidate application (or none), present the list or the question and wait for the user's reply.
 

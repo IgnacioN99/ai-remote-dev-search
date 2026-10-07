@@ -10,7 +10,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(bun --version), Bash(bun run 
 
 # Job Scraper
 
-**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
@@ -98,7 +98,9 @@ command (see its SKILL.md — do not guess flags) to extract **key requirements*
 
 **Closed-at-source detection:** `linkedin-search detail` also returns `isActive`.
 `false` means the posting page itself renders LinkedIn's "No longer accepting
-applications" banner — the job died between being indexed and being fetched. Record
+applications" banner — the job died between being indexed and being fetched. This
+matters because an expired LinkedIn URL redirects to *similar live jobs*, so a search hit
+can be a ghost that only `isActive` exposes. Record
 such a job instead of dropping it: write its entry to `seen_jobs.json` in Step 4 with
 `"status": "expired"` and leave it out of the Step 5 presentation, so it is not
 re-fetched as new on the next run. `isActive: true` is only the absence of that banner, not

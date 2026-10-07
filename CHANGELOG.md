@@ -58,6 +58,18 @@ per-file diff commands.
 
 ### Fixed
 
+- **PR #2 review follow-ups.** The `/apply` Stop hook counts only documents written since the
+  run's (now microsecond-precise) `started_at`, so a redraft is not blocked or cleared at its
+  consent step; it escapes the slug in globs, ignores stops from another cwd or session, and
+  writes its marker atomically. `/apply` owns all CV/cover-letter drafting; any later edit re-runs
+  its Step 5 and Step 6 checks. `gate_application.py` no longer flags lowercase "mit"
+  (Danish/German), requires the exact application folder, and scans review markers only in
+  agent-written drafts. Bare phone runs are redacted up to 15 digits again. Forbidden-token
+  checks in `sync_agent_skills.py` match whole words. The master CV joins the `.personal`
+  overlay (`cv/main_example.tex.personal`); the profile templates lose their operator/config
+  write grants and drift exemption. `migrate_personal_overlay.py` keeps the source
+  `framework_version`, measures personal lines against every post-overlay template version,
+  reports genuinely personal line counts, and is idempotent.
 - **`tools/report_issue.py` sanitizer follow-ups.** Personal-data sources resolve against the
   main checkout when run from a linked worktree; `--body-file` refuses any `cv`/`cover_letters`/
   `documents` path segment and any `.tex`; plain terms redact accented text ("Jose Pena" ->

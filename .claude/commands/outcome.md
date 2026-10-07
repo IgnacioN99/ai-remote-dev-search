@@ -3,7 +3,7 @@ description: >-
   Records what happened to a tracked application (applied, interview, offer, rejection, no
   response), archives the materials, drafts follow-ups for quiet applications and sweeps
   stale ones. Use when the user reports news about an application or asks to follow up. Also
-  triggered by /outcome.
+  triggered by /outcome. Run only when the user types /outcome or explicitly asks for it.
 argument-hint: "[company [role]] | followup [N|company] | stale [N]"
 disable-model-invocation: true
 ---
@@ -21,7 +21,7 @@ The command also owns the stretch *before* there is an outcome to record: the **
 
 Follow these steps in order. Ask one question per turn; at each STOP, wait for the user's reply before continuing.
 
-**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 

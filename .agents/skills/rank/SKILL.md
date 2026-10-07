@@ -20,7 +20,7 @@ You are batch-scoring the jobs that `/scrape` has collected, so the user can dec
 
 Follow these steps in order. Ask one question per turn; at each STOP, wait for the user's reply before continuing.
 
-**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`, the master CV `cv/main_example.tex`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
 
 ---
 
@@ -188,9 +188,7 @@ Rules for the presentation:
 - A shortlisted job with `language_gate: FLAG` gets a ⚠ marker next to its Title (same treatment as a location FLAG) and its `language_note` quoted in that job's "Why these ranked highest" writeup, so the language-level gap is visible without digging into the raw JSON.
 - Every claim traces to fetched posting text or the profile - no invented details.
 - Say explicitly that these are **triage scores from the posting text only**, and that `/apply` will re-evaluate with company research before anything is drafted.
-- Then ask: "Want to apply to any of these? Give me the number(s) and I'll start with the full `/apply` workflow."
-
-  STOP — wait for the user's reply.
+- Then ask: "Want to apply to any of these? Give me the number(s) and I'll start with the full `/apply` workflow." STOP — wait for the user's reply.
 - If the user picks one, run the `/apply` workflow on that job's URL, passing the triage verdict as prior context but **re-running the full Step 1 evaluation** - triage never substitutes for it.
 - Final step: run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
 

@@ -8,10 +8,15 @@ it from .agents/, so every path here resolves from this file, never the cwd).
 When the agent tries to stop:
   1. No /apply marker (.agents/state/apply.json, written by
      tools/apply_state.py) -> allow.
-  2. Marker present but the slug's documents do not exist yet (cv/main_<slug>.*,
-     cover_letters/cover_<slug>.*, or PDFs under documents/applications/<slug>/)
-     -> allow: the run is still at fit evaluation, or the user declined.
-  3. Otherwise run `tools/gate_application.py <slug>`:
+  2. The stop comes from another project (payload `cwd` outside this repo) or
+     another session (payload session id differs from the one stored at the
+     first block) -> allow.
+  3. Marker present but this run has not written the slug's documents yet
+     (cv/main_<slug>.*, cover_letters/cover_<slug>.*, or PDFs under
+     documents/applications/<slug>/, counted only when modified at or after the
+     marker's started_at, so a redraft's old files do not count) -> allow: the
+     run is still at fit evaluation, or the user declined.
+  4. Otherwise run `tools/gate_application.py <slug>`:
        exit 0 -> allow and clear the marker;
        exit 2 (pending human review) -> allow, the agent must ask the user;
        exit 1 -> block with the gate's violations as the reason.
@@ -32,6 +37,7 @@ Stdlib only.
 from __future__ import annotations
 
 import datetime
+import glob
 import json
 import os
 import subprocess
@@ -43,6 +49,11 @@ MAX_BLOCKS = 3
 STALE_HOURS = 12
 GATE_TIMEOUT = 100
 MAX_REASON_CHARS = 3000
+# File mtimes come from the kernel's coarse clock (milliseconds behind time.time())
+# and FAT/SMB mounts round to 2 s, so a document written right after `start` can
+# carry an mtime slightly before started_at. Old files from a previous run are
+# minutes older than that.
+MTIME_SLACK_SECONDS = 2.0
 ENV_ROOT = "APPLY_GATE_ROOT"  # test override for the repository root
 
 
@@ -73,7 +84,9 @@ def load_state(root: Path) -> Optional[dict]:
 def save_state(root: Path, data: dict) -> None:
     path = root / ".agents" / "state" / "apply.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_name(f"apply.json.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def clear_state(root: Path) -> None:
@@ -83,26 +96,65 @@ def clear_state(root: Path) -> None:
         pass
 
 
-def is_stale(data: dict, now: Optional[datetime.datetime] = None) -> bool:
+def started_at(data: dict) -> Optional[datetime.datetime]:
     try:
         started = datetime.datetime.fromisoformat(str(data.get("started_at")))
     except ValueError:
-        return False
+        return None
     if started.tzinfo is None:
         started = started.replace(tzinfo=datetime.timezone.utc)
+    return started
+
+
+def is_stale(data: dict, now: Optional[datetime.datetime] = None) -> bool:
+    started = started_at(data)
+    if started is None:
+        return False
     now = now or datetime.datetime.now(datetime.timezone.utc)
     return now - started > datetime.timedelta(hours=STALE_HOURS)
 
 
-def documents_exist(root: Path, slug: str) -> bool:
-    """True once /apply has written the slug's CV or cover letter (source or PDF)."""
-    if any((root / "cv").glob(f"main_{slug}.*")):
-        return True
-    if any((root / "cover_letters").glob(f"cover_{slug}.*")) or \
-            any((root / "cover_letters").glob(f"Cover_{slug}.*")):
-        return True
+def documents_exist(root: Path, slug: str, since: Optional[float] = None) -> bool:
+    """True once /apply has written the slug's CV or cover letter (source or PDF).
+
+    With `since` (a POSIX timestamp, the marker's started_at), only files modified
+    at or after it (less MTIME_SLACK_SECONDS) count: on a redraft the previous run's files already exist, and
+    counting them would run the gate at the Step 1 consent STOP.
+    """
+    esc = glob.escape(slug)
     app = root / "documents" / "applications" / slug
-    return app.is_dir() and any(app.glob("*.pdf"))
+    candidates = [
+        *(root / "cv").glob(f"main_{esc}.*"),
+        *(root / "cover_letters").glob(f"cover_{esc}.*"),
+        *(root / "cover_letters").glob(f"Cover_{esc}.*"),
+        *(app.glob("*.pdf") if app.is_dir() else ()),
+    ]
+    for path in candidates:
+        if since is None:
+            return True
+        try:
+            if path.stat().st_mtime >= since - MTIME_SLACK_SECONDS:
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def foreign_cwd(payload: dict, root: Path) -> bool:
+    """True when the payload names a working directory outside this repository."""
+    cwd = payload.get("cwd")
+    if not cwd or not isinstance(cwd, str):
+        return False
+    try:
+        Path(cwd).resolve().relative_to(root.resolve())
+        return False
+    except ValueError:
+        return True
+
+
+def session_of(payload: dict) -> Optional[str]:
+    value = payload.get("session_id") or payload.get("conversationId")
+    return str(value) if value else None
 
 
 def run_gate(root: Path, slug: str) -> subprocess.CompletedProcess:
@@ -150,15 +202,22 @@ def decide(payload: dict, antigravity: bool, root: Path,
         reason = payload.get("terminationReason") or "model_stop"
         if reason != "model_stop":
             return None  # errors / max steps: never trap the agent in a loop
+    if foreign_cwd(payload, root):
+        return None  # a stop in another project: this repo's marker is not its concern
     state = load_state(root)
     if not state:
         return None
     slug = str(state["slug"])
+    session = session_of(payload)
+    owner = state.get("session_id")
+    if owner and session and owner != session:
+        return None  # another session's stop; the /apply run belongs to `owner`
     if is_stale(state):
         warn(f"ignoring stale /apply marker for {slug} (older than {STALE_HOURS}h); cleared")
         clear_state(root)
         return None
-    if not documents_exist(root, slug):
+    started = started_at(state)
+    if not documents_exist(root, slug, started.timestamp() if started else None):
         return None
     blocks = int(state.get("blocks") or 0)
     if blocks >= MAX_BLOCKS:
@@ -177,6 +236,8 @@ def decide(payload: dict, antigravity: bool, root: Path,
     if result.returncode == 2:
         return None  # mechanical checks passed; human review pending - the agent asks the user
     state["blocks"] = blocks + 1
+    if session and not owner:
+        state["session_id"] = session
     save_state(root, state)
     return block_reason(slug, (result.stdout or "") + (result.stderr or ""), blocks + 1)
 

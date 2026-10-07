@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPO / "tools"))
 
 import report_issue  # noqa: E402
 
-FORK_SSH = "git@github.com:IgnacioN99/ai-remote-dev-search.git"
+FORK_SSH = "git@github.com:forkowner/ai-job-search-fork.git"
 UPSTREAM_HTTPS = "https://github.com/MadsLorentzen/ai-job-search.git"
 
 # Fictional candidate, in the same spirit as the Jane Doe fixtures used by the
@@ -71,9 +71,9 @@ class FakeRunner:
             if args[1:3] == ["issue", "create"]:
                 if self.create_errors:
                     return cp(args, 1, err=self.create_errors.pop(0))
-                return cp(args, 0, out="https://github.com/IgnacioN99/ai-remote-dev-search/issues/7\n")
+                return cp(args, 0, out="https://github.com/forkowner/ai-job-search-fork/issues/7\n")
             if args[1:3] == ["issue", "comment"]:
-                return cp(args, 0, out="https://github.com/IgnacioN99/ai-remote-dev-search/issues/3#issuecomment-1\n")
+                return cp(args, 0, out="https://github.com/forkowner/ai-job-search-fork/issues/3#issuecomment-1\n")
         raise AssertionError(f"unexpected call {args}")
 
     def gh_writes(self):
@@ -110,7 +110,7 @@ class Base(unittest.TestCase):
 
 class NeverTargetsUpstream(Base):
     def test_parse_ssh_and_https(self):
-        self.assertEqual(report_issue.parse_repo_slug(FORK_SSH), "IgnacioN99/ai-remote-dev-search")
+        self.assertEqual(report_issue.parse_repo_slug(FORK_SSH), "forkowner/ai-job-search-fork")
         self.assertEqual(report_issue.parse_repo_slug(UPSTREAM_HTTPS), "MadsLorentzen/ai-job-search")
         self.assertEqual(report_issue.parse_repo_slug("ssh://git@github.com/o/r.git"), "o/r")
         self.assertEqual(report_issue.parse_repo_slug("https://github.com/o/r"), "o/r")
@@ -154,8 +154,8 @@ class NeverTargetsUpstream(Base):
             if call["args"][1] == "--version":
                 continue
             self.assertIn("-R", call["args"])
-            self.assertEqual(call["args"][call["args"].index("-R") + 1], "IgnacioN99/ai-remote-dev-search")
-            self.assertEqual(call["repo"], "IgnacioN99/ai-remote-dev-search")
+            self.assertEqual(call["args"][call["args"].index("-R") + 1], "forkowner/ai-job-search-fork")
+            self.assertEqual(call["repo"], "forkowner/ai-job-search-fork")
 
     def test_queued_entry_toward_upstream_is_dropped_on_flush(self):
         self.pending.write_text(json.dumps({
@@ -301,7 +301,7 @@ class DryRunAndOffline(Base):
         code, out = self.invoke(self.base_args("--dry-run"), runner)
         self.assertEqual(code, 0)
         self.assertEqual(runner.gh_calls(), [])
-        self.assertIn("IgnacioN99/ai-remote-dev-search", out)
+        self.assertIn("forkowner/ai-job-search-fork", out)
         self.assertFalse(self.pending.exists())
 
     def test_gh_missing_queues_sanitized_entry(self):
@@ -312,7 +312,7 @@ class DryRunAndOffline(Base):
         self.assertEqual(json.loads(out)["action"], "queued")
         raw = self.pending.read_text(encoding="utf-8")
         self.assertNotIn("jane.doe@example.com", raw)
-        self.assertEqual(json.loads(raw)["repo"], "IgnacioN99/ai-remote-dev-search")
+        self.assertEqual(json.loads(raw)["repo"], "forkowner/ai-job-search-fork")
 
     def test_gh_failure_queues(self):
         runner = FakeRunner(list_rc=1)
@@ -466,6 +466,11 @@ class SalaryAndPhoneExtras(Base):
             self.assertNotIn(needle, clean, clean)
         self.assertEqual(clean.count("[phone]"), 3)
 
+    def test_long_international_runs_are_redacted(self):
+        clean = self.sanitizer.clean("call 004512345678901 or 004912345678901 or 491701234567890 today")
+        for needle in ("004512345678901", "004912345678901", "491701234567890"):
+            self.assertNotIn(needle, clean, clean)
+
     def test_numbers_that_are_not_phones_survive(self):
         text = ("exit 429 on 2026-10-07 12:30, issue #431, gh 2.45.0, v1.2.3, port 8080, "
                 "127.0.0.1:5432, 192.168.10.100, year 2025, 2026-10-07T12:30:00Z, pid 12345, "
@@ -512,7 +517,7 @@ class LabelsCommentsFlushTitles(Base):
             "body": "mail jane.doe@example.com at Acme Widgets ApS\n\n---\n_Filed automatically by x_\n"
                     f"<!-- fp:{old_fp} -->\n",
             "labels": ["agent-reported", "jane-doe"], "fingerprint": old_fp,
-            "repo": "IgnacioN99/ai-remote-dev-search"}) + "\n", encoding="utf-8")
+            "repo": "forkowner/ai-job-search-fork"}) + "\n", encoding="utf-8")
         runner = FakeRunner()
         code, out = self.invoke(["--flush", "--json"], runner)
         self.assertEqual(code, 0, out)
@@ -526,7 +531,7 @@ class LabelsCommentsFlushTitles(Base):
     def test_flush_drops_entry_emptied_by_resanitizing(self):
         self.pending.write_text(json.dumps({
             "kind": "bug", "title": "ok title", "body": "Jane Doe jane.doe@example.com",
-            "labels": [], "fingerprint": "x", "repo": "IgnacioN99/ai-remote-dev-search"}) + "\n",
+            "labels": [], "fingerprint": "x", "repo": "forkowner/ai-job-search-fork"}) + "\n",
             encoding="utf-8")
         runner = FakeRunner()
         code, out = self.invoke(["--flush", "--json"], runner)
@@ -693,7 +698,7 @@ class PhoneFalsePositives(Base):
 
     def test_long_ids_and_hex_survive(self):
         text = ("job 12345678901234567 sha 1234567890abcdef1234 uuid 123e4567-e89b-12d3-a456-426614174000 "
-                "build 98765432109876")
+                "build 9876543210987654")  # 16+ digits: longer than any E.164 number
         self.assertEqual(self.sanitizer.clean(text), text)
 
     def test_real_phone_formats_still_redacted(self):

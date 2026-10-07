@@ -29,6 +29,8 @@ SKILL = ".claude/skills/job-application-assistant"
 EVAL = f"{SKILL}/04-job-evaluation.md"
 BEHAV = f"{SKILL}/02-behavioral-profile.md"
 QUERIES = ".claude/skills/job-scraper/search-queries.md"
+COVER = f"{SKILL}/06-cover-letter-templates.md"
+MASTER_CV = "cv/main_example.tex"
 
 
 class OverlayHelperTests(unittest.TestCase):
@@ -122,10 +124,10 @@ class MigrationTests(unittest.TestCase):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8")
 
-    def run_mig(self, *args):
+    def run_mig(self, *args, files=(EVAL, BEHAV, QUERIES)):
         out = io.StringIO()
         with redirect_stdout(out):
-            rc = mig.main(["--root", str(self.root), "--files", EVAL, BEHAV, QUERIES, *args])
+            rc = mig.main(["--root", str(self.root), "--files", *files, *args])
         self.assertEqual(rc, 0)
         return out.getvalue()
 
@@ -144,9 +146,12 @@ class MigrationTests(unittest.TestCase):
         self.write(QUERIES + ".personal", "Queries\nsite:example.net cobol\n")  # user's own, different
         self.write(BEHAV + ".personal", "Overview: steady\n")  # already identical
         out = self.run_mig("--apply")
-        # Personal content carried over, stamped with the template's version (not stale).
+        # Personal content carried over with its SOURCE version, so status flags it
+        # stale until the framework changes in the newer template are merged in.
         self.assertEqual((self.root / (EVAL + ".personal")).read_text(encoding="utf-8"),
-                         "---\nframework_version: 1.0.1\n---\nScoring\nStrong: Fortran, COBOL\n")
+                         "---\nframework_version: 1.0.0\n---\nScoring\nStrong: Fortran, COBOL\n")
+        row = {r["path"]: r for r in po.status(self.root)}[EVAL]
+        self.assertTrue(row["stale"], row)
         self.assertEqual((self.root / (QUERIES + ".personal")).read_text(encoding="utf-8"),
                          "Queries\nsite:example.net cobol\n")
         incoming = self.root / (QUERIES.replace(".md", ".md.incoming.personal"))
@@ -164,6 +169,68 @@ class MigrationTests(unittest.TestCase):
         p.write_text("Overview: steady\r\n", encoding="utf-8", newline="")
         out = self.run_mig()
         self.assertIn("already identical", out)
+
+    def test_framework_text_changed_after_overlay_is_not_personal(self):
+        # 06 held no personal data: identical at the source and at the overlay; a
+        # later framework commit rewrote its rules. Nothing must be carried.
+        self.git("checkout", "-q", "HEAD~1")
+        self.write(COVER, "Cover rules v1\nKeep it short\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "cover at source")
+        source = self.git("rev-parse", "HEAD").strip()
+        self.git("checkout", "-q", "master")
+        self.write(COVER, "Cover rules v1\nKeep it short\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "cover at overlay era")
+        self.write(COVER, "Cover rules v2\nKeep it to one page\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "framework update")
+        out = self.run_mig("--apply", "--from-rev", source, files=(COVER,))
+        self.assertIn("[skip    ] " + COVER, out)
+        self.assertFalse((self.root / (COVER + ".personal")).exists())
+        self.assertFalse((self.root / (COVER + ".incoming.personal")).exists())
+
+    def test_framework_changes_after_overlay_do_not_count_as_personal_lines(self):
+        self.write(EVAL, "---\nframework_version: 1.1.0\n---\nScoring v2\nStrong: [YOUR_PRIMARY_SKILLS]\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "framework update")
+        out = self.run_mig(files=(EVAL,))
+        # Only "Strong: Fortran, COBOL" and the old version line are outside every template.
+        self.assertIn("[create  ] " + EVAL, out)
+        self.assertNotIn("Scoring", "".join(
+            sorted(mig._lines("Scoring\n") - mig.template_lines(self.root, EVAL))))
+
+    def test_apply_is_idempotent(self):
+        self.write(QUERIES + ".personal", "Queries\nsite:example.net cobol\n")
+        self.run_mig("--apply")
+        incoming = self.root / (QUERIES + ".incoming.personal")
+        backups = sorted((self.root / "documents" / "memory").glob("backup-*"))
+        self.assertEqual(len(backups), 1)
+        older = incoming.stat().st_mtime_ns - 10**9
+        os.utime(incoming, ns=(older, older))
+        out = self.run_mig("--apply")
+        self.assertIn("Nothing to write", out)
+        self.assertEqual(incoming.stat().st_mtime_ns, older, "incoming must not be rewritten")
+        self.assertEqual(sorted((self.root / "documents" / "memory").glob("backup-*")), backups)
+
+    def test_stale_incoming_with_only_template_text_is_reported_safe(self):
+        self.write(EVAL + ".personal", "---\nframework_version: 1.0.0\n---\nScoring\nStrong: Fortran, COBOL\n")
+        self.write(EVAL + ".incoming.personal",
+                   "---\nframework_version: 1.0.1\n---\nScoring\nStrong: [YOUR_PRIMARY_SKILLS]\n")
+        out = self.run_mig(files=(EVAL,))
+        self.assertIn("0 genuinely personal line(s)", out)
+        self.assertIn("likely safe to delete", out)
+
+    def test_master_cv_is_carried_from_the_working_tree(self):
+        self.write(MASTER_CV, "\\name{[First]}{[Last]}\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "master cv template")
+        self.write(MASTER_CV, "\\name{Jane}{Public}\n")  # /setup edited it in place, uncommitted
+        out = self.run_mig("--apply", files=(MASTER_CV,))
+        self.assertIn("[create  ] " + MASTER_CV, out)
+        self.assertEqual((self.root / (MASTER_CV + ".personal")).read_text(encoding="utf-8"),
+                         "\\name{Jane}{Public}\n")
+        self.assertIn(MASTER_CV, po.OVERLAY_FILES)
 
     def test_template_only_file_is_skipped(self):
         self.write(f"{SKILL}/03-writing-style.md", "Rules\n")

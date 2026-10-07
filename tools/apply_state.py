@@ -8,7 +8,8 @@ runs `tools/gate_application.py <slug>` whenever the agent tries to end its turn
 and the slug's documents exist, and sends the agent back to fix a failing gate.
 
 The marker is gitignored local state: .agents/state/apply.json
-  {"slug": "<company>_<role>", "started_at": "<ISO-8601 UTC>", "blocks": 0}
+  {"slug": "<company>_<role>", "started_at": "<ISO-8601 UTC, microseconds>", "blocks": 0}
+The hook adds "session_id" at its first block, so only that session's stops are held.
 
 Usage:
   python3 tools/apply_state.py start <slug>
@@ -69,7 +70,9 @@ def clear(root: Optional[Path] = None) -> bool:
 
 
 def now_iso() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+    # Full precision: the Stop hook compares document mtimes against started_at, so a
+    # redraft's old files (written before this run) never count as this run's documents.
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 def start(slug: str, root: Optional[Path] = None) -> dict:
