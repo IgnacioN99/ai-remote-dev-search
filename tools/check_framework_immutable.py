@@ -8,8 +8,8 @@ Edit-time hooks (.claude/hooks/guard_framework.py) do not see shell writes, and 
 hooks are best-effort, so operator commands (/scrape, /rank, /apply) run this as their final
 step. Drift = `git status` entries on framework paths (tracked files, or new non-ignored files
 under tools/, .claude/, .agents/, tests/, .github/, .githooks/, templates/, AGENTS.md, CLAUDE.md)
-that tools/personalization_paths.json does not list. Listed personalization paths are never drift,
-whatever the mode (uncommitted /setup output is user config; the edit hook gates when it is written).
+that tools/personalization_paths.json does not exempt via 'drift_exempt' (profile/config docs, enabled:
+toggles, brand-new portal/template dirs). Changes to existing portal/template code are drift.
 
 Exit 0: clean, or running in a linked worktree (framework work belongs there).
 Exit 1: drift found. Exit 2: not a git repository / git failed.
@@ -55,11 +55,10 @@ def find_drift(info: fp.RepoInfo) -> list[tuple[str, str]]:
         # Tracked (or staged) entries are framework by definition; ignored files never show up.
         if untracked and not fp.in_framework_dir(rel):
             continue
-        # Personalization paths (CLAUDE.md, profile skill files, search-queries.md, ...) are
-        # written by /setup-style commands and stay uncommitted user config in the main checkout.
-        # Same rule as .githooks/pre-commit: never drift, whatever the current mode. The edit
-        # hook still enforces config-only writes at edit time.
-        if fp.matches_personalization(entries, rel):
+        # User config written by /setup-style commands (profile docs, enabled: toggles, a
+        # brand-new portal/template dir) is not drift in any mode; edits to existing portal or
+        # template code are, even though the edit hook allows them in config mode.
+        if fp.drift_exempt(info, entries, rel, untracked):
             continue
         drift.append((xy, rel))
     return drift

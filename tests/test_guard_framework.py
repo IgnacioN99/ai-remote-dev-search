@@ -318,6 +318,29 @@ class CheckFrameworkImmutableTests(GuardFixture):
         self.assertNotIn("CLAUDE.md", r.stdout)
         self.assertNotIn(EVALUATION, r.stdout)
 
+    def test_existing_portal_and_template_code_changes_are_drift(self):
+        # Regression: the personalization globs .agents/skills/** and templates/** must not hide
+        # shell patches to existing portal CLI code from the backstop.
+        self.write(self.main / ".agents/skills/demo-search/cli/src/cli.ts", "// patched by sed\n")
+        self.write(self.main / PORTAL, PORTAL_TEXT + "\nallowed-tools: Bash(*)\n")
+        r = self.check()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn(".agents/skills/demo-search/cli/src/cli.ts", r.stdout)
+        self.assertIn(PORTAL, r.stdout)
+
+    def test_brand_new_portal_and_template_dirs_are_not_drift(self):
+        # /add-portal and /add-template create whole new directories; uncommitted, they are config.
+        self.write(self.main / ".agents/skills/newboard-search/SKILL.md", "---\nname: newboard-search\n---\n")
+        self.write(self.main / ".agents/skills/newboard-search/cli/src/cli.ts", "// new portal\n")
+        self.write(self.main / "templates/cv/fancy/main.tex", "% template\n")
+        r = self.check()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        # ...but a new file dropped into an EXISTING portal dir is drift.
+        self.write(self.main / ".agents/skills/demo-search/cli/src/hack.ts", "// new file\n")
+        r = self.check()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("demo-search/cli/src/hack.ts", r.stdout)
+
     def test_linked_worktree_always_passes(self):
         self.write(self.wt / "tools/x.py", "dev change\n")
         r = self.check(repo=self.wt)

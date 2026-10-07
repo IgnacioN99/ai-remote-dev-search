@@ -232,3 +232,41 @@ def personalization_allows(
 def matches_personalization(entries: list[dict], rel: str) -> bool:
     """Any personalization glob matches, regardless of mode (used for commits of user config)."""
     return any(glob_to_regex(e["glob"]).match(rel) for e in entries)
+
+
+def drift_exempt(info: "RepoInfo", entries: list[dict], rel: str, untracked: bool) -> bool:
+    """True if a changed path in the main checkout is user config rather than framework drift.
+
+    Per matching entry's 'drift_exempt': True -> always exempt (profile/config docs);
+    'lines' -> exempt only if every changed line vs HEAD matches the entry's 'lines' regex;
+    'new_dir' -> exempt only an untracked file inside a brand-new directory (first 'dir_depth'
+    path segments) that has no tracked files, i.e. a portal/template just created by a config
+    command. Changes to existing tracked code under the same glob stay drift.
+    """
+    for entry in entries:
+        if not glob_to_regex(entry["glob"]).match(rel):
+            continue
+        rule = entry.get("drift_exempt")
+        if rule is True:
+            return True
+        if rule == "lines" and entry.get("lines") and not untracked:
+            old = _git(["show", f"HEAD:{rel}"], info.toplevel)
+            try:
+                new = (info.toplevel / rel).read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if old.returncode != 0:
+                continue
+            pat = re.compile(entry["lines"])
+            delta = changed_lines(old.stdout, new)
+            if delta and all(pat.match(line) for line in delta):
+                return True
+        if rule == "new_dir" and untracked:
+            parts = rel.split("/")
+            depth = int(entry.get("dir_depth", 3))
+            if len(parts) <= depth:
+                continue
+            top = "/".join(parts[:depth])
+            if not _git(["ls-files", "--", top], info.toplevel).stdout.strip():
+                return True
+    return False
