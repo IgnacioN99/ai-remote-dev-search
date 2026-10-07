@@ -1,11 +1,20 @@
-"""Unit tests for tools/candidate_profile.py."""
+"""Unit tests for tools/candidate_profile.py.
 
+Written for `python3 -m unittest discover -s tests` (what CI runs) - stdlib only.
+"""
+
+import sys
+import tempfile
+import unittest
 from pathlib import Path
-import pytest
-from tools.candidate_profile import (
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from tools.candidate_profile import (  # noqa: E402
     CandidateProfile,
-    parse_profile_from_markdown,
     load_candidate_profile,
+    parse_profile_from_markdown,
 )
 
 SAMPLE_MARKDOWN_PROFILE = """
@@ -45,41 +54,44 @@ SAMPLE_MARKDOWN_PROFILE = """
 """
 
 
-def test_candidate_profile_defaults():
-    profile = CandidateProfile(name="Alex Smith")
-    assert profile.name == "Alex Smith"
-    assert profile.clean_name == "AlexSmith"
-    assert "Backend" in profile.primary_skills
+class CandidateProfileTests(unittest.TestCase):
+    def test_candidate_profile_defaults(self):
+        profile = CandidateProfile(name="Alex Smith")
+        self.assertEqual(profile.name, "Alex Smith")
+        self.assertEqual(profile.clean_name, "AlexSmith")
+        self.assertIn("Backend", profile.primary_skills)
+
+    def test_parse_profile_from_markdown(self):
+        profile = parse_profile_from_markdown(SAMPLE_MARKDOWN_PROFILE)
+
+        self.assertEqual(profile.name, "Jane Doe")
+        self.assertEqual(profile.clean_name, "JaneDoe")
+        self.assertEqual(profile.email, "jane.doe@example.com")
+        self.assertIn("442079460991", profile.phone_digits)
+        self.assertIn("Go", profile.primary_skills)
+        self.assertIn("Kubernetes", profile.primary_skills)
+        self.assertIn("Python", profile.secondary_skills)
+        self.assertIn("ClickHouse", profile.databases)
+        self.assertIn("FinTech Cloud", profile.employers)
+        self.assertIn("DataPipe Systems", profile.employers)
+        self.assertEqual(len(profile.experience), 2)
+
+    def test_candidate_facts_dict(self):
+        profile = parse_profile_from_markdown(SAMPLE_MARKDOWN_PROFILE)
+        facts = profile.to_facts_dict()
+
+        self.assertEqual(facts["name"], "Jane Doe")
+        self.assertEqual(facts["email"], "jane.doe@example.com")
+        self.assertIn("Go", facts["primary_skills"])
+        self.assertIn("FinTech Cloud", facts["employers"])
+
+    def test_load_candidate_profile_fallback(self):
+        # Empty directory with no config or CLAUDE.md
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = load_candidate_profile(Path(tmp))
+        self.assertNotEqual(profile.name, "")
+        self.assertNotEqual(profile.clean_name, "")
 
 
-def test_parse_profile_from_markdown():
-    profile = parse_profile_from_markdown(SAMPLE_MARKDOWN_PROFILE)
-
-    assert profile.name == "Jane Doe"
-    assert profile.clean_name == "JaneDoe"
-    assert profile.email == "jane.doe@example.com"
-    assert "442079460991" in profile.phone_digits
-    assert "Go" in profile.primary_skills
-    assert "Kubernetes" in profile.primary_skills
-    assert "Python" in profile.secondary_skills
-    assert "ClickHouse" in profile.databases
-    assert "FinTech Cloud" in profile.employers
-    assert "DataPipe Systems" in profile.employers
-    assert len(profile.experience) == 2
-
-
-def test_candidate_facts_dict():
-    profile = parse_profile_from_markdown(SAMPLE_MARKDOWN_PROFILE)
-    facts = profile.to_facts_dict()
-
-    assert facts["name"] == "Jane Doe"
-    assert facts["email"] == "jane.doe@example.com"
-    assert "Go" in facts["primary_skills"]
-    assert "FinTech Cloud" in facts["employers"]
-
-
-def test_load_candidate_profile_fallback(tmp_path: Path):
-    # Empty directory with no config or CLAUDE.md
-    profile = load_candidate_profile(tmp_path)
-    assert profile.name != ""
-    assert profile.clean_name != ""
+if __name__ == "__main__":
+    unittest.main()
