@@ -50,7 +50,7 @@ cd .agents/skills/entra-search/cli && bun install && cd ../../../..
 bun run .agents/skills/entra-search/cli/src/cli.ts search -q "machine learning engineer" --limit 5 --format table
 ```
 
-`/scrape` picks up any `.agents/skills/*-search/SKILL.md` automatically. No other
+`/scrape` picks up any `.agents/skills/*/cli/src/cli.ts` (with its `SKILL.md`) automatically. No other
 wiring. Set `enabled: false` in `SKILL.md`'s frontmatter to keep it installed but
 skipped.
 

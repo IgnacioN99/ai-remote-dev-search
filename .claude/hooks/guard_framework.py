@@ -15,6 +15,8 @@ write_to_file|replace_file_content|multi_replace_file_content):
          answer: it keeps Antigravity's own permission flow (and its Always-Allow cache).
 
 Decision (tools/framework_paths.py holds the shared rules):
+  target inside a git dir (.git/config, .git/hooks/*, ...)  -> denied (any checkout)
+  .claude/settings.local.json (user's own permissions)     -> denied (any checkout)
   target outside any git repo, or inside a LINKED worktree  -> allowed (dev work happens there)
   main checkout, gitignored or non-framework path           -> allowed (user data / outputs)
   .agents/state/mode itself                                 -> denied (use tools/set_mode.py)
@@ -34,6 +36,7 @@ from pathlib import Path
 HOOK_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(HOOK_ROOT / "tools"))
 
+LOCAL_SETTINGS = ".claude/settings.local.json"
 ANTIGRAVITY_FILE_KEYS = ("TargetFile", "targetFile", "AbsolutePath", "FilePath", "file_path", "path")
 
 
@@ -122,6 +125,23 @@ def proposed_content(old: str, tool: object) -> str | None:
     return None
 
 
+def _in_git_dir(real: Path, base: str, fp) -> bool:
+    """True when `real` is inside a .git directory, or inside the git dir / common dir of the
+    repository holding the session (covers worktrees whose common dir is <main>/.git)."""
+    if ".git" in real.parts:
+        return True
+    info = fp.repo_info(base) if base else None
+    if info is None:
+        return False
+    for d in (info.git_dir, info.common_dir):
+        try:
+            real.relative_to(d)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def decide(path: str | None, base: str, tool: object) -> tuple[str, str]:
     """('allow'|'deny', reason)."""
     import framework_paths as fp
@@ -131,9 +151,21 @@ def decide(path: str | None, base: str, tool: object) -> tuple[str, str]:
     p = Path(path)
     if not p.is_absolute():
         p = Path(base) / p
+    real = Path(os.path.realpath(p))
+    if _in_git_dir(real, base, fp):
+        return "deny", (
+            "Writing inside a git directory (.git/config, .git/hooks/*, ...) is never allowed from "
+            "an agent session: it can disable the operator-mode guard or run code on the next git "
+            f"command. Change git configuration by hand; {fp.ISSUE_HINT}"
+        )
     info = fp.repo_info(p.parent)
     if info is None:
         return "allow", "outside any git repository"
+    if fp.relpath_in(info, p) == LOCAL_SETTINGS:
+        return "deny", (
+            f"{LOCAL_SETTINGS} holds your personal Claude Code permissions; agents must not edit it "
+            "(widening it would pre-approve commands). Edit it yourself or use /permissions."
+        )
     if info.is_linked_worktree:
         return "allow", "linked worktree (framework development is allowed here)"
     rel = fp.relpath_in(info, p)

@@ -1,5 +1,6 @@
 # Gitignored files Claude Code copies into every worktree it creates (claude -w, subagents
 # with isolation: worktree). .gitignore syntax; only files that are also gitignored are copied.
-# Keep this to what framework-dev needs to run the tools and tests - no CVs, no archives.
-.env
-candidate_profile.json
+# Intentionally empty: the test suite and the framework tools run without personal files
+# (tests/test_prime_job.py uses fixture skills, the portal CLIs fall back to their default
+# API URLs), so no .env, candidate_profile.json, CVs or archives are copied into worktrees.
+# Add an entry here only when framework-dev genuinely needs that file to run the tests.

@@ -15,7 +15,8 @@ Checks:
    which would auto-approve commands on every fork. The same file's `hooks`
    key is held to an allowlist too: a hook runs automatically when its event
    fires, with no prompt, so it is strictly more dangerous than a pre-approved
-   permission.
+   permission. permissions.deny must keep every REQUIRED_DENY_PERMISSIONS entry
+   (agents may not edit the user's .claude/settings.local.json).
 2. .gitignore — the personal-data ignore rules must all still be present,
    and no un-allowlisted negation (!pattern) may re-include them. Catches
    weakening that would make future users silently commit their tracker,
@@ -72,6 +73,16 @@ ALLOWED_PERMISSIONS = {
     "Bash(python tools/sync_mcp_config.py:*)",
     "Bash(python3 tools/sync_mcp_config.py:*)",
     "Bash(pdftotext:*)",
+}
+
+# Deny rules that must stay in .claude/settings.json. `.claude/settings.local.json` holds the
+# user's own allow rules; an agent that edits it can pre-approve anything. Claude Code's
+# "don't ask again" persistence writes that file itself (not through the Edit tool), so this
+# rule does not break it. Edit(...) also covers the Write tool: Claude Code consults only
+# Edit/Read path rules for file writes, and ignores a path-scoped Write(...) rule with a
+# startup warning (code.claude.com/docs/en/permissions). The guard hook denies the path too.
+REQUIRED_DENY_PERMISSIONS = {
+    "Edit(/.claude/settings.local.json)",
 }
 
 # Personal-data ignore rules that must never disappear from .gitignore.
@@ -226,6 +237,16 @@ def check_permissions() -> None:
                 "Pre-approved permissions run without prompting on every fork. If this entry is "
                 "intentional, add it to ALLOWED_PERMISSIONS in tools/security_guards.py in the "
                 "same PR so the widening is explicit and reviewable."
+            )
+    deny = permissions.get("deny", [])
+    if not isinstance(deny, list) or not all(isinstance(entry, str) for entry in deny):
+        errors.append(".claude/settings.json: permissions.deny must be a list of strings")
+    else:
+        for entry in sorted(REQUIRED_DENY_PERMISSIONS - set(deny)):
+            errors.append(
+                f".claude/settings.json: required deny rule missing: {entry!r}. It keeps agents "
+                "from widening the user's own permissions; restore it or update "
+                "REQUIRED_DENY_PERMISSIONS in tools/security_guards.py in the same PR."
             )
     for entry in ALLOWED_PERMISSIONS - set(allow):
         # Not an error: settings may legitimately drop an entry. But an

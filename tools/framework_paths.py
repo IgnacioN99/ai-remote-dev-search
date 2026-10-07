@@ -24,6 +24,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,6 +60,10 @@ def _git(args: list[str], cwd: str | os.PathLike) -> subprocess.CompletedProcess
     )
 
 
+def _warn(msg: str) -> None:
+    print(f"framework_paths: warning: {msg}", file=sys.stderr)
+
+
 @dataclass
 class RepoInfo:
     toplevel: Path
@@ -77,14 +82,26 @@ def repo_info(start: str | os.PathLike) -> RepoInfo | None:
         if d.parent == d:
             return None
         d = d.parent
-    r = _git(
-        ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-dir", "--git-common-dir"],
-        d,
-    )
+    try:
+        r = _git(
+            ["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-dir", "--git-common-dir"],
+            d,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _warn(f"could not run git ({exc}); operator-mode guard is NOT enforced for {d}")
+        return None
     if r.returncode != 0:
+        err = r.stderr.strip()
+        # "not a git repository" is the expected answer outside a repo. Anything else (git older
+        # than 2.31 without --path-format, a broken install, a safe.directory refusal) means the
+        # guard cannot classify the path, so say so before failing open.
+        if "not a git repository" not in err.lower():
+            _warn(f"git rev-parse failed in {d} ({err or 'exit ' + str(r.returncode)}); "
+                  "operator-mode guard is NOT enforced here (it needs git >= 2.31)")
         return None
     lines = r.stdout.splitlines()
     if len(lines) < 3:
+        _warn(f"unexpected git rev-parse output in {d}; operator-mode guard is NOT enforced here")
         return None
     top, gd, cd = (Path(os.path.realpath(x)) for x in lines[:3])
     return RepoInfo(top, gd, cd)
