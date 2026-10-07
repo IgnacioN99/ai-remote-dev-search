@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "camofox-browser": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@askjo/camofox-browser-mcp"
+      ],
+      "env": {
+        "CAMOFOX_BASE_URL": "http://localhost:9377"
+      }
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    },
+    "agent-browser": {
+      "command": "bunx",
+      "args": [
+        "agent-browser",
+        "mcp"
+      ]
+    }
+  }
+}
