@@ -1,5 +1,5 @@
 ---
-framework_version: 1.0.2
+framework_version: 1.0.3
 ---
 
 # Cover Letter Templates and Tailoring Guide
@@ -128,7 +128,7 @@ The font wrapper is mandatory — if you just move `\begin{itemize}` outside `\l
 ### Salutation
 - If you know the hiring manager's name: "Dear [First Last],"
 - If you know the team: "Dear [Company] hiring team,"
-- Generic: "Dear [Company]," (avoid "To whom it may concern")
+- Unknown: "Dear Hiring Manager," or its equivalent in the letter's language (avoid "To whom it may concern")
 
 ### Length - Hard 1-Page Limit
 - Target: 1 page including signature block
@@ -138,7 +138,7 @@ The font wrapper is mandatory — if you just move `\begin{itemize}` outside `\l
 - When adding company-specific content, trim other content to compensate rather than adding net length
 
 ### Line Spacing
-- Add `\usepackage{setspace}` and `\setstretch{1.0}` if the letter is long and needs to fit on one page
+- Keep the template's spacing and geometry; when the letter runs long, trim content (see Length above) rather than tightening line spacing
 - Use `\vspace{.5cm}` between major sections for readability (only if space permits)
 
 ### Bullet Lists
@@ -168,7 +168,7 @@ Escape these wherever they appear in body text:
 - [ ] Motivation section references this specific company's mission/values
 - [ ] Company name and role are correct throughout
 - [ ] Date is current
-- [ ] Fits on one page
+- [ ] Exactly 1 page, signature block included
 - [ ] Language matches the job posting language
 - [ ] Salutation is appropriate (named person if possible)
 - [ ] Headline is engaging and specific, not generic
@@ -176,5 +176,5 @@ Escape these wherever they appear in body text:
 ## Submission Guidelines (Best Practice)
 - Submit only the documents the employer requests
 - Export as PDF to preserve formatting
-- Name files clearly: "[Your Name] CV" and "[Your Name] Cover Letter"
+- Name uploaded files in the ATS format: `<CandidateName>_CV.pdf` and `<CandidateName>_CoverLetter.pdf` (optionally `_<Company>` before `.pdf`), never the internal `main_*`/`cover_*` names - `/apply` Step 5 exports these copies
 - Follow all employer instructions regarding anonymity or specific materials

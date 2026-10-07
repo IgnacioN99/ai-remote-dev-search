@@ -96,23 +96,23 @@ automatically from your Languages table above - don't duplicate them here. -->
 - `tools/` - Deterministic quality gates, drift detection, and memory ledger tools
 - `documents/memory/` - Append-only historical learnings ledger (`insights.jsonl`)
 - `.claude/skills/` - AI skill definitions for the application workflow
-- `.agents/skills/` - Job search CLI tools
+- `.agents/skills/` - Portal search CLIs (hand-written) plus Antigravity copies of every command and skill, generated from `.claude/` by `python3 tools/sync_agent_skills.py` (edit the `.claude/` source, never the copy)
 - **Personal overlay** - tracked profile/data files (`CLAUDE.md`, `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `.claude/skills/job-scraper/search-queries.md`) are templates. For any of them, if `<file>.personal` exists, read it **instead of** `<file>` (a full copy, not a patch); write profile/data updates to `<file>.personal`, creating it as a copy of `<file>` first (`python3 tools/personal_overlay.py ensure <file>`). `*.personal` is gitignored, so personal data never reaches the public repo
 
 ## Quality & Verification Commands
-- `python tools/doctor.py` - Diagnose toolchain health (LaTeX, Poppler, JS runtimes, state files)
-- `python tools/check_consistency.py [--fix]` - Audit and reconcile state drift across tracker, seen jobs, and archives
-- `python tools/prime_job.py <slug|url>` - Build deterministic token-budgeted brief (`brief.md`) anchored in candidate profile (SSOT)
-- `python tools/gate_application.py <slug>` - Pre-submit mechanical quality gate (ATS naming, page count, contact info, anti-hallucination)
-- `python tools/remember.py "<insight>" [--tags t1,t2] [--company c]` - Record append-only learnings into memory
+- `python3 tools/doctor.py` - Diagnose toolchain health (LaTeX, Poppler, JS runtimes, state files)
+- `python3 tools/check_consistency.py [--fix]` - Audit and reconcile state drift across tracker, seen jobs, and archives
+- `python3 tools/prime_job.py <slug|url>` - Build deterministic token-budgeted brief (`brief.md`) anchored in candidate profile (SSOT)
+- `python3 tools/gate_application.py <slug>` - Pre-submit mechanical quality gate (ATS naming, page count, contact info, anti-hallucination)
+- `python3 tools/remember.py "<insight>" [--tags t1,t2] [--company c]` - Record append-only learnings into memory
 
 ## Workflow for New Job Applications
 1. User provides a job posting (URL or text)
-2. **Anchor Candidate Brief**: run `python tools/prime_job.py <slug|url>` to generate the deterministic `brief.md` context package with matching skills and historical insights.
+2. **Anchor Candidate Brief**: run `python3 tools/prime_job.py <slug|url>` to generate the deterministic `brief.md` context package with matching skills and historical insights.
 3. **Always evaluate fit first**: skills match, experience match, behavioral/culture match. Present this assessment to the user before proceeding.
 4. If good fit: create targeted CV (`cv/main_<company>_<role>.tex`) and cover letter (`cover_letters/cover_<company>_<role>.tex`)
 5. **Verify both documents** (see Verification Checklist below)
-6. **Pre-Submit Quality Gate**: Run `python tools/gate_application.py <slug>` to ensure ATS naming (`<CandidateName>_CV*.pdf`), 2-page CV, 1-page CL, extractable contacts, and zero hallucinated claims.
+6. **Pre-Submit Quality Gate**: Run `python3 tools/gate_application.py <slug>` to ensure ATS naming (`<CandidateName>_CV*.pdf`), 2-page CV, 1-page CL, extractable contacts, and zero hallucinated claims.
 7. Prepare interview talking points based on the role requirements and your strengths
 8. **Export & File Naming for Submission / Uploads:**
    - Before uploading or sending any CV or cover letter to ATS portals or recruiters, create/copy the PDF with the professional format:
@@ -148,7 +148,7 @@ After creating or updating a CV or cover letter, re-read the generated file and 
 - [ ] No spelling or grammar errors
 - [ ] Agentic coding / AI tooling references mention **Claude Code** by name
 - [ ] Cover letter is addressed to the correct person (or "Dear Hiring Manager" if unknown)
-- [ ] Cover letter fits approximately one page
+- [ ] Cover letter is exactly 1 page
 - [ ] CV section headings (`\section{...}`) and the References boilerplate line match the CV's language, not left as the English template defaults (see `05-cv-templates.md`)
 
 ### Compiled PDF verification (MANDATORY - never skip)

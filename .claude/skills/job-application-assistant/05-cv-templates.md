@@ -1,5 +1,5 @@
 ---
-framework_version: 1.4.5
+framework_version: 1.4.6
 ---
 
 # CV Templates and Tailoring Guide
@@ -80,7 +80,7 @@ Expected output: `Output written on main_<company>_<role>.pdf (2 pages, ...)`. A
 \begin{document}
 \makecvtitle
 
-% 1. Profile statement (1-3 sentences, tailored per role)
+% 1. Profile statement (3-4 lines, tailored per role)
 % 2. Skills section
 % 3. Education section
 % 4. Professional Experience section
@@ -130,7 +130,7 @@ Section headings such as `\section{Core Competencies}`, `Professional Experience
 ### Profile Statement / Elevator Pitch (Best Practice)
 This is the most important section to customize. It appears right after `\makecvtitle`.
 
-Write 5-7 lines that function as an "elevator pitch": a concise, compelling introduction explaining why you're qualified for *this specific role*. Focus on what the employer gains from hiring you.
+Write 3-4 lines (see the Page Budget below) that function as an "elevator pitch": a concise, compelling introduction explaining why you're qualified for *this specific role*. Focus on what the employer gains from hiring you.
 
 When the role sits outside your home domain, **lead with the domain-transfer argument** - the one or two sentences connecting your background to their problem (e.g. wave physics to radar signal processing) belong in the profile statement's opening, not buried in the cover letter. It is the strongest card a domain-changer holds; play it first.
 
@@ -148,7 +148,7 @@ Statements labeled *[Used for: <company>_<role>]* were extracted from archived a
 ### Core Competencies / Skills Section (Best Practice)
 Reorder and emphasize based on the role. Use bold category labels.
 
-List **5-7 key competencies** in bullet format, tailored to the specific job. For each competency, briefly explain how it adds value to the position.
+List **5 key competencies** in bullet format (each 1-2 lines, per the Page Budget), tailored to the specific job. For each competency, briefly explain how it adds value to the position.
 
 Use the posting's own core term in the matching bullet's bold label when it truthfully applies - ATS and skim-reading hiring managers match literally, and "MLOps" in a heading outperforms a paraphrase like "ML Deployment".
 
@@ -159,17 +159,17 @@ Use the posting's own core term in the matching bullet's bold label when it trut
 
 #### In-progress qualifications must say so explicitly
 
-**A bare year range is not enough.** An entry reading `2025–2026`, seen partway through 2026, looks like a *finished* degree, because a reader skimming a CV treats a closed range as closed. A profile statement that says "currently completing…" does not fix it: the education entry is where a reader checks the credential, so it has to stand on its own.
+**A bare year range is not enough.** An entry reading `2025-2026`, seen partway through 2026, looks like a *finished* degree, because a reader skimming a CV treats a closed range as closed. A profile statement that says "currently completing…" does not fix it: the education entry is where a reader checks the credential, so it has to stand on its own.
 
 State completion inside the entry itself:
 
 ```latex
-\item{\cventry{2025--2026}{[Degree], [Field]}{[Institution]}{[Location]}{}{\vspace{1pt}
+\item{\cventry{2025-2026}{[Degree], [Field]}{[Institution]}{[Location]}{}{\vspace{1pt}
 In progress, expected [Month Year]. [Relevant topics]
 }}
 ```
 
-Any consistent form works: `In progress, expected <Month Year>.` / `Expected completion <Month Year>.` / a date field of `2025–present`.
+Any consistent form works: `In progress, expected <Month Year>.` / `Expected completion <Month Year>.` / a date field of `2025-present`.
 
 Claiming a credential not yet held is a factual misstatement, and it is the kind discovered at transcript or reference check rather than at interview. It costs nothing to prevent. The same applies to in-progress certifications and courses.
 
@@ -177,7 +177,7 @@ Claiming a credential not yet held is a factual misstatement, and it is the kind
 
 ### Professional Experience
 - Rewrite bullet points to emphasize aspects most relevant to the target role
-- Use 4-6 bullets for most recent role, 3-4 for previous, 2-3 for older
+- Use 4-5 bullets for the most recent role, 2-3 for the previous one, and 2 (one line each) for older roles, per the Page Budget below
 - **Emphasize measurable results** where possible: "Reduced processing time by X%", "Model adopted by the team"
 
 #### Check tenure against visible output
@@ -214,8 +214,8 @@ Wherever the CV names a verifiable artifact - a public project, a hackathon entr
 - Keep format brief, one line each
 
 ### References
-- List 2-4 references with name, title, company, and contact
-- End with: "More references are available upon request."
+- Default: the single line "Available upon request." (the Page Budget below), translated to the CV language
+- List named references (name, title, company, contact) only when the posting or the user asks for them
 - **Do not attach reference letters** - employers typically contact references directly
 
 ### LaTeX Special Characters (important)
@@ -254,7 +254,7 @@ After writing the CV and before presenting to the user, always compile and visua
 Add `\needspace{5\baselineskip}` immediately before the problematic `\cventry`:
 ```latex
 \needspace{5\baselineskip}
-\item{\cventry{YEAR--YEAR}{Role Title}{Organization}{Location}{}{...}}
+\item{\cventry{YEAR-YEAR}{Role Title}{Organization}{Location}{}{...}}
 ```
 Include `\usepackage{needspace}` in the preamble.
 
@@ -274,7 +274,7 @@ Restore the highest-relevance item that was previously cut — a CV that ends mi
 Most employers run CVs through an ATS before a human sees them, and the ATS reads the PDF's embedded **text layer**, not the rendered page. A CV can pass visual inspection and still extract as garbage. After the layout passes the compile-and-inspect loop, verify the text layer:
 
 ```bash
-python tools/verify_pdf.py cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt
+python3 tools/verify_pdf.py cv/main_<company>_<role>.pdf --dump-text cv/main_<company>_<role>.txt
 ```
 
 Extraction tries **pypdf** first (`pip install pypdf`, BSD license), then Poppler `pdftotext`. If a fallback still uses `pdftotext -layout`, it must also pass `-enc UTF-8`: Xpdf-based builds default to Latin-1, which makes every non-ASCII character in a perfectly good CV read back as a replacement character. If neither extractor is available, skip the mechanical check with a warning and rely on the visual PDF read for keyword coverage.

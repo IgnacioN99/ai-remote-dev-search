@@ -1,5 +1,5 @@
 ---
-framework_version: 1.2.7
+framework_version: 1.2.8
 ---
 
 # Job Evaluation Framework
@@ -125,7 +125,7 @@ Does this role advance career goals and contain tasks that energize?
 
 If the salary lookup tool is configured (`salary_data.json` exists), look up the company:
 ```
-python salary_lookup.py "<Company Name>" --json
+python3 salary_lookup.py "<Company Name>" --json
 ```
 
 If a city is known from the posting, add `--city "<City>"` to narrow results.
