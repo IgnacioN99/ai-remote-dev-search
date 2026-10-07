@@ -13,6 +13,16 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Added
+
+- **`/apply` quality gate enforced by a Stop hook in Claude Code and Antigravity.** `/apply` now
+  marks its run with `tools/apply_state.py start|done <slug>` (gitignored
+  `.agents/state/apply.json`); `.claude/hooks/apply_gate_stop.py` runs
+  `tools/gate_application.py <slug>` when the agent tries to stop with documents on disk and
+  sends it back while the gate fails (capped at 3 blocks per run, `stop_hook_active`-aware,
+  fail-open). Registered in `.claude/settings.json` and `.agents/hooks.json`, allowlisted in
+  `tools/security_guards.py`. Pinned by `tests/test_apply_gate_stop.py`.
+
 ### Changed
 
 - **CI discovers portal CLIs instead of hardcoding them** (#310). The `cli-checks` matrix

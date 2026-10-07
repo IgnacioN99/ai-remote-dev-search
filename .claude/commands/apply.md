@@ -20,6 +20,7 @@ This rule is the input side of the Step 3 Factual Grounding Audit, not a competi
 
 ## Step 0: Parse Input
 
+- Once company and role are extracted (below), run `python3 tools/apply_state.py start <company>_<role>` (slug per the Subfolder naming rule in `documents/README.md`); the Stop hook then enforces the quality gate for this run.
 - If `$ARGUMENTS` looks like a URL, use `WebFetch` to retrieve the job posting content.
 - **If the fetch returns HTTP 403, or the content is a login wall or an unrelated listing page, do not give up and do not draft from the title.** Follow the escalation order in `.claude/skills/job-application-assistant/09-web-research.md`: retry with browser headers via curl, then search for the employer's own careers posting. Most corporate and bank sites reject WebFetch's user agent while serving the page normally to a browser.
 - **Prefer the employer's own careers posting over an aggregator listing** (LinkedIn, Indeed, or your market's equivalent). Aggregators routinely drop the requisition ID and the grade or seniority level, and the grade is often the single most decision-relevant fact in the posting. Surface any material discrepancy between the two versions to the user.
@@ -402,3 +403,4 @@ Check whether the posting or the portal it came from asks for free-text fields t
 - **Submitted?** `/outcome <company>` moves the `drafted` row to `applied` and starts the per-application record that `/setup` later uses to calibrate the fit framework.
 - **Interview scheduled?** `/interview` builds a stage-specific prep pack from this posting and the documents you just created.
 - **Final step (always):** run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
+- **After the quality gate passes:** run `python3 tools/apply_state.py done <company>_<role>` to clear the /apply marker.
