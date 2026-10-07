@@ -1,0 +1,3 @@
+# Git runs these via their shebang; a CRLF checkout (core.autocrlf=true on Windows/WSL)
+# turns "python3" into "python3\r" and breaks the hook.
+.githooks/* text eol=lf

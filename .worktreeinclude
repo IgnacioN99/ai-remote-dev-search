@@ -1,0 +1,5 @@
+# Gitignored files Claude Code copies into every worktree it creates (claude -w, subagents
+# with isolation: worktree). .gitignore syntax; only files that are also gitignored are copied.
+# Keep this to what framework-dev needs to run the tools and tests - no CVs, no archives.
+.env
+candidate_profile.json

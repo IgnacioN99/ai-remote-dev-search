@@ -401,3 +401,4 @@ Check whether the posting or the portal it came from asks for free-text fields t
 ### Next Steps
 - **Submitted?** `/outcome <company>` moves the `drafted` row to `applied` and starts the per-application record that `/setup` later uses to calibrate the fit framework.
 - **Interview scheduled?** `/interview` builds a stage-specific prep pack from this posting and the documents you just created.
+- **Final step (always):** run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).

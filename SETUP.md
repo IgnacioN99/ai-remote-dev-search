@@ -366,3 +366,23 @@ python3 tools/report_issue.py --kind bug --title "test" --body "x" --dry-run   #
 ```
 
 Claude Code is pre-approved via `.claude/settings.json`. In **Antigravity**, add the allow-list entry `command(python3 tools/report_issue.py)` in Settings (it can only be set in the UI); keep raw `gh issue` behind approval.
+
+## Operator mode: keeping the framework read-only
+
+Day-to-day commands (`/scrape`, `/rank`, `/apply`, `/interview`, `/outcome`, ...) run in **operator mode**: they must not change framework files in your main checkout. Problems they find are filed as issues on your fork (`tools/report_issue.py`), and fixes happen later in a linked git worktree. Three layers enforce this:
+
+1. **Edit-time hook** (on by default): `.claude/hooks/guard_framework.py`, registered in `.claude/settings.json` for Claude Code and in `.agents/hooks.json` for Antigravity. It denies edits to tracked files (and new files under `tools/`, `.claude/`, `.agents/`, `tests/`, `.github/`, `.githooks/`, `templates/`) in the main checkout. Gitignored outputs and linked worktrees are never blocked.
+2. **Drift check**: `python3 tools/check_framework_immutable.py [--report]`, run as the last step of `/scrape`, `/rank` and `/apply`. It also catches shell writes the hook cannot see.
+3. **Pre-commit hook** (opt-in, once per clone):
+
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+
+   It rejects commits of framework files from the main checkout. Commit framework work from a worktree, or override deliberately (for example when merging reviewed branches into `master`) with `ALLOW_FRAMEWORK_COMMIT=1 git commit ...`.
+
+**Personalization** that commands write by design is listed in `tools/personalization_paths.json`. `/setup`, `/reset`, `/expand`, `/add-portal` and `/add-template` switch to config mode with `python3 tools/set_mode.py config` and back with `python3 tools/set_mode.py operator`; `python3 tools/set_mode.py show` prints the current mode. The mode lives in the gitignored `.agents/state/mode` and expires after 4 hours.
+
+**Working on the framework**: in Claude Code, ask for the `framework-dev` agent with an issue number (it runs in its own worktree under `.claude/worktrees/`; `.worktreeinclude` copies `.env` and `candidate_profile.json` into it), or start `claude -w issue-<n>`. In Antigravity: `git worktree add ../ai-job-search-issue-<n> -b fix/issue-<n>` and open that folder.
+
+**Optional OS sandbox**: Claude Code's sandbox can additionally deny shell writes to framework paths, but on Linux/WSL it needs bubblewrap (`sudo apt install bubblewrap socat`). It is not enabled in the shipped settings.
