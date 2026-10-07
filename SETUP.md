@@ -354,6 +354,8 @@ python3 tools/sync_agent_skills.py --check  # exit 1 if anything drifted (CI run
 
 Never edit the generated `SKILL.md` copies by hand - the next sync overwrites them. Profile and data files (`.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `search-queries.md`) are not copied: the generated skills read and write them at their `.claude/` paths.
 
+**Use Fast mode for skill runs.** In Antigravity, run `/apply`, `/rank`, `/scrape` and the other skills in **Fast** mode, or set **Artifact Review Mode** to *always proceed*. In Planning mode the agent tends to replace the skill with its own Implementation Plan, Task List and Walkthrough artifacts and pause for review, skipping or reordering the skill's steps; the skills already stop where your decision is needed (fit evaluation, before submission).
+
 **WSL notes.** Antigravity's global configuration lives in `~/.gemini/config/` (inside the WSL home when the agent runs in WSL, not the Windows profile). Workspace MCP servers for Antigravity go in `.agents/mcp_config.json` (generated from `.mcp.json`; see the MCP section of the README). Open the repo from the WSL filesystem path so `python3`, `bun` and `lualatex` resolve to the Linux toolchain.
 
 **Quick check.** Open the repo in Antigravity, type `/` and confirm `/apply`, `/rank`, `/setup`, `/scrape` appear in the slash menu; run `/rank` and confirm the agent says it is following `.agents/skills/rank/SKILL.md` rather than starting a generic flow.
@@ -395,6 +397,8 @@ python3 tools/report_issue.py --kind bug --title "test" --body "x" --dry-run   #
 ```
 
 Claude Code is pre-approved via `.claude/settings.json`. In **Antigravity**, add the allow-list entry `command(python3 tools/report_issue.py)` in Settings (it can only be set in the UI); keep raw `gh issue` behind approval.
+
+**`/apply` quality gate is enforced at stop time (both runtimes).** `/apply` marks its run with `python3 tools/apply_state.py start <company>_<role>` (gitignored `.agents/state/apply.json`) and clears it with `done` once the gate passes. While the marker exists and the run's CV or cover letter exists, the Stop hook `.claude/hooks/apply_gate_stop.py` (registered in `.claude/settings.json` and `.agents/hooks.json`) runs `python3 tools/gate_application.py <slug>` whenever the agent tries to end its turn; a failing gate (exit 1) sends the agent back with the violations (Claude Code: `decision: block`; Antigravity: `decision: continue`). Exit 0 allows the stop and clears the marker; exit 2 (pending human review) allows it so the agent can ask you. It blocks at most 3 times per run, does not block again in Claude Code once `stop_hook_active` is set after one of its own blocks, ignores markers older than 12 hours, never fires before documents exist (fit evaluation, declined postings) and fails open with a stderr warning on internal errors. `python3 tools/apply_state.py status` shows the current marker.
 
 ## Operator mode: keeping the framework read-only
 

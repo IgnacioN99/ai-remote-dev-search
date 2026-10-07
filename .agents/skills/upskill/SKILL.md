@@ -10,6 +10,7 @@ framework_version: 1.0.0
 
 > **Antigravity copy of `/upskill`.** Invoked as `/upskill`; any text the user typed after the command is referred to below as `$ARGUMENTS` (empty if nothing followed it).
 > Follow the steps below exactly and in order - never substitute a built-in or guided flow. Tool names: read_url_content = fetch a URL, search_web = web search, `invoke_subagent` = subagent (if unavailable, do the work inline); Read/Write/Edit/Bash tool = your file and terminal tools. Paths are relative to the repository root; profile and data files live under `.claude/skills/...` - read and write them there, except that a gitignored `<file>.personal` beside one takes precedence: read it instead, and write candidate data only to it (Personal overlay).
+> Tools this skill needs: read and search files; write and edit files; fetch URLs (read_url_content); web search (search_web).
 
 # Upskill
 

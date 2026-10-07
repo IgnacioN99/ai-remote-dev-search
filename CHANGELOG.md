@@ -13,6 +13,16 @@ per-file diff commands.
 
 ## [Unreleased]
 
+### Added
+
+- **`/apply` quality gate enforced by a Stop hook in Claude Code and Antigravity.** `/apply` now
+  marks its run with `tools/apply_state.py start|done <slug>` (gitignored
+  `.agents/state/apply.json`); `.claude/hooks/apply_gate_stop.py` runs
+  `tools/gate_application.py <slug>` when the agent tries to stop with documents on disk and
+  sends it back while the gate fails (capped at 3 blocks per run, `stop_hook_active`-aware,
+  fail-open). Registered in `.claude/settings.json` and `.agents/hooks.json`, allowlisted in
+  `tools/security_guards.py`. Pinned by `tests/test_apply_gate_stop.py`.
+
 ### Changed
 
 - **Personal data moves to a gitignored `.personal` overlay.** Profile/data files
@@ -25,6 +35,13 @@ per-file diff commands.
   by default, never overwrites). `02`, `04`, `05`, `07` and `search-queries.md` are
   templates again.
 
+- **Antigravity runs skills as written.** `.agents/rules/core.md` rule 9: a skill invoked via
+  `/name` is executed step by step (no substitute plan, task list or walkthrough) and every
+  `tools/` check is reported with its real exit code and output. `AGENTS.md` and `SETUP.md`
+  recommend Fast mode (or Artifact Review Mode = always proceed) for skill runs.
+- **Generated Antigravity skills are tool-neutral.** `tools/sync_agent_skills.py` rewrites MCP tool
+  names and Read-tool PDF inspection, adds a "Tools this skill needs" line and "Also triggered
+  by /<name>." to every description, and fails when a Claude-only token survives.
 - **CI discovers portal CLIs instead of hardcoding them** (#310). The `cli-checks` matrix
   is now emitted by a `discover-clis` job that finds every `.agents/skills/*/cli/package.json`,
   so a portal skill added with `/add-portal` gets its `typecheck` and `test` scripts run by CI
@@ -32,8 +49,20 @@ per-file diff commands.
   coverage is unchanged (the discovered list on `master` is exactly the six shipped portals).
   `/add-portal`'s Register step now says so. Thanks @ayobamiseun.
 
+### Removed
+
+- **Unused subagents `job-application-agent` and `gemini-research-expert`.** Neither was
+  referenced by any command, skill or doc; `/apply` runs the drafter-reviewer flow itself
+  and research uses the general-purpose agent. `.claude/agents/` now ships only
+  `framework-dev`.
+
 ### Fixed
 
+- **`tools/report_issue.py` sanitizer follow-ups.** Personal-data sources resolve against the
+  main checkout when run from a linked worktree; `--body-file` refuses any `cv`/`cover_letters`/
+  `documents` path segment and any `.tex`; plain terms redact accented text ("Jose Pena" ->
+  "José Peña"); multi-word companies also match squashed/CamelCase; epoch timestamps and
+  repeated identical numbers are no longer redacted as `[phone]`.
 - **`/apply` archives the job posting while it still holds it** (#306). `/apply` drafted two
   documents and a tracker row from the full posting, then let the text die with the session;
   `/outcome` Step 3.2 tried to recover it by re-fetching a `source` URL the spec itself expects

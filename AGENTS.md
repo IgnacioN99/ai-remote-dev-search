@@ -30,6 +30,8 @@ When the user types `/X` (or asks for X's workflow in words), **load skill `X` f
 
 Portal skills (`.agents/skills/*-search/`) are tools for `/scrape`; use one directly only when the user names that portal.
 
+**Antigravity: run skills in Fast mode** (or set Artifact Review Mode to *always proceed*). Planning mode turns a skill into an Implementation Plan / Task List / Walkthrough and waits for review, which replaces the skill's own steps; the skills already define their checkpoints.
+
 ## Tool translation (source specs are written for Claude Code)
 
 | Spec says | Use |

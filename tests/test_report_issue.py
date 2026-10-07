@@ -589,5 +589,120 @@ class CheckConsistencyHook(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--kind") + 1], "drift")
 
 
+class MainCheckoutDataRoot(unittest.TestCase):
+    def runner_returning(self, out, rc=0):
+        def run(args, **kwargs):
+            self.assertEqual(args, ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"])
+            return cp(args, rc, out=out)
+        return run
+
+    def test_linked_worktree_resolves_to_main_checkout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            main = Path(tmp) / "repo"
+            (main / ".git").mkdir(parents=True)
+            worktree = main / ".claude" / "worktrees" / "wt"
+            worktree.mkdir(parents=True)
+            root = report_issue.main_checkout_root(worktree, self.runner_returning(f"{main / '.git'}\n"))
+            self.assertEqual(root, main)
+
+    def test_fallbacks_to_current_root(self):
+        here = Path(tempfile.gettempdir())
+        self.assertEqual(report_issue.main_checkout_root(here, self.runner_returning("", rc=128)), here)
+        self.assertEqual(report_issue.main_checkout_root(here, self.runner_returning(".git\n")), here)
+        self.assertEqual(report_issue.main_checkout_root(here, self.runner_returning("/x/repo.git\n")), here)
+
+        def boom(args, **kwargs):
+            raise FileNotFoundError("git")
+        self.assertEqual(report_issue.main_checkout_root(here, boom), here)
+
+    def test_personal_data_defaults_use_data_root(self):
+        for const in ("PROFILE_JSON", "CLAUDE_MD", "TRACKER_CSV", "APPLICATIONS_DIR"):
+            path = getattr(report_issue, const)
+            self.assertTrue(str(path).startswith(str(report_issue.DATA_ROOT)), const)
+
+
+class BodyFileSegments(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        # The repo itself sits under Documents/CV, as on real machines.
+        self.repo = Path(tmp.name) / "Documents" / "CV" / "repo"
+        (self.repo / "tools").mkdir(parents=True)
+        self.outside = Path(tmp.name) / "scratch"
+        self.outside.mkdir()
+
+    def check(self, path):
+        report_issue.check_body_file_allowed(Path(path), root=self.repo, data_root=self.repo)
+
+    def test_repo_under_documents_cv_is_not_judged(self):
+        self.check(self.repo / "tools" / "body.md")
+        self.check(self.outside / "body.md")
+
+    def test_private_segment_anywhere_is_refused(self):
+        for rel in ("cv/x.md", "tools/cover_letters/y.md", "a/b/documents/c.md", "CV/z.txt"):
+            with self.subTest(rel=rel), self.assertRaises(report_issue.Refused):
+                self.check(self.repo / rel)
+        for path in (self.outside / "cv" / "notes.md", self.outside / "x" / "Documents" / "y.md",
+                     self.repo / "tools" / ".." / ".." / "cover_letters" / "y.md"):
+            with self.subTest(path=str(path)), self.assertRaises(report_issue.Refused):
+                self.check(path)
+
+    def test_tex_files_refused_anywhere(self):
+        for path in (self.outside / "body.tex", self.repo / "tools" / "x.TEX"):
+            with self.subTest(path=str(path)), self.assertRaises(report_issue.Refused):
+                self.check(path)
+
+    def test_main_checkout_paths_are_judged_relative_to_it(self):
+        main = self.repo
+        worktree = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(worktree, ignore_errors=True))
+        report_issue.check_body_file_allowed(main / "tools" / "b.md", root=worktree, data_root=main)
+        with self.assertRaises(report_issue.Refused):
+            report_issue.check_body_file_allowed(main / "cv" / "b.md", root=worktree, data_root=main)
+
+
+class AccentAndCompanyVariants(unittest.TestCase):
+    def test_plain_term_redacts_accented_text(self):
+        s = report_issue.Sanitizer(["Jose Pena", "Nubefera"])
+        for text in ("José Peña", "JOSÉ PEÑA", "Jose\u0301 Pen\u0303a", "Nubéfera", "Jose Pena"):
+            self.assertEqual(s.clean(text), "[redacted]", text)
+        self.assertEqual(s.clean("Josefina Penalty"), "Josefina Penalty")
+
+    def test_multi_word_company_squashed_and_camelcase(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tracker = Path(tmp) / "t.csv"
+            tracker.write_text("company,role\nQuarnex Robotics,Engineer\nData Labs,Developer\n", encoding="utf-8")
+            apps = Path(tmp) / "apps"
+            (apps / "vortalix-data_dev").mkdir(parents=True)
+            s = report_issue.Sanitizer.from_repo(Path(tmp) / "none.json", Path(tmp) / "none.md", tracker, apps)
+        clean = s.clean("see QuarnexRobotics, quarnexrobotics.com, @quarnexrobotics and VortalixData, vortalixdata")
+        for needle in ("quarnex", "vortalix"):
+            self.assertNotIn(needle, clean.lower(), clean)
+        terms = {t.lower() for t in s.terms}
+        self.assertNotIn("datalabs", terms, "all-generic companies get no variants")
+
+
+class PhoneFalsePositives(Base):
+    def test_epoch_timestamps_survive(self):
+        text = "ts=1712345678 and created 1712345678123 and at 1599999999"
+        self.assertEqual(self.sanitizer.clean(text), text)
+
+    def test_repeated_identical_numbers_survive(self):
+        for text in ("ids 12345 12345 12345", "count 4321-4321-4321"):
+            self.assertEqual(self.sanitizer.clean(text), text)
+
+    def test_long_ids_and_hex_survive(self):
+        text = ("job 12345678901234567 sha 1234567890abcdef1234 uuid 123e4567-e89b-12d3-a456-426614174000 "
+                "build 98765432109876")
+        self.assertEqual(self.sanitizer.clean(text), text)
+
+    def test_real_phone_formats_still_redacted(self):
+        text = ("call +45 12 34 56 78, (555) 123-4567, 011 15 1234-5678, 1123456789, "
+                "+54 9 11 2345-6789, 5491123456789")
+        clean = self.sanitizer.clean(text)
+        for needle in ("12 34 56", "123-4567", "1234-5678", "1123456789", "2345-6789", "5491123456789"):
+            self.assertNotIn(needle, clean, clean)
+
+
 if __name__ == "__main__":
     unittest.main()

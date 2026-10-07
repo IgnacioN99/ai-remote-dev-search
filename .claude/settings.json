@@ -28,6 +28,8 @@
       "Bash(python3 tools/check_framework_immutable.py:*)",
       "Bash(python tools/sync_mcp_config.py:*)",
       "Bash(python3 tools/sync_mcp_config.py:*)",
+      "Bash(python tools/apply_state.py:*)",
+      "Bash(python3 tools/apply_state.py:*)",
       "Bash(pdftotext:*)"
     ],
     "deny": [
@@ -49,6 +51,17 @@
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_framework.py",
             "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/apply_gate_stop.py",
+            "timeout": 120
           }
         ]
       }
