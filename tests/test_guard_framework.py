@@ -341,6 +341,14 @@ class CheckFrameworkImmutableTests(GuardFixture):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("demo-search/cli/src/hack.ts", r.stdout)
 
+    def test_enabled_toggle_with_trailing_comment_is_not_drift(self):
+        commented = PORTAL_TEXT.replace("enabled: true", "enabled: true  # set to false to disable")
+        self.write(self.main / PORTAL, commented)
+        self.git("commit", "-qam", "comment")
+        self.write(self.main / PORTAL, commented.replace("enabled: true ", "enabled: false "))
+        r = self.check()
+        self.assertEqual(r.returncode, 0, r.stdout)
+
     def test_linked_worktree_always_passes(self):
         self.write(self.wt / "tools/x.py", "dev change\n")
         r = self.check(repo=self.wt)

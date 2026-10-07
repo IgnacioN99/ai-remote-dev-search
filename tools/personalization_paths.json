@@ -41,7 +41,7 @@
     {
       "glob": ".agents/skills/*/SKILL.md",
       "mode": "always",
-      "lines": "^\\s*enabled:\\s*(true|false)\\s*$",
+      "lines": "^\\s*enabled:\\s*(true|false)\\s*(#.*)?$",
       "used_by": [
         "/scrape offers to set a broken portal's enabled: false (job-scraper/SKILL.md:235)",
         "/setup portal toggles"
