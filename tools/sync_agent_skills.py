@@ -21,8 +21,12 @@ their canonical `.claude/skills/...` paths instead.
 While copying, Claude-only constructs are rewritten to agent-neutral wording
 with Antigravity tool names (WebFetch -> read_url_content, WebSearch ->
 search_web, Agent tool -> invoke_subagent or inline, AskUserQuestion -> ask
-in chat), `allowed-tools`/`model:` frontmatter is dropped, and a header note
-explains `$ARGUMENTS`.
+in chat, `mcp__<server>__<tool>` -> "the <server> MCP tool", "read the PDF via
+the Read tool" -> render and inspect the PDF visually), `model:` frontmatter is
+dropped, `allowed-tools` becomes a tool-neutral "Tools this skill needs" line,
+every description gains "Also triggered by /<name>.", and a header note explains
+`$ARGUMENTS`. Generated output that still contains a Claude-only token
+(FORBIDDEN_TOKENS) is an error in both write and --check mode.
 
 Usage:
   python3 tools/sync_agent_skills.py           # write/refresh generated files
@@ -55,6 +59,14 @@ SKILL_SOURCES = {
     "job-scraper": "scrape",
     "upskill": "upskill",
 }
+
+# Claude-only tokens that must never survive into a generated skill. A source
+# phrasing the rewrites below do not cover fails the sync loudly instead of
+# shipping a tool name Antigravity does not have.
+FORBIDDEN_TOKENS = ("mcp__", "AskUserQuestion", "WebFetch", "WebSearch", "Agent tool")
+
+# Antigravity caps a skill description at 1024 characters.
+MAX_DESCRIPTION_CHARS = 1024
 
 # Version stamped on generated skills whose source carries none.
 DEFAULT_FRAMEWORK_VERSION = "1.0.0"
@@ -199,6 +211,24 @@ def rewrite_body(body: str) -> str:
         body = re.sub(rf"(?<![\w./-]){re.escape(name)}", canonical, body)
     body = body.replace(" (this directory)", "")
 
+    # MCP tool names: Gmail and Notion first (their tail may be `*`, a tool
+    # name or empty, as in "tool names starting with `mcp__notion__`"), then
+    # any other server.
+    # A parenthetical that only names the tool prefix repeats the prose around
+    # it ("the Gmail MCP tools (`mcp__claude_ai_Gmail__*`)"): drop it.
+    body = re.sub(r" \(`mcp__[\w-]*\*?`\)", "", body)
+    body = re.sub(
+        r"tool names starting with `?mcp__(?:claude_ai_)?([\w-]+?)__`?",
+        lambda m: f"tool names from the {m.group(1).capitalize()} MCP server",
+        body,
+    )
+    body = re.sub(r"`?mcp__(?:claude_ai_)?[Gg]mail__(\*|\w+)?`?", _mcp_named("Gmail"), body)
+    body = re.sub(r"`?mcp__(?:claude_ai_)?[Nn]otion__(\*|[\w-]+)?`?", _mcp_named("Notion"), body)
+    body = re.sub(r"`?mcp__([\w-]+?)__(\*|[\w-]+)?`?", _mcp_generic, body)
+
+    # Visual PDF inspection: Antigravity has no PDF-reading Read tool.
+    body = PDF_READ_PHRASE.sub(_pdf_inspect, body)
+
     # Tool names.
     body = re.sub(r"\bWebFetch\b", "read_url_content", body)
     body = re.sub(r"\bWebSearch\b", "search_web", body)
@@ -215,7 +245,114 @@ def rewrite_body(body: str) -> str:
     return body
 
 
-def header_note(name: str, is_command: bool) -> str:
+PDF_INSPECT = (
+    "open the compiled PDF and inspect each page visually (render to images if your "
+    "runtime cannot view PDFs)"
+)
+PDF_READ_PHRASE = re.compile(
+    r"\b[Rr]ead (?:both |the |each )?(?:compiled )?PDFs? (?:output )?(?:via|with|using) the Read tool"
+    r"|\b(?:[Uu]se )?(?:the )?Read tool on the (?:compiled )?PDFs?(?: output)?"
+)
+
+
+def _pdf_inspect(match: "re.Match[str]") -> str:
+    text = PDF_INSPECT
+    if "both" in match.group(0):
+        text = text.replace("the compiled PDF", "both compiled PDFs")
+    if match.group(0)[0].isupper():
+        text = text[0].upper() + text[1:]
+    return text
+
+
+def _mcp_named(label: str):
+    def replace(match: "re.Match[str]") -> str:
+        tool = match.group(1)
+        if not tool or tool == "*":
+            return f"the {label} MCP tools"
+        return f"the {label} MCP tools ({tool})"
+    return replace
+
+
+def _mcp_generic(match: "re.Match[str]") -> str:
+    server, tool = re.sub(r"^claude_ai_", "", match.group(1)), match.group(2)
+    if not tool or tool == "*":
+        return f"the {server} MCP tools"
+    return f"the {server} MCP tool `{tool}`"
+
+
+def _split_tools(value: str) -> list[str]:
+    """Split an allowed-tools value on commas outside parentheses."""
+    items, depth, current = [], 0, ""
+    for ch in value:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            items.append(current.strip())
+            current = ""
+        else:
+            current += ch
+    if current.strip():
+        items.append(current.strip())
+    return items
+
+
+def tools_needed(allowed: str) -> str:
+    """Translate Claude Code `allowed-tools` into a tool-neutral sentence."""
+    if not allowed:
+        return ""
+    groups: list[str] = []
+    commands: list[str] = []
+
+    def add(label: str) -> None:
+        if label not in groups:
+            groups.append(label)
+
+    for item in _split_tools(allowed):
+        name, _, arg = item.partition("(")
+        name, arg = name.strip(), arg.rstrip(")").strip()
+        if name in ("Read", "Glob", "Grep"):
+            add("read and search files")
+        elif name in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+            add("write and edit files")
+        elif name == "Bash":
+            add("terminal")
+            if arg:
+                cmd = re.sub(r"(?::\*| \*)$", "", arg).strip()
+                if cmd and cmd not in commands:
+                    commands.append(cmd)
+        elif name == "WebFetch":
+            add("fetch URLs (read_url_content)")
+        elif name == "WebSearch":
+            add("web search (search_web)")
+        elif name in ("Agent", "Task"):
+            add("subagents (`invoke_subagent` if available, otherwise inline)")
+        elif name == "AskUserQuestion":
+            add("ask the user in chat")
+        elif name.startswith("mcp__"):
+            add(re.sub(r"`?mcp__([\w-]+?)__(\*|[\w-]+)?`?", _mcp_generic, name))
+        # Skill(...) and unknown entries carry no runtime-neutral meaning.
+    if "terminal" in groups and commands:
+        groups[groups.index("terminal")] = "terminal (" + ", ".join(f"`{c}`" for c in commands) + ")"
+    return "Tools this skill needs: " + "; ".join(groups) + "." if groups else ""
+
+
+def description_for(name: str) -> str:
+    text = f"{DESCRIPTIONS[name]} Also triggered by /{name}."
+    if len(text) > MAX_DESCRIPTION_CHARS:
+        sys.exit(
+            f"sync_agent_skills: description for '{name}' is {len(text)} characters "
+            f"(max {MAX_DESCRIPTION_CHARS}) - shorten it in DESCRIPTIONS"
+        )
+    return text
+
+
+def forbidden_tokens(text: str) -> list[str]:
+    return [token for token in FORBIDDEN_TOKENS if token in text]
+
+
+def header_note(name: str, is_command: bool, tools_line: str = "") -> str:
     invocation = f"`/{name}`"
     lines = [
         f"> **Antigravity copy of {invocation}.**"
@@ -234,6 +371,8 @@ def header_note(name: str, is_command: bool) -> str:
     ]
     if name == "job-application-assistant":
         lines[0] = "> **Antigravity copy of the job-application-assistant skill.**"
+    if tools_line:
+        lines.append(f"> {tools_line}")
     return "\n".join(lines)
 
 
@@ -264,12 +403,12 @@ def render(name: str, source: Path, is_command: bool) -> str:
         "---",
         f"name: {name}",
         "description: >-",
-        yaml_folded(DESCRIPTIONS[name]),
+        yaml_folded(description_for(name)),
         f"framework_version: {version}",
         "---",
         HEADER_COMMENT.format(source=rel_source),
         "",
-        header_note(name, is_command),
+        header_note(name, is_command, tools_needed(fm.get("allowed-tools", ""))),
         "",
         rewrite_body(body).rstrip("\n"),
         "",
@@ -341,6 +480,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     expected = expected_outputs()
+    leaks = {path: forbidden_tokens(content) for path, content in expected.items()}
+    leaks = {path: tokens for path, tokens in leaks.items() if tokens}
+    if leaks:
+        print(
+            "sync_agent_skills: generated skills still contain Claude-only tokens - extend "
+            "rewrite_body() in tools/sync_agent_skills.py or reword the .claude/ source:"
+        )
+        for path, tokens in leaks.items():
+            print(f"  - {rel(path)}: {', '.join(tokens)}")
+        return 1
     drifted = [
         path for path, content in expected.items()
         if not path.is_file() or read_text(path) != content
