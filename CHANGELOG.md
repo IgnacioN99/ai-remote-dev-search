@@ -15,6 +15,16 @@ per-file diff commands.
 
 ### Changed
 
+- **Personal data moves to a gitignored `.personal` overlay.** Profile/data files
+  (`CLAUDE.md`, `job-application-assistant/01-*.md` ... `09-*.md`,
+  `job-scraper/search-queries.md`) stay placeholder templates; `/setup` and the other
+  writers put candidate data in `<file>.personal`, which every command reads instead of
+  the template when it exists (`CLAUDE.md` imports `CLAUDE.md.personal`). New
+  `tools/personal_overlay.py` (`resolve`/`ensure`/`status`) and
+  `tools/migrate_personal_overlay.py` (carry an in-place personalization over, dry run
+  by default, never overwrites). `02`, `04`, `05`, `07` and `search-queries.md` are
+  templates again.
+
 - **CI discovers portal CLIs instead of hardcoding them** (#310). The `cli-checks` matrix
   is now emitted by a `discover-clis` job that finds every `.agents/skills/*/cli/package.json`,
   so a portal skill added with `/add-portal` gets its `typecheck` and `test` scripts run by CI

@@ -301,12 +301,18 @@ def load_profile_strings(profile_path: Path = PROFILE_JSON) -> List[str]:
 def load_claude_identity(claude_md: Path = CLAUDE_MD) -> List[str]:
     """Filled-in Name and Location from CLAUDE.md's Identity section.
 
+    Reads `CLAUDE.md.personal` instead when it exists (the personal overlay).
+
     Only those two: the headline and status are generic career words ("Senior
     Backend Engineer", "Open to work") whose redaction would gut every report.
     Placeholders like [YOUR_NAME] are skipped.
     """
+    claude_md = Path(claude_md)
+    overlay = claude_md.with_name(claude_md.name + ".personal")  # tools/personal_overlay.py rule
+    if overlay.is_file():
+        claude_md = overlay
     try:
-        text = Path(claude_md).read_text(encoding="utf-8")
+        text = claude_md.read_text(encoding="utf-8")
     except OSError:
         return []
     match = re.search(r"^### Identity\s*\n(.*?)(?=^#{2,3} |\Z)", text, re.MULTILINE | re.DOTALL)

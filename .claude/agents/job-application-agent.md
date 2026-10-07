@@ -61,7 +61,7 @@ When given a job posting (URL or slug), execute the pipeline systematically:
 
 ### Step 2: Tailored Drafting with Fresh Focus
 1. Using ONLY the facts in `brief.md`, author:
-   - `cv/main_<company>_<role>.tex` (highlighting relevant Rails/Postgres/API achievements).
+   - `cv/main_<company>_<role>.tex` (highlighting the achievements most relevant to the posting).
    - `cover_letters/cover_<company>_<role>.tex` (addressing the employer's specific engineering challenges).
 2. Compile CV with `lualatex` and Cover Letter with `xelatex`.
 3. Export the canonical candidate PDFs:

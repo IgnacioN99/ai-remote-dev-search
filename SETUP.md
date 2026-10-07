@@ -239,6 +239,14 @@ All three paths produce the same result: fully populated profile files.
 | `cv/main_example.tex` | Your LaTeX CV with actual details |
 | `search-queries.md` | Job search queries for `/scrape` |
 
+### Where your data lives: the `.personal` overlay
+
+The tracked profile/data files (`CLAUDE.md`, `01-*.md` ... `09-*.md` under `.claude/skills/job-application-assistant/`, and `job-scraper/search-queries.md`) stay placeholder **templates**. `/setup` writes your data to a gitignored copy beside each one, `<file>.personal` (for example `CLAUDE.md.personal`), and every command reads that copy instead of the template when it exists. `CLAUDE.md` imports `CLAUDE.md.personal` on load, so Claude Code sees your profile automatically. Because `*.personal` is gitignored, your profile never lands in a commit or a public fork. The exception is `cv/main_example.tex`, which is still written in place.
+
+- `python3 tools/personal_overlay.py status` lists which copy each file resolves to.
+- A `.personal` file is a full copy, so later framework updates to its template (scoring rules, checklists) do not flow into it on their own. `status` (and `tools/doctor.py`) flags a copy whose template has a newer `framework_version`; merge the template change into your copy by hand.
+- **Upgrading a checkout that was personalized in place** (before the overlay existed): after pulling, run `python3 tools/migrate_personal_overlay.py` (dry run), then `--apply`. It copies your personalized versions into `<file>.personal`, never overwrites an existing `.personal` file (it writes `<file>.incoming.personal` for you to merge instead), and backs up existing copies to `documents/memory/backup-<timestamp>/`.
+
 ### Re-running setup
 
 You can update specific sections later:

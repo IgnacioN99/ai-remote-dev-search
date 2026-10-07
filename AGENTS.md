@@ -1,5 +1,5 @@
 ---
-framework_version: 1.1.0
+framework_version: 1.2.0
 ---
 
 # Agent Guidelines: AI Job Search
@@ -43,7 +43,7 @@ Portal skills (`.agents/skills/*-search/`) are tools for `/scrape`; use one dire
 ## Sources of truth
 
 - `.claude/commands/*.md` and `.claude/skills/*/SKILL.md` are the canonical specs. `.agents/skills/{apply,rank,setup,...}/SKILL.md` are **generated** copies: never edit them; edit the `.claude/` source and run `python3 tools/sync_agent_skills.py`.
-- Candidate profile: `CLAUDE.md` plus `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`. Read and write profile/data files at those `.claude/` paths.
+- Candidate profile: `CLAUDE.md` plus `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md` and `.claude/skills/job-scraper/search-queries.md`. Read and write profile/data files at those `.claude/` paths, with the **personal overlay**: those tracked files are placeholder templates; when `<file>.personal` (gitignored) exists beside one, read it instead, and write candidate data only to `<file>.personal` (`python3 tools/personal_overlay.py ensure <file>` creates it from the template).
 
 ## Always-on rules
 

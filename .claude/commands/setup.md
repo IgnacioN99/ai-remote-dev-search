@@ -6,6 +6,8 @@ There are three paths into setup. Step 0 picks the right one; all three converge
 
 **Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /setup` before writing anything (see `tools/personalization_paths.json`).
 
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+
 ---
 
 ## Step 0: Welcome & Choose Path
@@ -354,7 +356,7 @@ This proactive suggestion step helps users discover career paths they might not 
 
 ## Step 3: Generate Profile Files
 
-Once data collection is complete, generate or finish populating the following files. **For Path A**, the seven skill files are already populated by Step A7; check each before writing and skip if its content is no longer placeholder text.
+Once data collection is complete, generate or finish populating the following files. **Write target:** per the Personal overlay note above, every file in this step except `cv/main_example.tex` is written as its gitignored `<file>.personal` copy (`CLAUDE.md` -> `CLAUDE.md.personal`, `01-candidate-profile.md` -> `01-candidate-profile.md.personal`, ...): run `python3 tools/personal_overlay.py ensure <file>` first and edit the path it prints. The tracked files stay placeholder templates; the same applies to Step A7's writes. **For Path A**, the seven skill files are already populated by Step A7; check each before writing and skip if its content is no longer placeholder text.
 
 ### 1. Update `CLAUDE.md`
 Replace all `[PLACEHOLDER]` tokens with the user's actual information. Keep the structure, workflow, and verification checklist intact.
@@ -417,7 +419,10 @@ Present a summary:
 > - `cv/main_example.tex` - Your LaTeX CV template
 > - `.claude/skills/job-scraper/search-queries.md` - Job search queries for `/scrape`
 >
-> **Privacy note:** the files above now contain your personal data and are *tracked by git*.
+> Each profile/data file above was written as its gitignored `<file>.personal` copy, which every
+> command reads in place of the template - your profile data stays out of git.
+>
+> **Privacy note:** `cv/main_example.tex` now contains your personal data and is *tracked by git*.
 > A GitHub fork of the template is always public (forks of public repos cannot be made
 > private), so do not push these commits to a fork. Keep them local, or push to a private
 > repository instead - see SETUP.md section 8 for the private-remote setup.

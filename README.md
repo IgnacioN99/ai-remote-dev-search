@@ -420,7 +420,7 @@ This framework is built with strict privacy guarantees:
 * **`job_search_tracker.csv`** and **`seen_jobs.json`** are gitignored.
 * **`documents/applications/**`** (briefs, notes, cover letters, tailored CVs) remain on your local drive.
 * **`cv/*_CV*.*`** and **`cover_letters/*_CoverLetter*.*`** are never pushed upstream.
-* **`candidate_profile.json`** and **`*.personal`** hold private candidate records safely.
+* **`candidate_profile.json`** and **`*.personal`** hold private candidate records safely: `/setup` writes your profile to gitignored `<file>.personal` copies that every command reads instead of the tracked templates (see [SETUP.md](SETUP.md)).
 
 Fork freely without leaking your personal career history.
 

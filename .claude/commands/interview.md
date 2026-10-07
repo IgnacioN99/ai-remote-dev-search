@@ -6,6 +6,8 @@ You are preparing the user for a real, scheduled interview on one of their appli
 
 Follow these steps **in order**.
 
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+
 ---
 
 ## Step 0: Parse Input
@@ -108,6 +110,6 @@ If Step 3 drafted new STAR answers the user approved for keeps, remind them thos
 2. **Honesty on gaps.** Weak matches get bridge answers (acknowledge → adjacent experience → learning path), never invented experience. Same rule as everywhere else in this repo.
 3. **Verified research only.** Company specifics go in the pack only after independent confirmation. Interviewer notes stick to public professional information.
 4. **Stage-appropriate prep.** A phone screen pack and a final-round pack are different documents; recorded feedback from earlier stages takes priority over generic question lists.
-5. **Write only to the application archive** — with one exception. The prep pack lands in the archive folder derived in Step 1; framework files are not edited, except appending user-approved STAR examples to `07-interview-prep.md` on explicit request.
+5. **Write only to the application archive** — with one exception. The prep pack lands in the archive folder derived in Step 1; framework files are not edited, except appending user-approved STAR examples to `07-interview-prep.md` on explicit request (to its `.personal` copy, per the Personal overlay note).
 
-   **The exception is `01-candidate-profile.md`.** Interview prep is where new facts surface most often: the user recalls a metric, corrects a scope, or fills in a STAR stub. When that happens, write the fact into the profile, as well as putting it in the prep pack. A fact recorded only in prep material reads as unsupported to a later drafting session and gets stripped from CVs as a fabrication. Prep files are not a substitute for the profile.
+   **The exception is `01-candidate-profile.md`.** Interview prep is where new facts surface most often: the user recalls a metric, corrects a scope, or fills in a STAR stub. When that happens, write the fact into the profile (`01-candidate-profile.md.personal`, per the Personal overlay note), as well as putting it in the prep pack. A fact recorded only in prep material reads as unsupported to a later drafting session and gets stripped from CVs as a fabrication. Prep files are not a substitute for the profile.

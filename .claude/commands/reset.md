@@ -6,6 +6,8 @@ You are resetting parts of the job search framework back to a blank state so the
 
 **Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /reset` before writing anything (see `tools/personalization_paths.json`).
 
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+
 ---
 
 ## Step 0: Parse Scope from Arguments
@@ -37,6 +39,8 @@ Wait for the user's response before continuing.
 Before doing anything, show the user precisely what will be wiped.
 
 ### If scope includes `profile`:
+
+**Overlay:** for each file below, the reset targets `<file>.personal` when it exists (that is where `/setup` wrote the candidate data). Report it in the preview, and in Step 3 apply the edits below to the `.personal` copy - or delete the copy when the user prefers, since the tracked file is already the blank template. Apply the edits to the tracked file only if it still carries candidate data (a checkout personalized before the overlay existed).
 
 Read the current state of these files and report whether each has content or is already empty:
 

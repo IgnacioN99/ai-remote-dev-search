@@ -230,7 +230,9 @@ def header_note(name: str, is_command: bool) -> str:
         "search, `invoke_subagent` = subagent (if unavailable, do the work inline); "
         "Read/Write/Edit/Bash tool = your file and terminal tools. Paths are relative "
         "to the repository root; profile and data files live under "
-        "`.claude/skills/...` - read and write them there.",
+        "`.claude/skills/...` - read and write them there, except that a gitignored "
+        "`<file>.personal` beside one takes precedence: read it instead, and write "
+        "candidate data only to it (Personal overlay).",
     ]
     if name == "job-application-assistant":
         lines[0] = "> **Antigravity copy of the job-application-assistant skill.**"

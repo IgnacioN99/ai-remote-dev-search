@@ -6,6 +6,8 @@ Follow these steps **exactly in order**. Do not skip steps.
 
 **Config mode:** this command writes tracked personalization files, so run `python3 tools/set_mode.py config --by /expand` before writing anything (see `tools/personalization_paths.json`).
 
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+
 ---
 
 ## Step 0: Read Existing Profile Files

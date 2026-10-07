@@ -3,6 +3,9 @@
 <!-- SETUP: This file is populated by running /setup -->
 <!-- After running /setup, all [PLACEHOLDER] tokens will be replaced with your actual information -->
 
+**Personal overlay:** your real version of this file is the gitignored `CLAUDE.md.personal`, imported on the next line when it exists; where it and this template differ, `CLAUDE.md.personal` wins and every `[PLACEHOLDER]` below is superseded by it.
+@CLAUDE.md.personal
+
 ## Role
 This repo is a job application workspace. Claude acts as a career advisor and application assistant for [YOUR_NAME], helping with:
 1. **Job fit evaluation** - Assess job postings against your profile (skills, experience, behavioral traits)
@@ -94,6 +97,7 @@ automatically from your Languages table above - don't duplicate them here. -->
 - `documents/memory/` - Append-only historical learnings ledger (`insights.jsonl`)
 - `.claude/skills/` - AI skill definitions for the application workflow
 - `.agents/skills/` - Job search CLI tools
+- **Personal overlay** - tracked profile/data files (`CLAUDE.md`, `.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `.claude/skills/job-scraper/search-queries.md`) are templates. For any of them, if `<file>.personal` exists, read it **instead of** `<file>` (a full copy, not a patch); write profile/data updates to `<file>.personal`, creating it as a copy of `<file>` first (`python3 tools/personal_overlay.py ensure <file>`). `*.personal` is gitignored, so personal data never reaches the public repo
 
 ## Quality & Verification Commands
 - `python tools/doctor.py` - Diagnose toolchain health (LaTeX, Poppler, JS runtimes, state files)

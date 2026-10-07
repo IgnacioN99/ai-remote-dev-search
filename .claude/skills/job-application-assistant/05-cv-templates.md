@@ -1,5 +1,5 @@
 ---
-framework_version: 1.4.4
+framework_version: 1.4.5
 ---
 
 # CV Templates and Tailoring Guide
@@ -137,14 +137,11 @@ When the role sits outside your home domain, **lead with the domain-transfer arg
 **Create 2-3 profile statement templates for your main role types:**
 
 <!-- SETUP: These are populated based on your background -->
-**For Backend Developer roles:**
-> Backend developer with 4+ years building and optimizing Ruby on Rails applications. Focused on API development, PostgreSQL performance (EXPLAIN/ANALYZE, N+1 elimination), and test coverage (62%→86%) that cuts production regressions. I ship clean, well-reviewed Rails code and collaborate closely with product and design teams.
+**For [YOUR_PRIMARY_ROLE_TYPE] roles:**
+> [YOUR_PROFILE_STATEMENT_TEMPLATE_1]
 
-**For Full-stack Developer roles:**
-> Full-stack developer with 4+ years across Ruby on Rails, React, and TypeScript. I have delivered event-management products end to end (Rails APIs + React frontends) and maintained a legacy airline system. I bring both backend depth and the frontend skill to take features from idea to production.
-
-**For Ruby on Rails Developer roles:**
-> Ruby on Rails developer with 4+ years in the ecosystem, from JR full-stack work to a current SSR backend role. Deep experience with RSpec/CI-CD, PostgreSQL tuning, and REST API design, delivering measurable reliability gains.
+**For [YOUR_SECONDARY_ROLE_TYPE] roles:**
+> [YOUR_PROFILE_STATEMENT_TEMPLATE_2]
 
 Statements labeled *[Used for: <company>_<role>]* were extracted from archived application drafts by `/setup` Path A. They are **phrasing references, never fact sources**: when drafting from one, every factual claim still comes from `01-candidate-profile.md` - a past tailored draft does not vouch for its own accuracy.
 

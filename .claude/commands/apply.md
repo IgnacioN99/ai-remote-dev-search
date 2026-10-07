@@ -16,6 +16,8 @@ This rule is the input side of the Step 3 Factual Grounding Audit, not a competi
 - Run the full verification checklist exactly once, at the end (Step 6). The reviewer focuses on content critique, not verification.
 - Step 5 (compile and inspect PDFs) is mandatory and non-skippable — page-break decisions are unpredictable, and source files that look fine often produce broken PDFs (orphaned entry titles, cover letters spilling to page 2, bullet fonts mismatching).
 
+**Personal overlay:** every profile/data file this spec names (`CLAUDE.md`, the job-application-assistant `01-*.md` ... `09-*.md` files, `job-scraper/search-queries.md`) may have a gitignored `<file>.personal` beside it. When it exists, read it **instead of** the tracked file - it is the candidate's full copy, and the tracked file is a placeholder template. Write candidate data only to `<file>.personal`; when it is missing, create it first with `python3 tools/personal_overlay.py ensure <file>` (copies the template) and edit the copy. Never write candidate data into the tracked file.
+
 ---
 
 ## Step 0: Parse Input
