@@ -346,6 +346,8 @@ python3 tools/sync_agent_skills.py --check  # exit 1 if anything drifted (CI run
 
 Never edit the generated `SKILL.md` copies by hand - the next sync overwrites them. Profile and data files (`.claude/skills/job-application-assistant/01-*.md` ... `09-*.md`, `search-queries.md`) are not copied: the generated skills read and write them at their `.claude/` paths.
 
+**Use Fast mode for skill runs.** In Antigravity, run `/apply`, `/rank`, `/scrape` and the other skills in **Fast** mode, or set **Artifact Review Mode** to *always proceed*. In Planning mode the agent tends to replace the skill with its own Implementation Plan, Task List and Walkthrough artifacts and pause for review, skipping or reordering the skill's steps; the skills already stop where your decision is needed (fit evaluation, before submission).
+
 **WSL notes.** Antigravity's global configuration lives in `~/.gemini/config/` (inside the WSL home when the agent runs in WSL, not the Windows profile). Workspace MCP servers for Antigravity go in `.agents/mcp_config.json` (generated from `.mcp.json`; see the MCP section of the README). Open the repo from the WSL filesystem path so `python3`, `bun` and `lualatex` resolve to the Linux toolchain.
 
 **Quick check.** Open the repo in Antigravity, type `/` and confirm `/apply`, `/rank`, `/setup`, `/scrape` appear in the slash menu; run `/rank` and confirm the agent says it is following `.agents/skills/rank/SKILL.md` rather than starting a generic flow.

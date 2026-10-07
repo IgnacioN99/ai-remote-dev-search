@@ -25,6 +25,13 @@ per-file diff commands.
 
 ### Changed
 
+- **Antigravity runs skills as written.** `.agents/rules/core.md` rule 9: a skill invoked via
+  `/name` is executed step by step (no substitute plan, task list or walkthrough) and every
+  `tools/` check is reported with its real exit code and output. `AGENTS.md` and `SETUP.md`
+  recommend Fast mode (or Artifact Review Mode = always proceed) for skill runs.
+- **Generated Antigravity skills are tool-neutral.** `tools/sync_agent_skills.py` rewrites MCP tool
+  names and Read-tool PDF inspection, adds a "Tools this skill needs" line and "Also triggered
+  by /<name>." to every description, and fails when a Claude-only token survives.
 - **CI discovers portal CLIs instead of hardcoding them** (#310). The `cli-checks` matrix
   is now emitted by a `discover-clis` job that finds every `.agents/skills/*/cli/package.json`,
   so a portal skill added with `/add-portal` gets its `typecheck` and `test` scripts run by CI

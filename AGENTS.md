@@ -1,5 +1,5 @@
 ---
-framework_version: 1.1.0
+framework_version: 1.2.0
 ---
 
 # Agent Guidelines: AI Job Search
@@ -29,6 +29,8 @@ When the user types `/X` (or asks for X's workflow in words), **load skill `X` f
 | (no slash) | `.agents/skills/job-application-assistant/SKILL.md` | Ad-hoc questions about a posting, CV, cover letter |
 
 Portal skills (`.agents/skills/*-search/`) are tools for `/scrape`; use one directly only when the user names that portal.
+
+**Antigravity: run skills in Fast mode** (or set Artifact Review Mode to *always proceed*). Planning mode turns a skill into an Implementation Plan / Task List / Walkthrough and waits for review, which replaces the skill's own steps; the skills already define their checkpoints.
 
 ## Tool translation (source specs are written for Claude Code)
 
