@@ -356,17 +356,28 @@ python3 tools/multi_scrape_runner.py
 
 ## 🔌 Recommended MCP Servers & Integrations
 
-To unlock the full autonomous power of `ai-remote-dev-search` with AI agent runtimes (Claude Code, Google Antigravity, Cursor, Cline, Codex), connect these Model Context Protocol (MCP) servers:
+To unlock the full autonomous power of `ai-remote-dev-search` with AI agent runtimes (Claude Code, Google Antigravity, Cursor, Cline, Codex), connect these Model Context Protocol (MCP) servers.
+
+**Where the config lives.** The repo ships a project-level [`.mcp.json`](.mcp.json) (Claude Code reads it automatically) with `playwright`, `camofox-browser`, `fetch` and `agent-browser`. It is the single source of truth: Google Antigravity uses a different schema (`serverUrl` instead of `url`/`httpUrl`), so its copy is generated, never hand-edited:
+
+```bash
+python3 tools/sync_mcp_config.py          # writes .agents/mcp_config.json from .mcp.json
+python3 tools/sync_mcp_config.py --check  # exits 1 on drift (also reported by tools/doctor.py)
+```
+
+* **Antigravity location.** Antigravity's docs list `~/.gemini/config/mcp_config.json` (global) and plugin `mcp_config.json` files; the project file `.agents/mcp_config.json` follows its `.agents/` workspace-customization convention. If Antigravity doesn't pick up the project file (check **... > MCP Servers** in the UI), merge its entries into the global file.
+* **WSL vs Windows.** If you run the repo inside WSL but Antigravity is the Windows app, it launches MCP servers with the *Windows* environment: it won't see WSL's `PATH` (`bunx` in `~/.bun/bin`, `uvx` in `~/.local/bin`, Linux `npx`), and the global config is `%USERPROFILE%\.gemini\config\mcp_config.json`, not the WSL `~/.gemini`. Either install Node/Bun/uv on Windows too, or wrap each command through WSL (`"command": "wsl.exe", "args": ["-e", "bash", "-lc", "npx -y @playwright/mcp@latest"]`). Running Antigravity from inside WSL avoids this.
+* **Requirement:** `npx` (Node), `bunx` (Bun) and `uvx` (uv) must be on the `PATH` of whichever process launches the servers. `python3 tools/doctor.py` reports whether the Playwright MCP package actually resolves.
 
 ### 1. Browser Automation (Playwright MCP)
 * **Purpose:** Enables autonomous parsing of JavaScript-heavy job boards (Lever, Greenhouse, Workday, Ashby), extracting screening questions, and executing form submissions.
-* **Configuration:**
+* **Configuration** (package [`@playwright/mcp`](https://www.npmjs.com/package/@playwright/mcp); the older `@modelcontextprotocol/server-playwright` name does not exist on npm). Optional flags such as `--headless` or `--browser chromium` are listed by `npx @playwright/mcp@latest --help`:
   ```json
   {
     "mcpServers": {
       "playwright": {
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-playwright"]
+        "args": ["-y", "@playwright/mcp@latest"]
       }
     }
   }
@@ -374,17 +385,7 @@ To unlock the full autonomous power of `ai-remote-dev-search` with AI agent runt
 
 ### 2. Google Workspace & Gmail MCP
 * **Purpose:** Automates status updates directly from your inbox. Detects recruiter messages, interview invitations, and rejection notices to sync the tracking state automatically.
-* **Configuration:**
-  ```json
-  {
-    "mcpServers": {
-      "google-workspace": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-google-workspace"]
-      }
-    }
-  }
-  ```
+* **Configuration:** there is no official `@modelcontextprotocol/server-google-workspace` package on npm. Use your runtime's Gmail/Google Workspace connector (e.g. the Gmail connector used by `/gmail-sync`) or a community MCP server you have vetted.
 
 ### 3. Notion Tracker MCP
 * **Purpose:** Provides a visual Kanban board and relational database sync of all active applications, response times, and interview stages.
