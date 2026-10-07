@@ -85,7 +85,7 @@ class RememberTests(unittest.TestCase):
         self.assertIn("dry-monads", res_tag[0]["tags"])
 
         # Filter by query substring
-        res_query = get_active_insights(memory_file=ledger, query="SOFIA")
+        res_query = get_active_insights(memory_file=ledger, query="in-house travel")
         self.assertEqual(len(res_query), 1)
         self.assertEqual(res_query[0]["company"], "globex")
 
