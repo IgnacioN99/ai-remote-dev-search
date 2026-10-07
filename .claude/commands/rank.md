@@ -174,6 +174,7 @@ Rules for the presentation:
 - Say explicitly that these are **triage scores from the posting text only**, and that `/apply` will re-evaluate with company research before anything is drafted.
 - Then ask: "Want to apply to any of these? Give me the number(s) and I'll start with the full `/apply` workflow."
 - If the user picks one, run the `/apply` workflow on that job's URL, passing the triage verdict as prior context but **re-running the full Step 1 evaluation** - triage never substitutes for it.
+- Final step: run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
 
 ---
 

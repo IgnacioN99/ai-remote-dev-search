@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Reject commits of framework files made from the MAIN checkout.
+
+Activate once per clone:  git config core.hooksPath .githooks   (see SETUP.md)
+
+Framework development belongs in a linked worktree (git-dir != git-common-dir), where this
+hook allows everything. In the main checkout a commit may only touch personalization paths
+listed in tools/personalization_paths.json (CLAUDE.md, profile skill files, cv/main_example.tex,
+portal skills, templates...). Override deliberately with ALLOW_FRAMEWORK_COMMIT=1, e.g. when
+merging reviewed branches into master. Stdlib only; fails open with a warning on internal errors.
+"""
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    if os.environ.get("ALLOW_FRAMEWORK_COMMIT") == "1":
+        return 0
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode != 0:
+        return 0
+    root = Path(top.stdout.strip())
+    sys.path.insert(0, str(root / "tools"))
+    try:
+        import framework_paths as fp
+    except ImportError as exc:
+        print(f"pre-commit: framework guard unavailable ({exc}); allowing commit", file=sys.stderr)
+        return 0
+    info = fp.repo_info(root)
+    if info is None or info.is_linked_worktree:
+        return 0
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRT"],
+        capture_output=True, text=True, cwd=str(root),
+    )
+    if staged.returncode != 0:
+        print("pre-commit: could not list staged files; allowing commit", file=sys.stderr)
+        return 0
+    entries = fp.load_personalization(root)
+    blocked = [p for p in staged.stdout.split("\0") if p and not fp.matches_personalization(entries, p)]
+    if not blocked:
+        return 0
+    print("pre-commit: framework files staged in the MAIN checkout:", file=sys.stderr)
+    for p in blocked:
+        print(f"  {p}", file=sys.stderr)
+    print(
+        "Commit framework changes from a linked worktree instead "
+        "(git worktree add ../ai-job-search-issue-<n> -b fix/issue-<n>), or report the problem with "
+        "python3 tools/report_issue.py. To override deliberately: ALLOW_FRAMEWORK_COMMIT=1 git commit ...",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

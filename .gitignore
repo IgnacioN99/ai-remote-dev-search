@@ -52,6 +52,11 @@ Thumbs.db
 # Memory files (Claude Code user-specific)
 .claude/projects/
 
+# Framework-dev worktrees (claude -w, isolation: worktree) and the operator/config
+# mode switch written by tools/set_mode.py - local state, never committed.
+.claude/worktrees/
+.agents/state/
+
 # Skills lock (auto-generated)
 skills-lock.json
 

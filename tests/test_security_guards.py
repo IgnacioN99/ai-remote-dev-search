@@ -210,11 +210,11 @@ class HookGuardTests(GuardRepoFixture):
     def test_allowlisted_hook_passes(self):
         command = "SessionStart:echo reviewed"
         guard = self.root / "tools" / "security_guards.py"
+        anchor = "ALLOWED_HOOKS: set[str] = {"
+        source = guard.read_text(encoding="utf-8")
+        self.assertIn(anchor, source)
         guard.write_text(
-            guard.read_text(encoding="utf-8").replace(
-                "ALLOWED_HOOKS: set[str] = set()",
-                f"ALLOWED_HOOKS: set[str] = {{{command!r}}}",
-            ),
+            source.replace(anchor, f"{anchor}\n    {command!r},", 1),
             encoding="utf-8",
         )
         self.write_settings_with_hooks(

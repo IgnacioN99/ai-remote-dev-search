@@ -19,6 +19,26 @@
       "Bash(python tools/verify_layout.py:*)",
       "Bash(python3 tools/verify_layout.py:*)",
       "Bash(pdftotext:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout --:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_framework.py",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }

@@ -279,6 +279,8 @@ If the run found many new jobs (roughly 8+), also suggest `/rank` - it batch-sco
 
 If the user decides to apply to any job, the tracker row is written by **job-application-assistant Step 3b**, which Step 5 already routes into - do not add a second row here. Only when the user says they applied to something outside that path, add a row using the header and the match-then-update rule in `/outcome` Step 1.
 
+Final step: run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
+
 ---
 
 ## Important Rules

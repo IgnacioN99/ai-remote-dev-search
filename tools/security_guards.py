@@ -127,7 +127,9 @@ ALLOWED_IGNORE_NEGATIONS = {
 }
 
 # Hook commands the template legitimately ships, as "<Event>:<command>" strings.
-# Empty by design - the template ships no hooks at all.
+# One reviewed hook: the operator-mode framework guard. It is stdlib Python shipped in
+# this repo, only reads the edit target's git status, and can only DENY an edit (it
+# never runs network or shell commands of its own) - see .claude/hooks/guard_framework.py.
 #
 # A hook is strictly more dangerous than a permissions.allow entry. A permission
 # pre-approves something Claude may choose to do; a hook runs unconditionally when
@@ -136,7 +138,9 @@ ALLOWED_IGNORE_NEGATIONS = {
 # August 2026 wave, planting a SessionStart hook in .claude/settings.json that
 # executed on session start:
 # https://research.jfrog.com/post/shai-hulud-is-back-august/
-ALLOWED_HOOKS: set[str] = set()
+ALLOWED_HOOKS: set[str] = {
+    'PreToolUse:python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/guard_framework.py',
+}
 
 FORBIDDEN_SCRIPTS = {"preinstall", "install", "postinstall", "prepare", "prepack"}
 
