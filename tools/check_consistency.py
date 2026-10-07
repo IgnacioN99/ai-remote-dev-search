@@ -27,6 +27,7 @@ import argparse
 import csv
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -560,7 +561,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=APPLICATIONS_DIR,
         help="Path to documents/applications directory",
     )
+    parser.add_argument(
+        "--report-issue",
+        action="store_true",
+        help="If drift is found, file a counts-only drift issue on the fork via tools/report_issue.py",
+    )
     return parser
+
+
+DRIFT_CATEGORIES = (
+    "orphan_application_folders",
+    "missing_application_folders",
+    "state_discrepancies",
+    "missing_application_files",
+    "broken_file_references",
+    "csv_formatting_issues",
+)
+
+
+def report_drift_issue(report: Dict[str, Any]) -> int:
+    """File a drift issue with per-category COUNTS only.
+
+    The full audit report names employers and roles from the tracker, which no
+    sanitizer can reliably strip, so only category names and counts leave the
+    machine.
+    """
+    lines = ["`tools/check_consistency.py` detected state drift (counts only):", ""]
+    for key in DRIFT_CATEGORIES:
+        count = len(report.get(key) or [])
+        if count:
+            lines.append(f"- {key}: {count}")
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve().parent / "report_issue.py"),
+        "--kind", "drift",
+        "--component", "tools/check_consistency.py",
+        "--title", "check_consistency detected state drift",
+        "--body", "\n".join(lines),
+    ]
+    return subprocess.run(cmd).returncode
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -599,7 +638,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         or report["broken_file_references"]
     )
 
-    return 1 if has_drift_detected(report) else 0
+    drift = has_drift_detected(report)
+    if drift and args.report_issue:
+        report_drift_issue(report)
+    return 1 if drift else 0
 
 
 def has_drift_detected(report: Dict[str, Any]) -> bool:

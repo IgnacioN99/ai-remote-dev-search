@@ -351,3 +351,18 @@ Shared Claude Code permissions now live in `.claude/settings.json` (scoped to `b
 ```bash
 rm .claude/settings.local.json
 ```
+
+## Issue reporting
+
+During operator runs (`/scrape`, `/rank`, `/apply`, ...) the agent never patches the framework. When it hits a tool failure, a broken/degraded portal, doc drift or an improvement idea, it files a sanitized issue on **your fork** with `python3 tools/report_issue.py` (rules: `.agents/rules/issue-reporting.md`). The tool resolves the target from `origin` (override with `JOBSEARCH_ISSUES_REPO=owner/repo`), hard-refuses the upstream template, strips personal data, comments on a matching open issue instead of duplicating, and queues to `documents/memory/pending_issues.jsonl` (gitignored) when `gh` is offline (`--flush` replays). Your fork is public, so the sanitizer matters: still glance at what gets filed.
+
+One-time setup (replace `<you>/<fork>`):
+
+```bash
+gh repo edit <you>/<fork> --enable-issues
+gh repo set-default <you>/<fork>   # gh otherwise resolves to upstream
+for l in agent-reported framework operator-mode portal-health; do gh label create "$l" -R <you>/<fork> --force; done
+python3 tools/report_issue.py --kind bug --title "test" --body "x" --dry-run   # check the target
+```
+
+Claude Code is pre-approved via `.claude/settings.json`. In **Antigravity**, add the allow-list entry `command(python3 tools/report_issue.py)` in Settings (it can only be set in the UI); keep raw `gh issue` behind approval.

@@ -59,6 +59,10 @@ ALLOWED_PERMISSIONS = {
     "Bash(python3 tools/verify_pdf.py:*)",
     "Bash(python tools/verify_layout.py:*)",
     "Bash(python3 tools/verify_layout.py:*)",
+    # Files sanitized framework issues on the user's fork only (hard-refuses
+    # upstream, pins -R). Raw `gh issue` stays behind approval.
+    "Bash(python tools/report_issue.py:*)",
+    "Bash(python3 tools/report_issue.py:*)",
     "Bash(pdftotext:*)",
 }
 
