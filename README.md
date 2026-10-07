@@ -366,18 +366,18 @@ python3 tools/sync_mcp_config.py --check  # exits 1 on drift (also reported by t
 ```
 
 * **Antigravity location.** Antigravity's docs list `~/.gemini/config/mcp_config.json` (global) and plugin `mcp_config.json` files; the project file `.agents/mcp_config.json` follows its `.agents/` workspace-customization convention. If Antigravity doesn't pick up the project file (check **... > MCP Servers** in the UI), merge its entries into the global file.
-* **WSL vs Windows.** If you run the repo inside WSL but Antigravity is the Windows app, it launches MCP servers with the *Windows* environment: it won't see WSL's `PATH` (`bunx` in `~/.bun/bin`, `uvx` in `~/.local/bin`, Linux `npx`), and the global config is `%USERPROFILE%\.gemini\config\mcp_config.json`, not the WSL `~/.gemini`. Either install Node/Bun/uv on Windows too, or wrap each command through WSL (`"command": "wsl.exe", "args": ["-e", "bash", "-lc", "npx -y @playwright/mcp@latest"]`). Running Antigravity from inside WSL avoids this.
+* **WSL vs Windows.** If you run the repo inside WSL but Antigravity is the Windows app, it launches MCP servers with the *Windows* environment: it won't see WSL's `PATH` (`bunx` in `~/.bun/bin`, `uvx` in `~/.local/bin`, Linux `npx`), and the global config is `%USERPROFILE%\.gemini\config\mcp_config.json`, not the WSL `~/.gemini`. Either install Node/Bun/uv on Windows too, or wrap each command through WSL (`"command": "wsl.exe", "args": ["-e", "bash", "-lc", "npx -y @playwright/mcp@0.0.83"]`). Running Antigravity from inside WSL avoids this.
 * **Requirement:** `npx` (Node), `bunx` (Bun) and `uvx` (uv) must be on the `PATH` of whichever process launches the servers. `python3 tools/doctor.py` reports whether the Playwright MCP package actually resolves.
 
 ### 1. Browser Automation (Playwright MCP)
 * **Purpose:** Enables autonomous parsing of JavaScript-heavy job boards (Lever, Greenhouse, Workday, Ashby), extracting screening questions, and executing form submissions.
-* **Configuration** (package [`@playwright/mcp`](https://www.npmjs.com/package/@playwright/mcp); the older `@modelcontextprotocol/server-playwright` name does not exist on npm). Optional flags such as `--headless` or `--browser chromium` are listed by `npx @playwright/mcp@latest --help`:
+* **Configuration** (package [`@playwright/mcp`](https://www.npmjs.com/package/@playwright/mcp); the older `@modelcontextprotocol/server-playwright` name does not exist on npm). Optional flags such as `--headless` or `--browser chromium` are listed by `npx @playwright/mcp@0.0.83 --help`. The version is pinned rather than `@latest`, so a new upstream release cannot change what runs without review. To upgrade, bump it in `.mcp.json` (check `npm view @playwright/mcp version`) and run `python3 tools/sync_mcp_config.py`:
   ```json
   {
     "mcpServers": {
       "playwright": {
         "command": "npx",
-        "args": ["-y", "@playwright/mcp@latest"]
+        "args": ["-y", "@playwright/mcp@0.0.83"]
       }
     }
   }

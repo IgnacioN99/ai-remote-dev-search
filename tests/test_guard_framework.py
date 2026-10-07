@@ -187,6 +187,51 @@ class ClaudeHookTests(GuardFixture):
         self.assertEqual(decision, "deny")
         self.assertIn("set_mode.py", reason)
 
+    def test_git_dir_writes_are_denied(self):
+        for target in [self.main / ".git/config", self.main / ".git/hooks/pre-commit",
+                       self.main / ".git/hooks/post-checkout"]:
+            with self.subTest(target=str(target)):
+                decision, reason = self.claude("Write", target, content="x")
+                self.assertEqual(decision, "deny")
+                self.assertIn("git directory", reason)
+        # Also from a linked worktree session: its common dir is the main checkout's .git.
+        self.assertEqual(self.claude("Write", self.main / ".git/config", cwd=self.wt, content="x")[0], "deny")
+        # A symlink inside the work tree that resolves into .git is caught on its real path.
+        link = self.main / "notes" / "cfg"
+        link.parent.mkdir()
+        try:
+            link.symlink_to(self.main / ".git" / "config")
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable")
+        self.assertEqual(self.claude("Write", link, content="x")[0], "deny")
+
+    def test_local_settings_is_denied_everywhere(self):
+        for root, cwd in [(self.main, self.main), (self.wt, self.wt)]:
+            with self.subTest(root=str(root)):
+                decision, reason = self.claude("Write", root / ".claude/settings.local.json", cwd=cwd,
+                                               content='{"permissions": {"allow": ["Bash"]}}')
+                self.assertEqual(decision, "deny")
+                self.assertIn("settings.local.json", reason)
+        self.assertEqual(self.agy("write_to_file", {"TargetFile": str(self.main / ".claude/settings.local.json"),
+                                                    "CodeContent": "{}"})[0], "deny")
+
+    def test_git_failure_warns_before_failing_open(self):
+        if os.name == "nt":
+            self.skipTest("fake git is a POSIX shell script")
+        fake = self.tmp / "fakebin"
+        fake.mkdir()
+        script = fake / "git"
+        script.write_text("#!/bin/sh\necho 'error: unknown option path-format' >&2\nexit 129\n", encoding="utf-8")
+        script.chmod(0o755)
+        env = dict(self.env, PATH=f"{fake}{os.pathsep}{self.env.get('PATH', '')}")
+        payload = {"tool_name": "Write", "cwd": str(self.main),
+                   "tool_input": {"file_path": str(self.main / "tools/x.py"), "content": "x"}}
+        r = subprocess.run([sys.executable, str(HOOK)], input=json.dumps(payload), capture_output=True,
+                           text=True, env=env, timeout=60)
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn("deny", r.stdout)
+        self.assertIn("NOT enforced", r.stderr)
+
     def test_malformed_input_fails_open(self):
         for raw in ["", "not json", "[1, 2]"]:
             with self.subTest(raw=raw):
@@ -254,11 +299,24 @@ class CheckFrameworkImmutableTests(GuardFixture):
         r = self.check()
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    def test_config_paths_depend_on_mode(self):
-        self.write(self.main / EVALUATION, "# Evaluation\n\nStrong: Python\n")
-        self.assertEqual(self.check().returncode, 1)
+    def test_uncommitted_setup_output_is_not_drift_in_any_mode(self):
+        # Regression: /setup writes CLAUDE.md and the 02-06 skill files in config mode and leaves
+        # them uncommitted. Once back in operator mode, every /scrape|/rank|/apply drift check
+        # used to report (and file an issue for) them.
         self.set_mode("config")
+        self.write(self.main / EVALUATION, "# Evaluation\n\nStrong: Python\n")
+        self.write(self.main / "CLAUDE.md", "# Profile for Jane Doe\n")
         self.assertEqual(self.check().returncode, 0)
+        self.set_mode("operator")
+        r = self.check()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        # ...while a real framework change next to them is still reported, alone.
+        self.write(self.main / "tools/x.py", "changed\n")
+        r = self.check()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("tools/x.py", r.stdout)
+        self.assertNotIn("CLAUDE.md", r.stdout)
+        self.assertNotIn(EVALUATION, r.stdout)
 
     def test_linked_worktree_always_passes(self):
         self.write(self.wt / "tools/x.py", "dev change\n")
@@ -366,7 +424,8 @@ class RegistrationTests(unittest.TestCase):
                 self.assertIn("python3 tools/set_mode.py operator", text)
 
     def test_operator_commands_end_with_drift_check(self):
-        for rel in [".claude/commands/rank.md", ".claude/commands/apply.md", ".claude/skills/job-scraper/SKILL.md"]:
+        for rel in [".claude/commands/rank.md", ".claude/commands/apply.md", ".claude/skills/job-scraper/SKILL.md",
+                    ".claude/commands/interview.md", ".claude/commands/outcome.md"]:
             with self.subTest(path=rel):
                 self.assertIn("python3 tools/check_framework_immutable.py --report",
                               (ROOT / rel).read_text(encoding="utf-8"))

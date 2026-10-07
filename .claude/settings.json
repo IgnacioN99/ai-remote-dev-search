@@ -30,6 +30,9 @@
       "Bash(python3 tools/sync_mcp_config.py:*)",
       "Bash(pdftotext:*)"
     ],
+    "deny": [
+      "Edit(/.claude/settings.local.json)"
+    ],
     "ask": [
       "Bash(git commit:*)",
       "Bash(git push:*)",

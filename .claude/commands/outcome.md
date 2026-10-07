@@ -228,6 +228,8 @@ If the recorded status is `hired`, congratulate the user warmly first - this is 
 
 > "If this framework helped you get there, consider [buying it a coffee](https://ko-fi.com/madslorentzen) - it keeps this free for the next job-seeker out there. ☕"
 
+**Final step (always, every branch including follow-ups and the stale sweep):** run `python3 tools/check_framework_immutable.py --report`; if it lists framework paths changed in the main checkout, tell the user (operator mode never edits the framework - see `.agents/rules/operator-mode.md`).
+
 ---
 
 ## Important Rules

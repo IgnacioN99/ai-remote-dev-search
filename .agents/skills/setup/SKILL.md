@@ -414,7 +414,7 @@ Replace all placeholder tokens in the search queries file with the user's actual
 
 ## Step 4: Confirm & Next Steps
 
-Run `python3 tools/set_mode.py operator` first - also when the command stops early or fails - so the framework is read-only again.
+First run `python3 tools/sync_agent_skills.py` (while still in config mode, so the generated `.agents/skills/` copies pick up this command's edits), then `python3 tools/set_mode.py operator` - also when the command stops early or fails - so the framework is read-only again.
 
 Present a summary:
 
@@ -448,7 +448,7 @@ If Path A left any STAR stubs in `.claude/skills/job-application-assistant/07-in
 
 ## Final Step: Sync the Antigravity Skill Copies
 
-This command edits files under `.claude/`. Run `python3 tools/sync_agent_skills.py` as the very last action so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change and the CI drift check stays green. Do this even if the user only runs Claude Code.
+This command edits files under `.claude/`. `python3 tools/sync_agent_skills.py` must run before `python3 tools/set_mode.py operator` (the confirm step above does both, in that order) so the generated `.agents/skills/` copies (used by Google Antigravity) pick up the change while the framework is still writable, and the CI drift check stays green. Do this even if the user only runs Claude Code. If the sync was skipped, run it now, then `python3 tools/set_mode.py operator` again.
 
 ---
 

@@ -8,7 +8,8 @@ Edit-time hooks (.claude/hooks/guard_framework.py) do not see shell writes, and 
 hooks are best-effort, so operator commands (/scrape, /rank, /apply) run this as their final
 step. Drift = `git status` entries on framework paths (tracked files, or new non-ignored files
 under tools/, .claude/, .agents/, tests/, .github/, .githooks/, templates/, AGENTS.md, CLAUDE.md)
-that tools/personalization_paths.json does not allow in the current mode.
+that tools/personalization_paths.json does not list. Listed personalization paths are never drift,
+whatever the mode (uncommitted /setup output is user config; the edit hook gates when it is written).
 
 Exit 0: clean, or running in a linked worktree (framework work belongs there).
 Exit 1: drift found. Exit 2: not a git repository / git failed.
@@ -46,33 +47,21 @@ def porcelain_entries(info: fp.RepoInfo) -> list[tuple[str, str]]:
     return out
 
 
-def head_content(info: fp.RepoInfo, rel: str) -> str | None:
-    r = fp._git(["show", f"HEAD:{rel}"], info.toplevel)
-    return r.stdout if r.returncode == 0 else None
-
-
 def find_drift(info: fp.RepoInfo) -> list[tuple[str, str]]:
     entries = fp.load_personalization(info.toplevel)
-    mode = fp.read_mode(info.toplevel)
     drift = []
     for xy, rel in porcelain_entries(info):
         untracked = xy == "??"
         # Tracked (or staged) entries are framework by definition; ignored files never show up.
         if untracked and not fp.in_framework_dir(rel):
             continue
-        change = None
-        cur_path = info.toplevel / rel
-        if not untracked and cur_path.is_file():
-            old = head_content(info, rel)
-            try:
-                new = cur_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                new = None
-            if old is not None and new is not None:
-                change = (old, new)
-        ok, _ = fp.personalization_allows(entries, rel, mode, change)
-        if not ok:
-            drift.append((xy, rel))
+        # Personalization paths (CLAUDE.md, profile skill files, search-queries.md, ...) are
+        # written by /setup-style commands and stay uncommitted user config in the main checkout.
+        # Same rule as .githooks/pre-commit: never drift, whatever the current mode. The edit
+        # hook still enforces config-only writes at edit time.
+        if fp.matches_personalization(entries, rel):
+            continue
+        drift.append((xy, rel))
     return drift
 
 
