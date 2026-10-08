@@ -123,8 +123,31 @@ def review_scan_files(app_folder: Path) -> List[Path]:
     return files
 
 
-def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional[Path]]:
-    """Locates candidate ATS-named PDFs in app folder or company-matched in cv/cover_letters dirs."""
+def is_fresh(path: Path, since: Optional[float]) -> bool:
+    """True when `since` is unset or the file was modified at or after it (POSIX time)."""
+    if since is None:
+        return True
+    try:
+        return path.stat().st_mtime >= since
+    except OSError:
+        return False
+
+
+def locate_ats_pdfs(app_folder: Path, profile: Any = None,
+                    since: Optional[float] = None) -> Dict[str, Any]:
+    """Locates candidate ATS-named PDFs in app folder or company-matched in cv/cover_letters dirs.
+
+    With `since`, PDFs modified before it (a previous run's exports, e.g. on a redraft)
+    are skipped and listed under "stale" instead.
+    """
+    stale: List[Path] = []
+
+    def fresh(path: Path) -> bool:
+        if is_fresh(path, since):
+            return True
+        stale.append(path)
+        return False
+
     slug = app_folder.name
     comp = slug.split("_")[0]
     comp_clean = re.sub(r"[^a-z0-9]", "", comp.lower())
@@ -148,7 +171,7 @@ def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional
 
     # Check inside app folder
     for f in app_files:
-        if f.suffix.lower() == ".pdf":
+        if f.suffix.lower() == ".pdf" and fresh(f):
             name = f.name
             if any(name.startswith(f"{p}_CV") for p in name_prefixes) or (name.endswith("_CV.pdf") and not name.startswith("main_")):
                 cv_pdf = f
@@ -167,7 +190,7 @@ def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional
         for f in cv_dir.iterdir():
             if f.suffix.lower() == ".pdf" and (any(f.name.startswith(f"{p}_CV") for p in name_prefixes) or f.name.endswith("_CV.pdf")):
                 f_clean = re.sub(r"[^a-z0-9]", "", f.name.lower())
-                if comp_clean and comp_clean in f_clean:
+                if comp_clean and comp_clean in f_clean and fresh(f):
                     cv_pdf = f
                     break
 
@@ -175,7 +198,7 @@ def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional
         for f in cl_dir.iterdir():
             if f.suffix.lower() == ".pdf" and (any(f.name.startswith(f"{p}_CoverLetter") for p in name_prefixes) or f.name.endswith("_CoverLetter.pdf")):
                 f_clean = re.sub(r"[^a-z0-9]", "", f.name.lower())
-                if comp_clean and comp_clean in f_clean:
+                if comp_clean and comp_clean in f_clean and fresh(f):
                     cl_pdf = f
                     break
 
@@ -190,6 +213,7 @@ def locate_ats_pdfs(app_folder: Path, profile: Any = None) -> Dict[str, Optional
         "cl_pdf": cl_pdf,
         "has_internal_cv": has_internal_cv,
         "has_internal_cl": has_internal_cl,
+        "stale": sorted(set(stale)),
     }
 
 
@@ -197,8 +221,13 @@ def evaluate_gate(
     target: str,
     require_cover_letter: bool = True,
     profile: Any = None,
+    since: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Runs all deterministic gate checks against an application."""
+    """Runs all deterministic gate checks against an application.
+
+    `since` (POSIX time): ignore PDFs modified before it, so a redraft is never
+    judged on the previous run's exports. The /apply Stop hook passes the run's start.
+    """
     results: Dict[str, Any] = {
         "target": target,
         "app_folder": None,
@@ -242,9 +271,15 @@ def evaluate_gate(
         results["checks"].append({"name": "Job Posting Doc", "status": "FAIL", "detail": "No job posting file found"})
 
     # Check 2: ATS Naming rule & compiled PDF discovery
-    pdf_info = locate_ats_pdfs(folder, profile=profile)
+    pdf_info = locate_ats_pdfs(folder, profile=profile, since=since)
     cv_pdf = pdf_info["cv_pdf"]
     cl_pdf = pdf_info["cl_pdf"]
+    if pdf_info["stale"]:
+        results["warnings"].append(
+            "Ignored PDFs older than this run (--since): "
+            + ", ".join(p.name for p in pdf_info["stale"])
+            + ". Re-export them from the current sources."
+        )
 
     if not cv_pdf:
         if pdf_info["has_internal_cv"]:
@@ -428,6 +463,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Output report in JSON format",
     )
+    parser.add_argument(
+        "--since",
+        type=float,
+        default=None,
+        metavar="EPOCH",
+        help="Ignore PDFs modified before this POSIX timestamp (stale exports from an earlier run)",
+    )
     return parser
 
 
@@ -438,6 +480,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     results = evaluate_gate(
         target=args.target,
         require_cover_letter=not args.no_cover_letter,
+        since=args.since,
     )
 
     if args.json:

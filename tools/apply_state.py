@@ -8,8 +8,16 @@ runs `tools/gate_application.py <slug>` whenever the agent tries to end its turn
 and the slug's documents exist, and sends the agent back to fix a failing gate.
 
 The marker is gitignored local state: .agents/state/apply.json
-  {"slug": "<company>_<role>", "started_at": "<ISO-8601 UTC, microseconds>", "blocks": 0}
-The hook adds "session_id" at its first block, so only that session's stops are held.
+  {"slug": "<company>_<role>", "started_at": "<ISO-8601 UTC, microseconds>", "blocks": 0,
+   "cwd": "<directory start ran in>", "session_id": "<owning session, when known>"}
+
+Session ownership: only the owning session's stops are held. In Claude Code the
+Bash tool exports CLAUDE_CODE_SESSION_ID, the same id the Stop hook receives as
+`session_id`, so `start` records it directly. When it is unavailable (Antigravity,
+or a child session whose id may not be the one that stops), the hook claims the
+marker for the first stopping session whose transcript shows this `start`
+command (see .claude/hooks/apply_gate_stop.py). `cwd` lets the hook tell a stop
+in the main checkout from one in a linked worktree under .claude/worktrees/.
 
 Usage:
   python3 tools/apply_state.py start <slug>
@@ -75,8 +83,30 @@ def now_iso() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
-def start(slug: str, root: Optional[Path] = None) -> dict:
+SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
+CHILD_SESSION_ENV = "CLAUDE_CODE_CHILD_SESSION"
+
+
+def session_from_env(env: Optional[dict] = None) -> Optional[str]:
+    """The Claude Code session id of the agent running this command, if trustworthy.
+
+    A child session (subagent) may carry an id that is not the one whose Stop event
+    fires, so none is recorded there; the hook then claims ownership at the first stop.
+    """
+    env = os.environ if env is None else env
+    if env.get(CHILD_SESSION_ENV):
+        return None
+    value = (env.get(SESSION_ENV) or "").strip()
+    return value or None
+
+
+def start(slug: str, root: Optional[Path] = None, session_id: Optional[str] = None,
+          cwd: Optional[str] = None) -> dict:
     data = {"slug": slug, "started_at": now_iso(), "blocks": 0}
+    if cwd:
+        data["cwd"] = cwd
+    if session_id:
+        data["session_id"] = session_id
     save(data, root)
     return data
 
@@ -94,7 +124,7 @@ def main(argv: Optional[list] = None, root: Optional[Path] = None) -> int:
         return 1
 
     if args.action == "start":
-        data = start(args.slug, root)
+        data = start(args.slug, root, session_id=session_from_env(), cwd=os.getcwd())
         print(f"apply_state: /apply in progress for {data['slug']} (started {data['started_at']})")
         return 0
 

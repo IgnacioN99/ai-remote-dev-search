@@ -58,6 +58,13 @@ per-file diff commands.
 
 ### Fixed
 
+- **`/apply` Stop-hook gate no longer fails open on session races or redrafts (#4).**
+  `tools/apply_state.py start` records the Claude Code session id
+  (`CLAUDE_CODE_SESSION_ID`) and its cwd; otherwise the first stop whose transcript
+  shows the `start` command claims the run, whatever the outcome. Stops from another
+  checkout (main vs `.claude/worktrees/*`) are ignored. `tools/gate_application.py`
+  gains `--since <epoch>`, which the hook passes so a redraft's previous PDFs are
+  never gated as this run's.
 - **PR #2 review follow-ups.** The `/apply` Stop hook counts only documents written since the
   run's (now microsecond-precise) `started_at`, so a redraft is not blocked or cleared at its
   consent step; it escapes the slug in globs, ignores stops from another cwd or session, and
