@@ -38,7 +38,7 @@ def pii_check(root: Path, paths) -> int:
     try:
         import pii_scan
 
-        scanner = pii_scan.PiiScanner.from_repo(root)
+        scanner = pii_scan.PiiScanner.from_repo(root, include_warn=False)  # block tier only: fast
     except Exception as exc:  # ImportError, unreadable profile, ...
         print(f"pre-commit: PII scan unavailable ({exc!r}); allowing commit", file=sys.stderr)
         return 0

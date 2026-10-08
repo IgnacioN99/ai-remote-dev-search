@@ -10,13 +10,18 @@ Terms come from the same gitignored sources tools/report_issue.py redacts, read 
 MAIN checkout (also when run from a linked worktree), with the personal overlay honoured:
 
   block tier  identity: name (and its parts), email, phone (and its digits), LinkedIn/GitHub
-              handles and URLs, street address, birth date - from candidate_profile.json, and
+              handles and URLs, street address, birth date - from the TOP-LEVEL keys of
+              candidate_profile.json (a nested languages[].name is not the candidate), and
               the Name line of CLAUDE.md(.personal).
   warn tier   everything else report_issue.py redacts (city/location, employers, education,
               tracker companies, application folder names). Framework docs legitimately name
               countries and portals, so these only warn.
 
 Output carries counts and repo-relative paths only - never the matched values.
+Public terms are never reported: the `origin` remote owner (the fork owner's handle sits in
+README links and clone URLs) and any line of the gitignored .agents/state/pii_allowlist.txt
+(one user-approved public term per line, # comments).
+
 No profile on disk (fresh clone) -> no terms -> nothing is ever reported. Stdlib only.
 
     python3 tools/pii_scan.py [paths...]     # exit 1 if any block-tier hit
@@ -63,6 +68,9 @@ def data_root(start: Path) -> Path:
 
 
 def _profile_terms(profile: Path) -> Tuple[List[str], List[str]]:
+    """(block, warn). Block tier comes only from TOP-LEVEL identity keys ("name", "email",
+    "phone", "linkedin", "github", ...): a nested "name" (languages[].name, education[].name)
+    is a language or a school, not the candidate. Every other identity-hinted string warns."""
     import report_issue as ri
 
     try:
@@ -71,26 +79,83 @@ def _profile_terms(profile: Path) -> Tuple[List[str], List[str]]:
         return [], []
     block: List[str] = []
     warn: List[str] = []
-    for key, value in ri._walk_strings(data):
+    for _key, value in ri._walk_strings(data):
         value = value.strip()
-        if not value:
-            continue
-        if not _BLOCK_KEY.search(key) or _WARN_KEY.search(key):
+        if value:
             warn.append(value)
+    if not isinstance(data, dict):
+        return [], warn
+    for key, raw in data.items():
+        key = str(key)
+        if not _BLOCK_KEY.search(key) or _WARN_KEY.search(key):
             continue
-        block.append(value)
+        if isinstance(raw, str):
+            values = [raw]
+        elif isinstance(raw, list):
+            values = [v for v in raw if isinstance(v, str)]
+        else:
+            values = []
         k = key.lower()
-        if k in ri._NAME_KEYS:
-            block.extend(ri._name_parts(value))
-        if re.search(r"phone|mobile|tel", k):
-            digits = re.sub(r"\D", "", value)
-            if len(digits) >= 7:
-                block.append(digits)
-        if re.match(r"https?://", value):
-            handle = value.rstrip("/").rsplit("/", 1)[-1]
-            if len(handle) >= 3:
-                block.append(handle)
+        for value in values:
+            value = value.strip()
+            if not value:
+                continue
+            block.append(value)
+            if k in ri._NAME_KEYS:
+                block.extend(ri._name_parts(value))
+            if re.search(r"phone|mobile|tel", k):
+                digits = re.sub(r"\D", "", value)
+                if len(digits) >= 7:
+                    block.append(digits)
+            if re.match(r"https?://", value):
+                handle = value.rstrip("/").rsplit("/", 1)[-1]
+                if len(handle) >= 3:
+                    block.append(handle)
     return block, warn
+
+
+_REMOTE_OWNER = re.compile(r"^(?:[\w+.-]+://(?:[^@/]+@)?[^/]+/|[^@/:]+@[^:/]+:)/?(?P<owner>[^/]+)/")
+
+
+def origin_owner(root: Path) -> Optional[str]:
+    """Owner of the `origin` remote (git@host:Owner/repo.git, https://host/Owner/repo). The
+    fork owner's handle appears legitimately in README links and clone URLs."""
+    try:
+        r = subprocess.run(["git", "remote", "get-url", "origin"], cwd=str(root),
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = _REMOTE_OWNER.match((r.stdout or "").strip()) if r.returncode == 0 else None
+    return m.group("owner") if m else None
+
+
+ALLOWLIST = Path(".agents") / "state" / "pii_allowlist.txt"
+
+
+def load_allowlist(root: Path) -> List[str]:
+    """User-approved public terms (gitignored file, one per line, # comments)."""
+    try:
+        lines = (Path(root) / ALLOWLIST).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    return [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith("#")]
+
+
+def _drop_public(terms: Iterable[str], public: Sequence[str]) -> List[str]:
+    """Drop terms equal to a public term, and profile URLs whose last segment is one
+    (https://github.com/<owner> also matches inside every repo link)."""
+    pub = {p.strip().lower() for p in public if p and p.strip()}
+    if not pub:
+        return list(terms)
+    out = []
+    for t in terms:
+        low = t.strip().lower()
+        if low in pub:
+            continue
+        if re.match(r"https?://", low) and low.rstrip("/").rsplit("/", 1)[-1] in pub:
+            continue
+        out.append(t)
+    return out
 
 
 def _claude_name(claude_md: Path) -> List[str]:
@@ -120,16 +185,25 @@ class PiiScanner:
         self._warn = ri.Sanitizer([t for t in warn_terms if t.lower() not in blocked])
 
     @classmethod
-    def from_repo(cls, start: Path) -> "PiiScanner":
+    def from_repo(cls, start: Path, include_warn: bool = True) -> "PiiScanner":
+        """include_warn=False loads only the block tier (identity terms): the pre-commit hook
+        uses it to stay fast, since it only ever blocks on identity hits."""
         import report_issue as ri
 
         root = data_root(Path(start))
         block, warn = _profile_terms(root / "candidate_profile.json")
         block += _claude_name(root / "CLAUDE.md")
-        warn += ri.load_claude_identity(root / "CLAUDE.md")
-        warn += ri.load_tracker_terms(root / "job_search_tracker.csv")
-        warn += ri.load_application_terms(root / "documents" / "applications")
-        return cls(block, warn)
+        if include_warn:
+            warn += ri.load_claude_identity(root / "CLAUDE.md")
+            warn += ri.load_tracker_terms(root / "job_search_tracker.csv")
+            warn += ri.load_application_terms(root / "documents" / "applications")
+        else:
+            warn = []
+        public = load_allowlist(root)
+        owner = origin_owner(Path(start))
+        if owner:
+            public.append(owner)
+        return cls(_drop_public(block, public), _drop_public(warn, public))
 
     @property
     def empty(self) -> bool:

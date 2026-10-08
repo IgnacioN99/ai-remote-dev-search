@@ -488,6 +488,29 @@ class AntigravityShellTests(GuardFixture):
         self.assertEqual(gf.shell_write_targets("echo $HOME > $OUT; python3 -c 'open(1)'", "/r"), [])
 
 
+    def test_quoted_operators_are_text_not_redirects(self):
+        for cmd in ["grep -c '>' tools/report_issue.py", 'rg "<|>" .agents/skills/',
+                    "awk -F '>' '{print}' tools/x.py", "echo \\> tools/x.py", 'echo "a > tools/x.py"']:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.sh(cmd)[0], "ask")
+        # Unquoted operators next to quoted text are still redirects.
+        for cmd in ["echo '>' > tools/x.py", 'echo "x">>tools/x.py', "grep '>' a | tee tools/x.py"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.sh(cmd)[0], "deny")
+
+    def test_subshell_cd_does_not_leak(self):
+        self.assertEqual(self.sh("(cd tools && echo hi) > jobs.json")[0], "ask")
+        self.assertEqual(self.sh("(cd notes && echo hi) > tools/x.py")[0], "deny")
+        self.assertEqual(self.sh("(cd notes) ; echo x > tools/x.py")[0], "deny")
+        sys.path.insert(0, str(HOOK.parent))
+        import guard_framework as gf
+
+        self.assertEqual(gf.shell_write_targets("(cd s/cli && bun run x) > jobs.json", "/r"), ["/r/jobs.json"])
+        self.assertEqual(gf.shell_write_targets("(cd a; (cd b) > c) > d", "/r"), ["/r/a/c", "/r/d"])
+        # { } runs in the same shell: its cd persists, but the group's own redirect opens first.
+        self.assertEqual(gf.shell_write_targets("{ cd s; run; } > out; echo > b", "/r"), ["/r/out", "/r/s/b"])
+
+
 class GuardDebugLogTests(GuardFixture):
     def test_log_records_tool_paths_and_decision_but_no_content(self):
         log = self.tmp / "guard.log"
@@ -625,6 +648,67 @@ class PreCommitPiiTests(GuardFixture):
         self.git("add", "tools/y.py", cwd=self.wt)
         r = self.git("commit", "-q", "-m", "y", cwd=self.wt, check=False)
         self.assertEqual(r.returncode, 0, r.stderr)
+
+
+class PiiTermTests(GuardFixture):
+    """Which profile values count as identity (block) terms, and which are public."""
+
+    PROFILE_WITH_NESTED = dict(
+        FAKE_PROFILE,
+        github="https://github.com/zquarry",
+        languages=[{"name": "English", "level": "C2"}],
+        education=[{"name": "Springfield State University"}],
+    )
+
+    def setUp(self):
+        super().setUp()
+        sys.path.insert(0, str(ROOT / "tools"))
+        import pii_scan
+
+        self.pii = pii_scan
+        self.write(self.main / "candidate_profile.json", json.dumps(self.PROFILE_WITH_NESTED))
+
+    def scanner(self, **kw):
+        old = os.environ.copy()
+        os.environ.update({k: v for k, v in self.env.items() if k.startswith("GIT_")})
+        try:
+            return self.pii.PiiScanner.from_repo(self.wt, **kw)
+        finally:
+            os.environ.clear()
+            os.environ.update(old)
+
+    def test_nested_name_keys_are_not_identity(self):
+        s = self.scanner()
+        self.assertEqual(s.scan_text("Written in English.")[0], 0)
+        self.assertEqual(s.scan_text("Springfield State University")[0], 0)
+        self.assertGreater(s.scan_text("by Zelda Quarry")[0], 0)
+        self.assertGreater(s.scan_text("ping zelda.quarry@example.org")[0], 0)
+
+    def test_origin_owner_handle_is_public(self):
+        self.assertGreater(self.scanner().scan_text("see github.com/zquarry/repo")[0], 0)
+        self.git("remote", "add", "origin", "git@github.com:ZQuarry/ai-job-search.git")
+        s = self.scanner()
+        self.assertEqual(s.scan_text("git clone https://github.com/zquarry/ai-job-search")[0], 0)
+        self.assertGreater(s.scan_text("by Zelda Quarry")[0], 0)  # the name still blocks
+
+    def test_remote_owner_parsing(self):
+        for url in ("git@github.com:Owner/r.git", "https://github.com/Owner/r", "ssh://git@host:22/Owner/r.git",
+                    "https://user:tok@github.com/Owner/r.git"):
+            with self.subTest(url=url):
+                self.assertEqual(self.pii._REMOTE_OWNER.match(url).group("owner"), "Owner")
+
+    def test_allowlist_file_drops_user_approved_terms(self):
+        self.write(self.main / ".agents/state/pii_allowlist.txt", "# public handle\nZQuarry\n")
+        s = self.scanner()
+        self.assertEqual(s.scan_text("see https://github.com/zquarry and @zquarry")[0], 0)
+        self.assertGreater(s.scan_text("by Zelda Quarry")[0], 0)
+
+    def test_block_only_mode_loads_no_warn_terms(self):
+        self.write(self.main / "job_search_tracker.csv", "company,role\nAcmeWidgets,Engineer\n")
+        self.assertGreater(self.scanner().scan_text("AcmeWidgets")[1], 0)
+        fast = self.scanner(include_warn=False)
+        self.assertEqual(fast.scan_text("AcmeWidgets Springfield"), (0, 0))
+        self.assertGreater(fast.scan_text("Zelda Quarry")[0], 0)
 
 
 class RegistrationTests(unittest.TestCase):

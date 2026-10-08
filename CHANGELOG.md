@@ -75,6 +75,10 @@ per-file diff commands.
   overrides). `tools/security_guards.py` now allowlists `.agents/hooks.json` commands. Root
   cause: Antigravity loads project hooks only for sessions whose workspace is the repo
   (documented in SETUP.md).
+  Shell parsing is quote-aware (`grep '>' f` is not a redirect) and scopes `cd` to `( ... )`
+  subshells. The PII scan takes identity terms only from top-level profile keys, never flags
+  the `origin` remote owner or terms in the gitignored `.agents/state/pii_allowlist.txt`, and
+  pre-commit loads the identity tier only.
 - **`/apply` Stop-hook gate no longer fails open on session races or redrafts (#4).**
   `tools/apply_state.py start` records the Claude Code session id
   (`CLAUDE_CODE_SESSION_ID`) and its cwd; otherwise the first stop whose transcript

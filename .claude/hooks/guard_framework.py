@@ -16,7 +16,8 @@ write_to_file|replace_file_content|multi_replace_file_content):
 
 Antigravity shell commands (matcher run_command, same `--antigravity` command):
   stdin  {"toolCall": {"name": "run_command", "args": {"CommandLine", "Cwd", ...}}, ...}
-  The command line is tokenized (shlex) and only OBVIOUS write targets are checked with the
+  The command line is tokenized (quote-aware: quoted '>' is text, not a redirect; a `( )`
+  subshell scopes its `cd`) and only OBVIOUS write targets are checked with the
   same decision rules: output redirections (> >> &> >|), tee, sed -i / perl -i, cp/mv/install/ln
   destinations, touch/truncate, dd of=. Anything it cannot see (python -c, scripts, heredocs
   fed to an interpreter, variables, installers) stays "ask"; check_framework_immutable.py is
@@ -50,7 +51,6 @@ import glob
 import json
 import os
 import re
-import shlex
 import sys
 from pathlib import Path
 
@@ -133,22 +133,80 @@ def _strip_heredocs(text: str) -> str:
     return "\n".join(out)
 
 
+class _Op(str):
+    """An unquoted shell operator. Quoted text ('>' or "<|>") is a plain word, never an _Op."""
+
+
 def _tokens(text: str) -> list[str]:
-    """Shell words and operators. Raises ValueError on unbalanced quotes."""
-    lex = shlex.shlex(_strip_heredocs(text.replace("\\\n", " ")), posix=True, punctuation_chars=_PUNCT)
-    lex.whitespace = " \t\r"
-    lex.whitespace_split = True
+    """Shell words (str) and unquoted operators (_Op). Quote-aware: an operator character inside
+    '...' or "..." or after a backslash belongs to the word. Raises ValueError on unbalanced
+    quotes."""
+    text = _strip_heredocs(text.replace("\\\n", " "))
     out: list[str] = []
-    for tok in lex:
-        if tok and all(ch in _PUNCT for ch in tok):
-            out.extend(_OPS.findall(tok) or [tok])
+    word: list[str] = []
+    in_word = False
+    i, n = 0, len(text)
+
+    def end_word():
+        nonlocal word, in_word
+        if in_word:
+            out.append("".join(word))
+        word, in_word = [], False
+
+    while i < n:
+        ch = text[i]
+        if ch in " \t\r":
+            end_word()
+            i += 1
+        elif ch == "#" and not in_word:
+            while i < n and text[i] != "\n":
+                i += 1
+        elif ch == "\\":
+            in_word = True
+            if i + 1 < n:
+                word.append(text[i + 1])
+            i += 2
+        elif ch == "'":
+            j = text.find("'", i + 1)
+            if j < 0:
+                raise ValueError("No closing quotation")
+            word.append(text[i + 1:j])
+            in_word = True
+            i = j + 1
+        elif ch == '"':
+            in_word = True
+            i += 1
+            while True:
+                if i >= n:
+                    raise ValueError("No closing quotation")
+                c = text[i]
+                if c == '"':
+                    i += 1
+                    break
+                if c == "\\" and i + 1 < n and text[i + 1] in '"\\$`\n':
+                    word.append(text[i + 1])
+                    i += 2
+                    continue
+                word.append(c)
+                i += 1
+        elif ch in _PUNCT:
+            end_word()
+            j = i
+            while j < n and text[j] in _PUNCT:
+                j += 1
+            run = text[i:j]
+            out.extend(_Op(o) for o in (_OPS.findall(run) or [run]))
+            i = j
         else:
-            out.append(tok)
+            word.append(ch)
+            in_word = True
+            i += 1
+    end_word()
     return out
 
 
 def _is_op(tok: str) -> bool:
-    return bool(tok) and all(ch in _PUNCT for ch in tok)
+    return isinstance(tok, _Op)
 
 
 def _positional(args: list[str], takes_value: tuple[str, ...] = ()) -> list[str]:
@@ -220,23 +278,31 @@ def _command_targets(argv: list[str]) -> list[str]:
 
 
 def shell_write_targets(command: str, cwd: str) -> list[str]:
-    """Absolute paths the command line obviously writes (best effort, conservative)."""
+    """Absolute paths the command line obviously writes (best effort, conservative).
+
+    `cd` moves the base for later relative paths. A `( ... )` subshell restores the cwd it
+    started with at `)`, so `(cd sub && run) > out` writes `out` in the outer directory. A
+    `{ ...; }` group keeps its `cd` for later commands (same shell), but a redirection on the
+    group itself (`{ cd sub; run; } > out`) is opened before the group runs, in the outer cwd.
+    """
     toks = _tokens(command)
     targets: list[str] = []
     argv: list[str] = []
     here = cwd
+    scopes: list[tuple[str, str]] = []  # ("(" | "{", cwd when the group started)
+    redir_base: str | None = None  # set right after a closing "}" for the group's redirections
 
-    def resolve(word: str) -> list[str]:
+    def resolve(word: str, base: str | None = None) -> list[str]:
         if not word or "$" in word or "`" in word:
             return []
         word = os.path.expanduser(word)
-        p = word if os.path.isabs(word) else os.path.join(here, word)
+        p = word if os.path.isabs(word) else os.path.join(base or here, word)
         if _GLOB_CHARS & set(word):
             return glob.glob(p) or []
         return [p]
 
     def flush():
-        nonlocal here, argv
+        nonlocal here, argv, redir_base
         if argv and argv[0] == "cd" and len(argv) >= 2:
             dest = resolve(argv[1])
             if dest:
@@ -245,12 +311,18 @@ def shell_write_targets(command: str, cwd: str) -> list[str]:
             for t in _command_targets(argv):
                 targets.extend(resolve(t))
         argv = []
+        redir_base = None
 
     i = 0
     while i < len(toks):
         tok = toks[i]
         if not _is_op(tok):
-            argv.append(tok)
+            if not argv and tok == "{":
+                scopes.append(("{", here))
+            elif not argv and tok == "}" and scopes and scopes[-1][0] == "{":
+                redir_base = scopes.pop()[1]
+            else:
+                argv.append(tok)
             i += 1
             continue
         nxt = toks[i + 1] if i + 1 < len(toks) and not _is_op(toks[i + 1]) else None
@@ -258,10 +330,22 @@ def shell_write_targets(command: str, cwd: str) -> list[str]:
             if argv and argv[-1].isdigit() and len(argv[-1]) <= 2:
                 argv.pop()  # "2>/dev/null": the fd number is not an argument
             if nxt is not None and not (tok.endswith("&") and (nxt.isdigit() or nxt == "-")):
-                targets.extend(resolve(nxt))
+                targets.extend(resolve(nxt, redir_base))
             i += 2 if nxt is not None else 1
         elif tok.startswith("<"):
             i += 2 if nxt is not None else 1
+        elif tok == "(":
+            flush()
+            scopes.append(("(", here))
+            i += 1
+        elif tok == ")":
+            flush()
+            # Unwind any unclosed "{" first; a stray ")" (case pattern) changes nothing.
+            while scopes and scopes[-1][0] != "(":
+                scopes.pop()
+            if scopes:
+                here = scopes.pop()[1]
+            i += 1
         else:
             flush()
             i += 1
