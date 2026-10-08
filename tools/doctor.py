@@ -357,6 +357,44 @@ def check_antigravity() -> List[Dict[str, Any]]:
     return results
 
 
+def _git_path(args: List[str]) -> Optional[Path]:
+    """Path printed by `git rev-parse <args>` (relative output resolved against ROOT_DIR)."""
+    res = _run(["git", "rev-parse", *args], timeout=5)
+    if res is None or res.returncode != 0:
+        return None
+    out = (res.stdout or "").strip()
+    if not out:
+        return None
+    p = Path(out)
+    return p if p.is_absolute() else ROOT_DIR / p
+
+
+def _hooks_path_ok(configured: str) -> bool:
+    """True when core.hooksPath resolves to this repo's .githooks directory.
+
+    Mirrors git's resolution: `~` is expanded and a relative value is taken
+    against the working-tree top level. In a linked worktree the main
+    checkout's .githooks is also accepted, provided it holds the same hook
+    files (e.g. pre-commit) as this tree's .githooks.
+    """
+    toplevel = _git_path(["--show-toplevel"]) or ROOT_DIR
+    raw = Path(os.path.expanduser(configured))
+    target = raw if raw.is_absolute() else toplevel / raw
+    target_real = os.path.realpath(str(target))
+
+    accepted = {os.path.realpath(str(toplevel / ".githooks")), os.path.realpath(str(ROOT_DIR / ".githooks"))}
+    if target_real in accepted:
+        return True
+
+    common = _git_path(["--git-common-dir"])
+    if common is not None:
+        main_hooks = os.path.realpath(str(common.parent / ".githooks"))
+        if target_real == main_hooks:
+            hooks = [f.name for f in (ROOT_DIR / ".githooks").iterdir() if f.is_file()]
+            return all((Path(main_hooks) / name).is_file() for name in hooks)
+    return False
+
+
 def check_framework_integrity() -> List[Dict[str, Any]]:
     """Framework immutability tool (if present) and git hooks path."""
     results = [_run_check_tool(ROOT_DIR / "tools" / "check_framework_immutable.py", "Framework immutability", [])]
@@ -366,8 +404,8 @@ def check_framework_integrity() -> List[Dict[str, Any]]:
         return results
     res = _run(["git", "config", "core.hooksPath"], timeout=5)
     current = (res.stdout or "").strip() if res is not None else ""
-    if current.rstrip("/") == ".githooks":
-        results.append(_ok("Git hooks (core.hooksPath)", "core.hooksPath = .githooks"))
+    if current and _hooks_path_ok(current):
+        results.append(_ok("Git hooks (core.hooksPath)", f"core.hooksPath = {current}"))
     else:
         results.append(_warn(
             "Git hooks (core.hooksPath)",
