@@ -340,7 +340,7 @@ class GuardAllowsPersonalFiles(GuardFixture):
 class SpecsHonorOverlay(unittest.TestCase):
     CONSUMERS = [
         ".claude/commands/apply.md", ".claude/commands/interview.md", ".claude/commands/expand.md",
-        ".claude/commands/rank.md", ".claude/commands/outcome.md", ".claude/commands/add-template.md",
+        ".claude/commands/rank.md", ".claude/commands/outcome.md", ".claude/commands/linkedin-apply.md", ".claude/commands/add-template.md",
         ".claude/commands/add-portal.md", ".claude/commands/setup.md", ".claude/commands/reset.md",
         ".claude/skills/job-scraper/SKILL.md", ".claude/skills/upskill/SKILL.md",
         f"{SKILL}/SKILL.md", "AGENTS.md", ".agents/rules/core.md", "CLAUDE.md",

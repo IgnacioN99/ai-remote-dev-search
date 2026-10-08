@@ -126,6 +126,10 @@ company_research/*.json
 .agents/**/node_modules/
 .agents/**/*.log
 .agents/usage/
+# Machine-local Antigravity plugin registration: holds absolute home paths and
+# symlinks to globally installed plugins (e.g. the optional LinkedIn plugin).
+.agents/plugins/
+.agents/plugins.json
 
 # Brainstorm mockups (superpowers visual companion) - never ship
 .superpowers/
