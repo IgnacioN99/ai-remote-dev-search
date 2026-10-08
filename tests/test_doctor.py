@@ -259,16 +259,84 @@ class AntigravityAndIntegrityTests(unittest.TestCase):
         argvs = [c[0][0] for c in run.call_args_list]
         self.assertTrue(any("--check" in a for a in argvs))
 
-    def test_hooks_path(self):
-        self.assertEqual(_by_name(check_framework_integrity(), "Git hooks (core.hooksPath)")["status"], "SKIP")
-        (self.root / ".githooks").mkdir()
-        with patch("tools.doctor._run", return_value=_cp("")):
-            self.assertEqual(_by_name(check_framework_integrity(), "Git hooks (core.hooksPath)")["status"], "WARN")
-        with patch("tools.doctor._run", return_value=_cp(".githooks\n")):
-            self.assertEqual(_by_name(check_framework_integrity(), "Git hooks (core.hooksPath)")["status"], "OK")
-
     def test_run_helper_handles_missing_binary(self):
         self.assertIsNone(doctor._run(["definitely-not-a-real-binary-xyz"]))
+
+
+class HooksPathTests(unittest.TestCase):
+    """core.hooksPath is resolved like git does and compared as a real path."""
+
+    NAME = "Git hooks (core.hooksPath)"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self.tmp.name).resolve()
+        self.root = self.base / "repo"
+        (self.root / ".githooks").mkdir(parents=True)
+        (self.root / ".githooks" / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+        self.patcher = patch("tools.doctor.ROOT_DIR", self.root)
+        self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+        self.tmp.cleanup()
+
+    def _status(self, configured, toplevel=None, common=None):
+        table = {
+            ("git", "config", "core.hooksPath"): _cp(configured + "\n" if configured else "", 0 if configured else 1),
+            ("git", "rev-parse", "--show-toplevel"): _cp(f"{toplevel or self.root}\n"),
+            ("git", "rev-parse", "--git-common-dir"): _cp(f"{common or self.root / '.git'}\n"),
+        }
+        with patch("tools.doctor._run", side_effect=_fake_run(table)):
+            return _by_name(check_framework_integrity(), self.NAME)
+
+    def test_no_githooks_dir_skips(self):
+        with patch("tools.doctor.ROOT_DIR", self.base / "empty"):
+            self.assertEqual(_by_name(check_framework_integrity(), self.NAME)["status"], "SKIP")
+
+    def test_unset_warns_with_fix_hint(self):
+        res = self._status("")
+        self.assertEqual(res["status"], "WARN")
+        self.assertIn("unset", res["detail"])
+        self.assertIn("fix: git config core.hooksPath .githooks", res["detail"])
+
+    def test_relative_ok(self):
+        for value in (".githooks", ".githooks/", "./.githooks"):
+            self.assertEqual(self._status(value)["status"], "OK", value)
+
+    def test_absolute_ok(self):
+        self.assertEqual(self._status(str(self.root / ".githooks"))["status"], "OK")
+
+    def test_tilde_ok(self):
+        with patch.dict("os.environ", {"HOME": str(self.base), "USERPROFILE": str(self.base)}):
+            self.assertEqual(self._status("~/repo/.githooks")["status"], "OK")
+
+    def test_mismatch_warns(self):
+        other = self.base / "elsewhere" / ".githooks"
+        other.mkdir(parents=True)
+        res = self._status(str(other))
+        self.assertEqual(res["status"], "WARN")
+        self.assertIn("fix: git config core.hooksPath .githooks", res["detail"])
+        self.assertEqual(self._status("hooks")["status"], "WARN")
+
+    def _main_checkout(self, with_pre_commit=True):
+        main = self.base / "main"
+        (main / ".git").mkdir(parents=True)
+        (main / ".githooks").mkdir()
+        if with_pre_commit:
+            (main / ".githooks" / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+        return main
+
+    def test_linked_worktree_accepts_main_checkout_hooks(self):
+        main = self._main_checkout()
+        common = main / ".git"
+        self.assertEqual(self._status(str(main / ".githooks"), common=common)["status"], "OK")
+        # A relative value resolves against the worktree's own top level.
+        self.assertEqual(self._status(".githooks", common=common)["status"], "OK")
+
+    def test_linked_worktree_rejects_main_hooks_without_pre_commit(self):
+        main = self._main_checkout(with_pre_commit=False)
+        self.assertEqual(self._status(str(main / ".githooks"), common=main / ".git")["status"], "WARN")
 
 
 if __name__ == "__main__":
