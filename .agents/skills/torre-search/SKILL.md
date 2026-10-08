@@ -38,9 +38,19 @@ Flags:
 - `--query, -q <text>`: Role keywords, skills, or job title (e.g. `"python"`, `"fullstack"`, `"react"`, `"data engineer"`). **Required**.
 - `--location, -l <country>`: Country restriction (e.g. `"Colombia"`, `"remote"`).
 - `--remote`: Filter only remote positions.
-- `--page, -p <n>`: 1-indexed page number (default `1`).
+- `--page, -p <n>`: 1-indexed page number (default `1`). Torre pages by cursor, so page `n` costs `n` requests; prefer a larger `--limit` over deep paging.
 - `--limit, -n <n>`: Cap results emitted (default `20`, max `50`).
 - `--format <fmt>`: `json` (default) | `table` | `plain`.
+
+JSON output `meta` carries `count`, `page`, `total` (matches on Torre) and `next` (opaque cursor, `null` on the last page).
+
+#### Search anchor (`TORRE_SEARCH_ANCHOR_ID`)
+
+Since late 2026 `search.torre.co` answers `400 Invalid request` to any opportunity query without a ranking anchor. The CLI anchors every search on an existing public posting through a `similarto` clause with weight `0`, so the anchor does not bias results. If that posting is ever removed, Torre returns `500 Internal shard error` and the CLI exits with code `ANCHOR_UNAVAILABLE`. Fix it by setting `TORRE_SEARCH_ANCHOR_ID` to the ID (or `https://torre.ai/post/<id>` URL) of any live posting.
+
+#### When Torre breaks again
+
+Errors are JSON on stderr with exit code 1. `API_REJECTED` (400) or `AUTH_REQUIRED` (401/403) means Torre changed its public API contract. Until the CLI is fixed, set `enabled: false` in this file's frontmatter so `/scrape` skips Torre instead of failing on it.
 
 ### 2. Fetch job detail
 

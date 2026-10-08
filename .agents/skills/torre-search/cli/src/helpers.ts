@@ -5,6 +5,19 @@ export const SEARCH_API_URL = "https://search.torre.co/opportunities/_search"
 export const DETAIL_API_URL = "https://torre.co/api/suite/opportunities"
 export const POST_BASE_URL = "https://torre.ai/post"
 
+// search.torre.co rejects (400 "Invalid request") any opportunity query that has
+// no ranking anchor (`similarto` / `bestfor`). Anonymous callers can only anchor on
+// an existing opportunity via `similarto`; weight 0 keeps it from biasing results.
+// Override with TORRE_SEARCH_ANCHOR_ID=<any live torre.ai/post/<id>> if this one
+// is ever deleted (Torre then answers 500 "Internal shard error").
+export const DEFAULT_ANCHOR_ID = "Yd6mq4kw"
+export const ANCHOR_ENV_VAR = "TORRE_SEARCH_ANCHOR_ID"
+
+export function resolveAnchorId(env: Record<string, string | undefined> = process.env): string {
+  const raw = (env[ANCHOR_ENV_VAR] || "").trim()
+  return raw ? extractTorreId(raw) : DEFAULT_ANCHOR_ID
+}
+
 export function writeError(error: string, code: string): void {
   process.stderr.write(JSON.stringify({ error, code }) + "\n")
 }
@@ -33,13 +46,50 @@ export interface TorreJobDetail extends TorreJobCard {
   applyUrl?: string | null
 }
 
+/** HTTP error carrying the status and Torre's `meta.message` (when present). */
+export class ApiError extends Error {
+  status: number
+  apiMessage: string | null
+  constructor(status: number, statusText: string, apiMessage: string | null) {
+    super(
+      `Request failed: ${status} ${statusText}` + (apiMessage ? ` (${apiMessage})` : "")
+    )
+    this.name = "ApiError"
+    this.status = status
+    this.apiMessage = apiMessage
+  }
+}
+
+/** Torre answers a missing/deleted `similarto` anchor with this deterministic 500. */
+export function isShardError(message: string | null | undefined): boolean {
+  return /shard error/i.test(message || "")
+}
+
+async function readApiMessage(response: Response): Promise<string | null> {
+  try {
+    const text = await response.text()
+    if (!text) return null
+    try {
+      const body = JSON.parse(text)
+      const msg = body?.meta?.message ?? body?.message ?? body?.error
+      if (typeof msg === "string" && msg) return msg.slice(0, 300)
+    } catch {
+      // not JSON
+    }
+    return text.slice(0, 300)
+  } catch {
+    return null
+  }
+}
+
 /** Fetch JSON with exponential backoff on 429/5xx. Returns null on 404. */
 export async function apiFetch<T>(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retry: { maxRetries?: number; baseDelayMs?: number } = {}
 ): Promise<T | null> {
-  const maxRetries = 5
-  let delay = 500
+  const maxRetries = retry.maxRetries ?? 5
+  let delay = retry.baseDelayMs ?? 500
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const response = await fetch(url, {
       ...options,
@@ -52,10 +102,12 @@ export async function apiFetch<T>(
     })
 
     if (response.status === 429 || response.status >= 500) {
-      if (attempt === maxRetries) {
-        throw new Error(`Request failed: ${response.status} ${response.statusText}`)
+      const apiMessage = await readApiMessage(response)
+      // A shard error is deterministic (bad anchor), so retrying only wastes time.
+      if (attempt === maxRetries || isShardError(apiMessage)) {
+        throw new ApiError(response.status, response.statusText, apiMessage)
       }
-      const jitter = Math.floor(Math.random() * 500)
+      const jitter = Math.floor(Math.random() * Math.min(500, delay))
       await new Promise((r) => setTimeout(r, delay + jitter))
       delay = Math.min(delay * 2, 8000)
       continue
@@ -63,7 +115,7 @@ export async function apiFetch<T>(
 
     if (response.status === 404) return null
     if (!response.ok) {
-      throw new Error(`Request failed: ${response.status} ${response.statusText}`)
+      throw new ApiError(response.status, response.statusText, await readApiMessage(response))
     }
 
     return (await response.json()) as T
