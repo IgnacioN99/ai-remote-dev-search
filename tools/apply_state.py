@@ -13,8 +13,8 @@ The marker is gitignored local state: .agents/state/apply.json
 
 Session ownership: only the owning session's stops are held. In Claude Code the
 Bash tool exports CLAUDE_CODE_SESSION_ID, the same id the Stop hook receives as
-`session_id`, so `start` records it directly. When it is unavailable (Antigravity,
-or a child session whose id may not be the one that stops), the hook claims the
+`session_id`, so `start` records it directly. When it is unavailable (Antigravity
+exports no equivalent), the hook claims the
 marker for the first stopping session whose transcript shows this `start`
 command (see .claude/hooks/apply_gate_stop.py). `cwd` lets the hook tell a stop
 in the main checkout from one in a linked worktree under .claude/worktrees/.
@@ -84,18 +84,16 @@ def now_iso() -> str:
 
 
 SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
-CHILD_SESSION_ENV = "CLAUDE_CODE_CHILD_SESSION"
 
 
 def session_from_env(env: Optional[dict] = None) -> Optional[str]:
-    """The Claude Code session id of the agent running this command, if trustworthy.
+    """The Claude Code session id exported to the Bash tool, or None outside Claude Code.
 
-    A child session (subagent) may carry an id that is not the one whose Stop event
-    fires, so none is recorded there; the hook then claims ownership at the first stop.
+    It names the session's transcript (~/.claude/projects/<project>/<id>.jsonl) and is
+    the `session_id` the Stop hook receives; inside a subagent it is the parent's id,
+    which is still the session whose Stop event fires.
     """
     env = os.environ if env is None else env
-    if env.get(CHILD_SESSION_ENV):
-        return None
     value = (env.get(SESSION_ENV) or "").strip()
     return value or None
 

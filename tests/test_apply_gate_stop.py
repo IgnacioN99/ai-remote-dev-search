@@ -67,8 +67,7 @@ class Base(unittest.TestCase):
         env = mock.patch.dict(os.environ)
         env.start()
         self.addCleanup(env.stop)
-        for name in (apply_state.SESSION_ENV, apply_state.CHILD_SESSION_ENV):
-            os.environ.pop(name, None)
+        os.environ.pop(apply_state.SESSION_ENV, None)
 
     def transcript(self, text: str) -> str:
         path = self.root / "transcript.jsonl"
@@ -106,6 +105,8 @@ class Base(unittest.TestCase):
         payload = dict(payload or CLAUDE_PAYLOAD)
         if not antigravity and payload.get("cwd") == CLAUDE_PAYLOAD["cwd"]:
             payload["cwd"] = str(self.root)  # the stop happens inside this repo
+        if payload.get("transcript_path") == CLAUDE_PAYLOAD["transcript_path"]:
+            payload["transcript_path"] = str(self.root / "absent.jsonl")  # unreadable
         return hook.decide(payload, antigravity, self.root, gate), gate
 
 
@@ -349,6 +350,11 @@ class DecideTests(Base):
         other = self.transcript("nothing here\n")
         self.decide(dict(AGY_PAYLOAD, conversationId="conv-x", transcriptPath=other), antigravity=True)
         self.assertNotIn("session_id", self.state())
+        # Antigravity logs run_command calls with the command line as an escaped JSON string.
+        mine = self.transcript(json.dumps({"tool_calls": [{"name": "run_command", "args": {
+            "CommandLine": json.dumps(f"python3 tools/apply_state.py start {SLUG}")}}]}) + "\n")
+        self.decide(dict(AGY_PAYLOAD, conversationId="conv-a", transcriptPath=mine), antigravity=True)
+        self.assertEqual(self.state()["session_id"], "conv-a")
 
     def test_transcript_match_requires_exact_slug(self):
         path = self.transcript('"command":"python3 tools/apply_state.py start ' + SLUG + '-v2"')
@@ -519,12 +525,6 @@ class ApplyStateCliTests(Base):
         self.cli("start", SLUG)
         self.assertEqual(self.state()["session_id"], "sess-env")
         self.assertEqual(self.state()["cwd"], os.getcwd())
-
-    def test_start_in_child_session_leaves_ownership_to_first_stop(self):
-        os.environ[apply_state.SESSION_ENV] = "sess-parent"
-        os.environ[apply_state.CHILD_SESSION_ENV] = "1"
-        self.cli("start", SLUG)
-        self.assertNotIn("session_id", self.state())
 
     def test_start_without_session_env(self):
         self.cli("start", SLUG)

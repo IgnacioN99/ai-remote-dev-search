@@ -13,8 +13,8 @@ When the agent tries to stop:
      started in the main checkout, or vice versa), or another session (payload
      session id differs from the marker's `session_id`) -> allow.
   3. Session ownership. `apply_state.py start` records the Claude Code session
-     id from CLAUDE_CODE_SESSION_ID. When the marker has none (Antigravity, or a
-     child session), the FIRST stop after `start` claims it, whatever the
+     id from CLAUDE_CODE_SESSION_ID. When the marker has none (Antigravity, which
+     exports no session id to commands), the FIRST stop after `start` claims it, whatever the
      outcome (allow or block). Race: another session in this checkout may stop
      before the /apply session does. To avoid handing it ownership, a stopper
      whose transcript (`transcript_path` / `transcriptPath`) is readable but does
