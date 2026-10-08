@@ -367,7 +367,7 @@ Never edit the generated `SKILL.md` copies by hand - the next sync overwrites th
 
 Install the plugin **outside the repo** so its credentials and absolute paths never reach your fork:
 
-- **Antigravity:** put the plugin folder under the global customization root, `~/.gemini/config/plugins/<plugin>/`. Plugins there are discovered and enabled automatically, including their `mcp_config.json`; no project file is needed. If you register it per project instead (`.agents/plugins/` or `.agents/plugins.json`), that registration is machine-local and gitignored.
+- **Antigravity:** put the plugin folder under the global customization root, `~/.gemini/config/plugins/<plugin>/`. Plugins there are discovered and enabled automatically (the folder needs its `plugin.json` manifest), including their `mcp_config.json`, and they load in **every** workspace; no project file is needed. If you register it per project instead (`.agents/plugins/` or `.agents/plugins.json`), that registration is machine-local and gitignored.
 - **Claude Code:** register the MCP server at user scope rather than in the tracked `.mcp.json`:
 
   ```bash
