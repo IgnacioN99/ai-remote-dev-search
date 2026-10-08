@@ -709,5 +709,33 @@ class PhoneFalsePositives(Base):
             self.assertNotIn(needle, clean, clean)
 
 
+class DetectRuntime(unittest.TestCase):
+    def test_unknown_without_markers(self):
+        self.assertEqual(report_issue.detect_runtime({"PATH": "/usr/bin"}), "unknown")
+
+    def test_claude_code(self):
+        self.assertEqual(report_issue.detect_runtime({"CLAUDECODE": "1"}), "claude-code")
+
+    def test_antigravity_terminal_env(self):
+        # Variable names as found in a real Antigravity persistent-term.env.
+        for key in report_issue.ANTIGRAVITY_ENV_MARKERS:
+            with self.subTest(key=key):
+                self.assertEqual(report_issue.detect_runtime({key: "x"}), "antigravity")
+
+    def test_antigravity_ls_address_alone_is_not_enough(self):
+        self.assertEqual(
+            report_issue.detect_runtime({"ANTIGRAVITY_LS_ADDRESS": "localhost:5387"}), "unknown")
+
+    def test_explicit_override_wins(self):
+        env = {"JOBSEARCH_RUNTIME": "codex", "ANTIGRAVITY_AGENT": "1", "CLAUDECODE": "1"}
+        self.assertEqual(report_issue.detect_runtime(env), "codex")
+
+    def test_footer_reports_antigravity(self):
+        footer = report_issue.build_footer(
+            "portal-health", "torre-search", "0" * 40, {"python": "3"},
+            {"ANTIGRAVITY_CONVERSATION_ID": "abc"})
+        self.assertIn("runtime: antigravity", footer)
+
+
 if __name__ == "__main__":
     unittest.main()

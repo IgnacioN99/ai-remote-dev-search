@@ -3,7 +3,7 @@ import { runSearch, type SearchOpts } from "./commands/search.js"
 import { runDetail, type DetailOpts } from "./commands/detail.js"
 import { writeError } from "./helpers.js"
 
-const VERSION = "1.0.0"
+const VERSION = "1.1.0"
 
 const USAGE = `torre-search CLI v${VERSION}
 
