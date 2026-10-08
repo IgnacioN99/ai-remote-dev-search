@@ -30,11 +30,21 @@ Every existing X.personal is backed up to documents/memory/backup-<timestamp>/
 (gitignored) before anything is written. `--apply` is idempotent: when nothing
 would change it writes nothing and creates no backup folder.
 
+Resolved merges are remembered in .agents/state/personal_migration.json
+(gitignored; paths and content hashes only), keyed by file with the source
+revision and the sha256 of the source content. A file is resolved when
+  * `--apply` wrote X.incoming.personal, and later that file is gone while
+    X.personal exists (the user merged it and deleted it) - detected automatically;
+  * or the user says so: `--resolved X` / `--resolved-all`.
+A resolved file is reported `[resolved]` and never gets a new incoming copy. If
+the source content changes (different hash), the file is open again.
+
 Dry-run by default; `--apply` writes. Stdlib only.
 
 Usage:
-  python3 tools/migrate_personal_overlay.py            # show the plan
-  python3 tools/migrate_personal_overlay.py --apply    # write it
+  python3 tools/migrate_personal_overlay.py                 # show the plan
+  python3 tools/migrate_personal_overlay.py --apply         # write it
+  python3 tools/migrate_personal_overlay.py --resolved-all  # after merging by hand
 """
 
 from __future__ import annotations
@@ -42,6 +52,8 @@ from __future__ import annotations
 import argparse
 import datetime
 import difflib
+import hashlib
+import json
 import re
 import shutil
 import subprocess
@@ -54,6 +66,7 @@ SUFFIX = ".personal"
 INCOMING_SUFFIX = ".incoming.personal"
 OVERLAY_TOOL = "tools/personal_overlay.py"
 WORKTREE = "WORKTREE"
+STATE_REL = ".agents/state/personal_migration.json"
 
 _SKILL = ".claude/skills/job-application-assistant"
 # Files the overlay change turned back into templates (plus the profile files
@@ -146,12 +159,46 @@ def _strip_self_import(rel: str, text: str) -> str:
     return "".join(ln for ln in text.splitlines(keepends=True) if ln.strip() != me)
 
 
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def load_state(root: Path) -> dict:
+    try:
+        data = json.loads((root / STATE_REL).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"files": {}}
+    if not isinstance(data, dict) or not isinstance(data.get("files"), dict):
+        return {"files": {}}
+    return data
+
+
+def save_state(root: Path, state: dict) -> None:
+    path = root / STATE_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _record(state: dict, rel: str, key: str, row: dict, how: str = "") -> None:
+    entry = {"source": row["source"], "sha256": row["sha256"],
+             "at": datetime.datetime.now().isoformat(timespec="seconds")}
+    if how:
+        entry["how"] = how
+    state.setdefault("files", {}).setdefault(rel, {})[key] = entry
+
+
+def _matches(state: dict, rel: str, key: str, sha: str) -> bool:
+    entry = state.get("files", {}).get(rel, {}).get(key)
+    return isinstance(entry, dict) and entry.get("sha256") == sha
+
+
 def incoming_path(root: Path, rel: str) -> Path:
     tracked = root / rel
     return tracked.with_name(tracked.name + INCOMING_SUFFIX)
 
 
-def plan(root: Path, rev: str, files: List[str]) -> List[dict]:
+def plan(root: Path, rev: str, files: List[str], state: Optional[dict] = None) -> List[dict]:
+    state = state if state is not None else {"files": {}}
     rows = []
     for rel in files:
         file_rev = WORKTREE if rel in WORKTREE_SOURCED else rev
@@ -164,7 +211,8 @@ def plan(root: Path, rev: str, files: List[str]) -> List[dict]:
         row = {"path": rel, "personal_exists": cur is not None, "action": "skip",
                "src_lines": 0, "personal_lines": 0, "only_src": 0, "only_personal": 0,
                "src_missing_from_personal": 0, "reason": "", "src": None,
-               "incoming_personal_lines": None}
+               "incoming_personal_lines": None, "source": file_rev, "sha256": None,
+               "needs_merge": False, "auto_resolved": False}
         if incoming.is_file():
             # Lines of an existing .incoming.personal found in no template version
             # and not in .personal: what a manual merge would still have to move.
@@ -176,6 +224,7 @@ def plan(root: Path, rev: str, files: List[str]) -> List[dict]:
             continue
         src = _strip_self_import(rel, src)
         row["src"] = src
+        row["sha256"] = _sha(src)
         row["src_lines"] = len(src.splitlines())
         personal_lines = _lines(src) - templates
         if cur is None:
@@ -197,6 +246,19 @@ def plan(root: Path, rev: str, files: List[str]) -> List[dict]:
         row["src_missing_from_personal"] = len(personal_lines - _lines(cur))
         if row["src_missing_from_personal"] == 0:
             row["reason"] = "differs, but every personalized line is already in .personal"
+            rows.append(row)
+            continue
+        row["needs_merge"] = True
+        missing = row["src_missing_from_personal"]
+        if _matches(state, rel, "resolved", row["sha256"]):
+            row["action"] = "resolved"
+            row["reason"] = f"merge marked resolved ({missing} source line(s) deliberately not carried over)"
+        elif not incoming.is_file() and _matches(state, rel, "incoming_written", row["sha256"]):
+            # --apply wrote the incoming copy and the user has since deleted it:
+            # they merged what they wanted. Persisted on the next write.
+            row["action"] = "resolved"
+            row["auto_resolved"] = True
+            row["reason"] = "merged: the .incoming.personal written by --apply has been deleted"
         elif incoming.is_file() and _norm(incoming.read_text(encoding="utf-8")) == src:
             row["reason"] = (f"{row['src_missing_from_personal']} personalized line(s) missing from "
                              ".personal - already in .incoming.personal, merge pending")
@@ -208,9 +270,10 @@ def plan(root: Path, rev: str, files: List[str]) -> List[dict]:
     return rows
 
 
-def apply(root: Path, rows: List[dict], stamp: str) -> Optional[Path]:
+def apply(root: Path, rows: List[dict], stamp: str, state: Optional[dict] = None) -> Optional[Path]:
     """Write the planned copies. Returns the backup folder, or None when nothing
-    needed writing (then nothing is touched and no backup folder is created)."""
+    needed writing (then nothing is touched and no backup folder is created).
+    Each incoming copy written is recorded in `state` (the caller saves it)."""
     writes = [r for r in rows if r["action"] in ("create", "incoming")]
     if not writes:
         return None
@@ -232,7 +295,44 @@ def apply(root: Path, rows: List[dict], stamp: str) -> Optional[Path]:
             tracked.with_name(tracked.name + SUFFIX).write_text(row["src"], encoding="utf-8", newline="")
         else:
             incoming_path(root, rel).write_text(row["src"], encoding="utf-8", newline="")
+            if state is not None:
+                _record(state, rel, "incoming_written", row)
     return backup
+
+
+def mark_resolved(root: Path, rows: List[dict], state: dict, names: List[str],
+                  all_open: bool) -> List[str]:
+    """Record the explicitly resolved files in `state`; return the messages to print.
+    `--resolved-all` covers every file that still needs a merge, but leaves alone
+    one whose .incoming.personal still exists (name it with --resolved instead)."""
+    msgs = []
+    by_path = {r["path"]: r for r in rows}
+    targets = list(dict.fromkeys(names))
+    if all_open:
+        targets += [r["path"] for r in rows
+                    if r["needs_merge"] and r["action"] != "resolved" and r["path"] not in targets]
+    for rel in targets:
+        row = by_path[rel]
+        if not row["needs_merge"]:
+            msgs.append(f"{rel}: nothing to resolve ({row['reason'] or row['action']})")
+            continue
+        if rel not in names and incoming_path(root, rel).is_file():
+            msgs.append(f"{rel}: {rel}{INCOMING_SUFFIX} still exists - merge it and delete it, "
+                        f"or pass --resolved {rel}")
+            continue
+        _record(state, rel, "resolved", row, how="explicit")
+        row["action"] = "resolved"
+        row["auto_resolved"] = False
+        row["reason"] = "merge marked resolved"
+        msgs.append(f"{rel}: marked resolved")
+    return msgs
+
+
+def _rel_arg(name: str) -> str:
+    name = name.replace("\\", "/")
+    while name.startswith("./"):
+        name = name[2:]
+    return name
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -245,16 +345,39 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--from-rev", default="auto",
                     help="revision holding the personalized files (default: auto = commit before the overlay; "
                          f"'{WORKTREE}' = working tree)")
+    ap.add_argument("--resolved", action="append", default=[], metavar="FILE",
+                    help="record FILE's manual merge as done so it is never flagged again (repeatable)")
+    ap.add_argument("--resolved-all", action="store_true",
+                    help="record every pending manual merge whose .incoming.personal is gone as done")
     ap.add_argument("--root", default=str(ROOT), help=argparse.SUPPRESS)
     ap.add_argument("--files", nargs="*", default=None, help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
 
     root = Path(args.root).resolve()
+    files = args.files or AFFECTED
+    resolved_names = [_rel_arg(n) for n in args.resolved]
+    unknown = [n for n in resolved_names if n not in files]
+    if unknown:
+        print(f"error: --resolved: not a migrated file: {', '.join(unknown)} "
+              f"(choose from: {', '.join(files)})", file=sys.stderr)
+        return 2
     rev = args.from_rev
     if rev == "auto":
         rev = auto_rev(root) or WORKTREE
     print(f"Source of personalized content: {rev}")
-    rows = plan(root, rev, args.files or AFFECTED)
+    state = load_state(root)
+    rows = plan(root, rev, files, state)
+    state_dirty = False
+    if resolved_names or args.resolved_all:
+        for msg in mark_resolved(root, rows, state, resolved_names, args.resolved_all):
+            print(f"resolved: {msg}")
+        state_dirty = True
+    if args.apply or state_dirty:
+        # Persist what the plan detected: an incoming copy --apply wrote is gone.
+        for r in rows:
+            if r["auto_resolved"]:
+                _record(state, r["path"], "resolved", r, how="incoming deleted")
+                state_dirty = True
     for r in rows:
         counts = (f"tracked@src {r['src_lines']} lines, .personal {r['personal_lines'] if r['personal_exists'] else '-'} lines")
         if r["action"] == "incoming":
@@ -267,12 +390,25 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"           existing {r['path']}{INCOMING_SUFFIX}: {n} genuinely personal "
                   f"line(s) not yet in .personal - {note}")
     merges = [r for r in rows if r["action"] == "incoming"]
+    hint = ("If you already merged these by hand (kept your .personal wording and deleted the "
+            ".incoming.personal copies), run `python3 tools/migrate_personal_overlay.py "
+            "--resolved-all` once and they are never flagged again.")
 
     if not args.apply:
-        print("\nDry run - nothing written. Re-run with --apply to write.")
+        if state_dirty:
+            save_state(root, state)
+            print(f"\nRecorded in {STATE_REL}. No other file written.")
+        else:
+            print("\nDry run - nothing written. Re-run with --apply to write.")
+        if merges:
+            print(hint)
         return 0
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = apply(root, rows, stamp)
+    backup = apply(root, rows, stamp, state)
+    if merges:
+        state_dirty = True
+    if state_dirty:
+        save_state(root, state)
     if backup is None:
         print("\nNothing to write - already migrated.")
     else:
@@ -284,6 +420,8 @@ def main(argv: Optional[List[str]] = None) -> int:
               "(in no template version, not yet in .personal):")
         for r in merges:
             print(f"  {r['path']}: {r['src_missing_from_personal']}")
+        print("Lines you deliberately leave out are fine: once a .incoming.personal file is "
+              "deleted, the next run reports that file [resolved] and never recreates it.")
     if any(r["path"] in WORKTREE_SOURCED and r["action"] == "create" for r in rows):
         print("cv/main_example.tex.personal now holds your master CV. Once you have checked it, "
               "restore the tracked placeholder template (discard your working-tree edits to "

@@ -58,6 +58,13 @@ per-file diff commands.
 
 ### Fixed
 
+- **`migrate_personal_overlay.py` remembers resolved merges** (#5). A file whose
+  `.incoming.personal` the user merged and deleted was re-flagged "manual merge needed" on
+  every run, and `--apply` recreated the incoming copy. Resolution is now recorded in gitignored
+  `.agents/state/personal_migration.json` (source revision + sha256 of the source content):
+  automatically when an incoming copy written by `--apply` is gone while `.personal` exists, or
+  explicitly via `--resolved <file>` / `--resolved-all`. Resolved files show `[resolved]` and get
+  no new incoming copy; a changed source content re-opens them.
 - **PR #2 review follow-ups.** The `/apply` Stop hook counts only documents written since the
   run's (now microsecond-precise) `started_at`, so a redraft is not blocked or cleared at its
   consent step; it escapes the slug in globs, ignores stops from another cwd or session, and
