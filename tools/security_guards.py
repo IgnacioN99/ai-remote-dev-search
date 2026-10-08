@@ -175,6 +175,20 @@ ALLOWED_HOOKS: set[str] = {
     'Stop:python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/apply_gate_stop.py',
 }
 
+# Antigravity hooks (.agents/hooks.json), as "<Event>:<command>" strings. Same threat model
+# as ALLOWED_HOOKS: Antigravity runs them on every matching event in a workspace that has
+# this repo open. Commands run from .agents/ (the directory holding hooks.json).
+ALLOWED_ANTIGRAVITY_HOOKS: set[str] = {
+    # Operator-mode framework guard (file tools and run_command): can only deny or ask.
+    "PreToolUse:python3 ../.claude/hooks/guard_framework.py --antigravity",
+    # /apply quality gate, see ALLOWED_HOOKS above.
+    "Stop:python3 ../.claude/hooks/apply_gate_stop.py --antigravity",
+    # End-of-session drift + PII report: read-only `git status` and file reads, prints {} and
+    # always exits 0 (never files an issue, never keeps the agent running).
+    "Stop:python3 ../tools/check_framework_immutable.py --hook",
+}
+_GROUPED_EVENTS = {"PreToolUse", "PostToolUse"}
+
 FORBIDDEN_SCRIPTS = {"preinstall", "install", "postinstall", "prepare", "prepack"}
 
 
@@ -200,6 +214,50 @@ def _hook_commands(event: str, entries: object):
         for hook in inner:
             command = hook.get("command") if isinstance(hook, dict) else None
             yield f"{event}:{command}" if isinstance(command, str) else unrecognised
+
+
+def _antigravity_commands(event: str, entries: object):
+    """Like _hook_commands for .agents/hooks.json: tool events are grouped (matcher + hooks),
+    the others are flat handler lists. Unknown shapes fail closed."""
+    if event in _GROUPED_EVENTS:
+        yield from _hook_commands(event, entries)
+        return
+    unrecognised = f"{event}:<unrecognised hook shape>"
+    if not isinstance(entries, list):
+        yield unrecognised
+        return
+    for hook in entries:
+        command = hook.get("command") if isinstance(hook, dict) else None
+        yield f"{event}:{command}" if isinstance(command, str) else unrecognised
+
+
+def check_antigravity_hooks() -> None:
+    path = ROOT / ".agents" / "hooks.json"
+    if not path.exists():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f".agents/hooks.json: unreadable or invalid JSON: {exc}")
+        return
+    if not isinstance(data, dict):
+        errors.append(".agents/hooks.json: top-level JSON value must be an object")
+        return
+    for name, spec in data.items():
+        if not isinstance(spec, dict):
+            errors.append(f".agents/hooks.json: hook {name!r} must be an object")
+            continue
+        for event, entries in spec.items():
+            if event == "enabled":
+                continue
+            for command in _antigravity_commands(str(event), entries):
+                if command not in ALLOWED_ANTIGRAVITY_HOOKS:
+                    errors.append(
+                        f".agents/hooks.json: hook not in the reviewed allowlist: {command!r} "
+                        f"(in {name!r}). Antigravity runs it automatically on every matching event. "
+                        "If it is intentional, add it to ALLOWED_ANTIGRAVITY_HOOKS in "
+                        "tools/security_guards.py in the same PR."
+                    )
 
 
 def check_permissions() -> None:
@@ -326,6 +384,7 @@ def check_package_manifests() -> None:
 
 def main() -> int:
     check_permissions()
+    check_antigravity_hooks()
     check_gitignore()
     check_package_manifests()
     if errors:

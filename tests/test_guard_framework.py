@@ -40,7 +40,8 @@ def git_env() -> dict:
         GIT_COMMITTER_NAME="Jane Doe",
         GIT_COMMITTER_EMAIL="jane@example.com",
     )
-    env.pop("ALLOW_FRAMEWORK_COMMIT", None)
+    for var in ("ALLOW_FRAMEWORK_COMMIT", "ALLOW_PII_COMMIT", "GUARD_FRAMEWORK_LOG"):
+        env.pop(var, None)
     return env
 
 
@@ -431,6 +432,201 @@ class PreCommitHookTests(GuardFixture):
         self.assertEqual(r.returncode, 0, r.stderr)
 
 
+FAKE_PROFILE = {
+    "name": "Zelda Quarry",
+    "email": "zelda.quarry@example.org",
+    "phone": "+1 555 0100 2233",
+    "location": "Springfield",
+}
+
+
+class AntigravityShellTests(GuardFixture):
+    """run_command: only obvious write targets are checked (#11)."""
+
+    def sh(self, command, cwd=None):
+        return self.agy("run_command", {"CommandLine": command, "Cwd": str(cwd or self.main)})
+
+    def test_incident_symlink_into_framework_dir_denied(self):
+        # The #11 session ran `mkdir -p .agents/plugins && ln -sf <plugin> .agents/plugins/<name>`.
+        decision, reason = self.sh(f"mkdir -p {self.main}/.agents/plugins && "
+                                   f"ln -sf {self.tmp}/plugin {self.main}/.agents/plugins/demo")
+        self.assertEqual(decision, "deny")
+        self.assertIn(".agents/plugins/demo", reason)
+
+    def test_obvious_writes_to_framework_files_denied(self):
+        for cmd in ["echo hack > tools/x.py", "echo hack >> CLAUDE.md", "date | tee -a tools/x.py",
+                    "sed -i 's/framework/hack/' tools/x.py", "sed -i.bak -e 's/a/b/' tools/x.py",
+                    "perl -pi -e 's/a/b/' tools/x.py", f"cp {self.tmp}/a tools/", "mv notes.md tools/new.py",
+                    "cp -t tools a.py", "touch .claude/skills/new/SKILL.md", "cd tools && echo x > x.py",
+                    "truncate -s 0 tools/x.py", "dd if=/dev/zero of=tools/x.py count=1",
+                    "echo x 1> tools/x.py", "cat > .agents/skills/demo-search/SKILL.md <<'EOF'\nhi\nEOF"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.sh(cmd)[0], "deny")
+
+    def test_reads_user_data_and_worktree_writes_answer_ask(self):
+        for cmd in ["git status -s", "cat tools/x.py", "python3 tools/x.py 2>&1 | head",
+                    "python3 tools/x.py > notes/out.txt 2>/dev/null", "echo x > tools/new_jobs_summary.md",
+                    "grep -r framework tools > /tmp/out.txt", "ls >&2", "sed 's/a/b/' tools/x.py",
+                    "cat <<'EOF' > notes/a.md\necho > tools/x.py\nEOF", "rm -f notes/a.md",
+                    "cp tools/x.py /tmp/x.py", "echo 'unbalanced > tools/x.py"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.sh(cmd)[0], "ask")
+        self.assertEqual(self.sh("echo x > tools/x.py", cwd=self.wt)[0], "ask")
+
+    def test_git_dir_write_via_shell_denied(self):
+        self.assertEqual(self.sh("echo evil > .git/hooks/post-checkout")[0], "deny")
+
+    def test_target_extraction(self):
+        sys.path.insert(0, str(HOOK.parent))
+        import guard_framework as gf
+
+        t = gf.shell_write_targets("cd sub && cp a b c/ 2>/dev/null; ln -s /x/plug", "/r")
+        self.assertIn("/r/sub/c/", t)
+        self.assertIn("/r/sub/c/a", t)
+        self.assertIn("/r/sub/plug", t)
+        self.assertNotIn("/r/sub/2", t)
+        self.assertEqual(gf.shell_write_targets("echo $HOME > $OUT; python3 -c 'open(1)'", "/r"), [])
+
+
+class GuardDebugLogTests(GuardFixture):
+    def test_log_records_tool_paths_and_decision_but_no_content(self):
+        log = self.tmp / "guard.log"
+        self.env["GUARD_FRAMEWORK_LOG"] = str(log)
+        self.agy("write_to_file", {"TargetFile": str(self.main / "tools/x.py"), "CodeContent": "SECRET-BODY"})
+        self.agy("run_command", {"CommandLine": "echo SECRET-CMD > notes/a.md", "Cwd": str(self.main)})
+        lines = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([l["tool"] for l in lines], ["write_to_file", "run_command"])
+        self.assertEqual(lines[0]["decision"], "deny")
+        self.assertEqual(lines[0]["runtime"], "antigravity")
+        self.assertEqual(lines[1]["targets"], [str(self.main / "notes/a.md")])
+        self.assertNotIn("SECRET", log.read_text(encoding="utf-8"))
+
+    def test_no_log_by_default(self):
+        sys.path.insert(0, str(HOOK.parent))
+        import guard_framework as gf
+
+        self.assertIsNone(gf._log_target({}) if not (gf.HOOK_ROOT / ".agents/state/guard_framework.debug").exists()
+                          else None)
+        self.assertEqual(gf._log_target({"GUARD_FRAMEWORK_LOG": str(self.tmp / "x")}), self.tmp / "x")
+
+
+class OnlyThisRepoTests(GuardFixture):
+    def test_foreign_repo_targets_are_neutral(self):
+        # A machine-wide hook must never block other projects: the fixture repo is not the
+        # repo holding guard_framework.py.
+        payload = {"toolCall": {"name": "write_to_file", "args": {"TargetFile": str(self.main / "tools/x.py")}},
+                   "workspacePaths": []}
+        r = subprocess.run([sys.executable, str(HOOK), "--antigravity", "--only-this-repo"],
+                           input=json.dumps(payload), capture_output=True, text=True, env=self.env, timeout=60)
+        self.assertEqual(json.loads(r.stdout)["decision"], "ask")
+        payload["toolCall"] = {"name": "run_command", "args": {"CommandLine": "echo x > tools/x.py",
+                                                               "Cwd": str(self.main)}}
+        r = subprocess.run([sys.executable, str(HOOK), "--antigravity", "--only-this-repo"],
+                           input=json.dumps(payload), capture_output=True, text=True, env=self.env, timeout=60)
+        self.assertEqual(json.loads(r.stdout)["decision"], "ask")
+        # Without the flag the same write is denied.
+        self.assertEqual(self.agy("write_to_file", {"TargetFile": str(self.main / "tools/x.py")})[0], "deny")
+
+
+class DriftStopHookAndPiiTests(GuardFixture):
+    def check(self, *extra, repo=None):
+        return subprocess.run([sys.executable, str(CHECK), "--repo", str(repo or self.main), *extra],
+                              capture_output=True, text=True, env=self.env, timeout=120)
+
+    def profile(self):
+        self.write(self.main / "candidate_profile.json", json.dumps(FAKE_PROFILE))
+
+    def test_hook_mode_prints_json_and_exits_0_on_drift(self):
+        self.write(self.main / "tools/x.py", "changed\n")
+        r = self.check("--hook")
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(json.loads(r.stdout), {})
+        self.assertIn("tools/x.py", r.stderr)
+        self.assertIn("drift at session end", r.stderr)
+
+    def test_hook_mode_never_files_an_issue(self):
+        log = self.tmp / "called"
+        self.write(self.main / "tools/report_issue.py", f"open({str(log)!r}, 'w').write('x')\n")
+        self.write(self.main / "tools/x.py", "changed\n")
+        self.assertEqual(self.check("--hook", "--report").returncode, 0)
+        self.assertFalse(log.exists())
+
+    def test_pii_in_new_skill_warns_loudly_without_values(self):
+        self.profile()
+        self.write(self.main / ".agents/skills/new/SKILL.md", "Apply as Zelda Quarry, zelda.quarry@example.org\n")
+        r = self.check()
+        # A brand-new skill dir is drift-exempt (exit 0), but it is still scanned.
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("WARNING: candidate PII", r.stdout)
+        self.assertIn(".agents/skills/new/SKILL.md", r.stdout)
+        self.assertNotIn("Zelda", r.stdout + r.stderr)
+        self.assertNotIn("example.org", r.stdout + r.stderr)
+
+    def test_location_only_is_a_note_not_a_warning(self):
+        self.profile()
+        self.write(self.main / "tools/x.py", "# jobs in Springfield\n")
+        r = self.check()
+        self.assertNotIn("WARNING: candidate PII", r.stdout)
+        self.assertIn("other profile terms", r.stdout)
+        self.assertNotIn("Springfield", r.stdout)
+
+    def test_pii_warning_also_in_linked_worktree(self):
+        self.profile()  # personal data lives in the main checkout only
+        self.write(self.wt / "tools/x.py", "# by Zelda Quarry\n")
+        r = self.check(repo=self.wt)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("WARNING: candidate PII", r.stdout)
+
+    def test_no_profile_means_no_pii_output(self):
+        self.write(self.main / "tools/x.py", "# by Zelda Quarry\n")
+        r = self.check()
+        self.assertNotIn("PII", r.stdout)
+        self.assertNotIn("profile terms", r.stdout)
+
+
+class PreCommitPiiTests(GuardFixture):
+    def setUp(self):
+        super().setUp()
+        for checkout in (self.main, self.wt):
+            for name in ("pii_scan.py", "report_issue.py"):
+                shutil.copy(ROOT / "tools" / name, checkout / "tools" / name)
+        self.write(self.main / "candidate_profile.json", json.dumps(FAKE_PROFILE))
+        self.git("config", "core.hooksPath", str(PRE_COMMIT_DIR))
+
+    def test_pii_commit_in_worktree_blocked_without_values(self):
+        self.write(self.wt / "tools/x.py", "# contact: +1 555 0100 2233\n")
+        self.git("add", "tools/x.py", cwd=self.wt)
+        r = self.git("commit", "-q", "-m", "leak", cwd=self.wt, check=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("candidate PII", r.stderr)
+        self.assertIn("tools/x.py", r.stderr)
+        self.assertNotIn("555", r.stderr)
+
+    def test_staged_content_is_scanned_not_working_tree(self):
+        self.write(self.wt / "tools/x.py", "# Zelda Quarry\n")
+        self.git("add", "tools/x.py", cwd=self.wt)
+        self.write(self.wt / "tools/x.py", "# clean\n")  # unstaged fix does not count
+        self.assertNotEqual(self.git("commit", "-q", "-m", "x", cwd=self.wt, check=False).returncode, 0)
+
+    def test_framework_override_does_not_bypass_pii(self):
+        self.write(self.main / "tools/x.py", "# Zelda Quarry\n")
+        self.git("add", "tools/x.py")
+        env = dict(self.env, ALLOW_FRAMEWORK_COMMIT="1")
+        r = self.git("commit", "-q", "-m", "x", env=env, check=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("candidate PII", r.stderr)
+
+    def test_pii_override_and_clean_commits_pass(self):
+        self.write(self.wt / "tools/x.py", "# Zelda Quarry\n")
+        self.git("add", "tools/x.py", cwd=self.wt)
+        env = dict(self.env, ALLOW_PII_COMMIT="1")
+        self.assertEqual(self.git("commit", "-q", "-m", "x", cwd=self.wt, env=env, check=False).returncode, 0)
+        self.write(self.wt / "tools/y.py", "# Jane Doe in Springfield\n")  # location only: no block
+        self.git("add", "tools/y.py", cwd=self.wt)
+        r = self.git("commit", "-q", "-m", "y", cwd=self.wt, check=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
 class RegistrationTests(unittest.TestCase):
     def test_claude_settings_registers_allowlisted_hook(self):
         sys.path.insert(0, str(ROOT / "tools"))
@@ -452,6 +648,20 @@ class RegistrationTests(unittest.TestCase):
             self.assertIn(tool, group["matcher"])
         # Antigravity runs hook commands from the directory holding hooks.json (.agents/).
         self.assertEqual(group["hooks"][0]["command"], "python3 ../.claude/hooks/guard_framework.py --antigravity")
+        # Shell writes go through the same guard (#11), as their own named hook so they can be
+        # switched off ("enabled": false) independently.
+        self.assertEqual(len(data["operator-mode-framework-guard"]["PreToolUse"]), 1)
+        shell = data["operator-mode-shell-guard"]["PreToolUse"][0]
+        self.assertEqual(shell["matcher"], "run_command")
+        self.assertEqual(shell["hooks"][0]["command"], group["hooks"][0]["command"])
+
+    def test_antigravity_stop_drift_report_is_separate_and_non_blocking(self):
+        data = json.loads((ROOT / ".agents" / "hooks.json").read_text(encoding="utf-8"))
+        handler = data["framework-drift-report"]["Stop"][0]
+        self.assertNotIn("matcher", handler)
+        self.assertEqual(handler["command"], "python3 ../tools/check_framework_immutable.py --hook")
+        # The /apply gate keeps its own named hook.
+        self.assertIn("apply_gate_stop.py", data["apply-quality-gate"]["Stop"][0]["command"])
 
     def test_state_and_worktrees_are_gitignored(self):
         lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
