@@ -3,8 +3,10 @@
 Written for `python3 -m unittest discover -s tests` (what CI runs) - stdlib only.
 """
 
+import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -13,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from tools.candidate_profile import CandidateProfile  # noqa: E402
-from tools.gate_application import evaluate_gate  # noqa: E402
+from tools.gate_application import build_parser, evaluate_gate, locate_ats_pdfs  # noqa: E402
 
 MOCK_PROFILE = CandidateProfile(
     name="Alex Developer",
@@ -200,6 +202,50 @@ class GateApplicationTests(unittest.TestCase):
             res = self._run_with_cv_text(app_dir, VALID_CV_TEXT)
         self.assertIs(res["needs_human_review"], True)
         self.assertTrue(any("application_fields.txt" in w for w in res["warnings"]), res["warnings"])
+
+    def _age(self, path: Path, mtime: float) -> None:
+        os.utime(path, (mtime, mtime))
+
+    def test_since_ignores_stale_pdfs_from_a_previous_run(self):
+        app_dir = self._make_ats_named_app_dir()
+        run_start = time.time()
+        for pdf in app_dir.glob("*.pdf"):
+            self._age(pdf, run_start - 3600)
+        with patch("tools.gate_application.extract_text_layer") as mock_extract:
+            res = evaluate_gate(str(app_dir), profile=MOCK_PROFILE, since=run_start)
+            mock_extract.assert_not_called()
+        self.assertIs(res["passed"], False)
+        self.assertTrue(any("Missing compiled CV PDF" in e for e in res["errors"]), res["errors"])
+        self.assertTrue(any("AlexDeveloper_CV.pdf" in w and "older than this run" in w
+                            for w in res["warnings"]), res["warnings"])
+
+    def test_since_keeps_fresh_pdfs_and_boundary_is_inclusive(self):
+        app_dir = self._make_ats_named_app_dir()
+        run_start = time.time() - 60
+        self._age(app_dir / "AlexDeveloper_CV.pdf", run_start)  # exactly at the boundary
+        self._age(app_dir / "AlexDeveloper_CoverLetter.pdf", run_start + 30)
+        with patch("tools.gate_application.extract_text_layer") as mock_extract:
+            mock_extract.side_effect = [
+                (VALID_CV_TEXT, 2, "mock_extractor"),
+                (VALID_COVER_LETTER_TEXT, 1, "mock_extractor"),
+            ]
+            res = evaluate_gate(str(app_dir), profile=MOCK_PROFILE, since=run_start)
+        self.assertIs(res["passed"], True, res["errors"])
+        self.assertFalse(any("older than this run" in w for w in res["warnings"]))
+
+    def test_without_since_old_pdfs_still_count(self):
+        app_dir = self._make_ats_named_app_dir()
+        for pdf in app_dir.glob("*.pdf"):
+            self._age(pdf, time.time() - 86400)
+        info = locate_ats_pdfs(app_dir, profile=MOCK_PROFILE)
+        self.assertIsNotNone(info["cv_pdf"])
+        self.assertIsNotNone(info["cl_pdf"])
+        self.assertEqual(info["stale"], [])
+
+    def test_since_cli_flag_is_parsed(self):
+        args = build_parser().parse_args(["acme_dev", "--since", "1700000000.5"])
+        self.assertEqual(args.since, 1700000000.5)
+        self.assertIsNone(build_parser().parse_args(["acme_dev"]).since)
 
 
 if __name__ == "__main__":

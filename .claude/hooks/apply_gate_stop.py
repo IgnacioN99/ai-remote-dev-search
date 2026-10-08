@@ -8,15 +8,29 @@ it from .agents/, so every path here resolves from this file, never the cwd).
 When the agent tries to stop:
   1. No /apply marker (.agents/state/apply.json, written by
      tools/apply_state.py) -> allow.
-  2. The stop comes from another project (payload `cwd` outside this repo) or
-     another session (payload session id differs from the one stored at the
-     first block) -> allow.
-  3. Marker present but this run has not written the slug's documents yet
+  2. The stop comes from another project (payload `cwd` outside this repo),
+     another checkout (a linked worktree under .claude/worktrees/ when the run
+     started in the main checkout, or vice versa), or another session (payload
+     session id differs from the marker's `session_id`) -> allow.
+  3. Session ownership. `apply_state.py start` records the Claude Code session
+     id from CLAUDE_CODE_SESSION_ID. When the marker has none (Antigravity, which
+     exports no session id to commands), the FIRST stop after `start` claims it, whatever the
+     outcome (allow or block). Race: another session in this checkout may stop
+     before the /apply session does. To avoid handing it ownership, a stopper
+     whose transcript (`transcript_path` / `transcriptPath`) is readable but does
+     not contain `apply_state.py start <slug>` is not the owner: allow without
+     claiming. Only a stopper with no readable transcript claims blindly - the
+     residual race, limited to runtimes that send neither a session id to
+     `start` nor a transcript path to the hook.
+  4. Marker present but this run has not written the slug's documents yet
      (cv/main_<slug>.*, cover_letters/cover_<slug>.*, or PDFs under
      documents/applications/<slug>/, counted only when modified at or after the
-     marker's started_at, so a redraft's old files do not count) -> allow: the
-     run is still at fit evaluation, or the user declined.
-  4. Otherwise run `tools/gate_application.py <slug>`:
+     marker's started_at, so a redraft's old files do not count) -> allow and
+     keep the marker: the run is still at fit evaluation, or the user declined.
+  5. Otherwise run `tools/gate_application.py <slug> --since <started_at>`; the
+     gate then ignores PDFs older than the run (a redraft's previous exports),
+     so a stop between drafting and Step 5f's re-export fails the gate instead
+     of passing on last run's PDFs and clearing the marker:
        exit 0 -> allow and clear the marker;
        exit 2 (pending human review) -> allow, the agent must ask the user;
        exit 1 -> block with the gate's violations as the reason.
@@ -40,6 +54,7 @@ import datetime
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -54,6 +69,7 @@ MAX_REASON_CHARS = 3000
 # carry an mtime slightly before started_at. Old files from a previous run are
 # minutes older than that.
 MTIME_SLACK_SECONDS = 2.0
+TRANSCRIPT_TAIL_BYTES = 32 * 1024 * 1024
 ENV_ROOT = "APPLY_GATE_ROOT"  # test override for the repository root
 
 
@@ -152,18 +168,67 @@ def foreign_cwd(payload: dict, root: Path) -> bool:
         return True
 
 
+def checkout_of(path: object, root: Path) -> Optional[Path]:
+    """The checkout a path belongs to: a linked worktree under .claude/worktrees/<name>,
+    the repository root itself, or None when the path is missing or outside the repo."""
+    if not path or not isinstance(path, str):
+        return None
+    try:
+        base = root.resolve()
+        parts = Path(path).resolve().relative_to(base).parts
+    except (OSError, ValueError):
+        return None
+    if len(parts) >= 3 and parts[0] == ".claude" and parts[1] == "worktrees":
+        return base / parts[0] / parts[1] / parts[2]
+    return base
+
+
+def other_checkout(payload: dict, state: dict, root: Path) -> bool:
+    """True when the stop and the /apply run sit in different checkouts of this repo."""
+    stop_checkout = checkout_of(payload.get("cwd"), root)
+    if stop_checkout is None:
+        return False
+    run_checkout = checkout_of(state.get("cwd"), root) or root.resolve()
+    return stop_checkout != run_checkout
+
+
 def session_of(payload: dict) -> Optional[str]:
     value = payload.get("session_id") or payload.get("conversationId")
     return str(value) if value else None
 
 
-def run_gate(root: Path, slug: str) -> subprocess.CompletedProcess:
+def transcript_shows_start(payload: dict, slug: str) -> Optional[bool]:
+    """Whether the stopping session's transcript contains `apply_state.py start <slug>`.
+
+    None when the payload names no transcript or it cannot be read. Only the last
+    TRANSCRIPT_TAIL_BYTES are read, which bounds the hook's run time.
+    """
+    path = payload.get("transcript_path") or payload.get("transcriptPath")
+    if not path or not isinstance(path, str):
+        return None
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - TRANSCRIPT_TAIL_BYTES))
+            text = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return None
+    # In JSONL transcripts the command sits inside a JSON string, so quotes are escaped.
+    pattern = r"apply_state\.py[\s\\\"']+start[\s\\\"']+" + re.escape(slug) + r"(?![\w.-])"
+    return re.search(pattern, text) is not None
+
+
+def run_gate(root: Path, slug: str, since: Optional[float] = None) -> subprocess.CompletedProcess:
     script = root / "tools" / "gate_application.py"
     if not script.is_file():
         # python exits 2 on a missing script, which would read as "pending review".
         raise FileNotFoundError(f"{script} not found")
+    args = [sys.executable, str(script), slug]
+    if since is not None:
+        args += ["--since", repr(since)]
     return subprocess.run(
-        [sys.executable, str(script), slug],
+        args,
         cwd=str(root),
         capture_output=True,
         text=True,
@@ -196,7 +261,8 @@ def block_reason(slug: str, output: str, blocks: int) -> str:
 
 
 def decide(payload: dict, antigravity: bool, root: Path,
-           gate: Callable[[Path, str], subprocess.CompletedProcess] = run_gate) -> Optional[str]:
+           gate: Callable[[Path, str, Optional[float]], subprocess.CompletedProcess] = run_gate
+           ) -> Optional[str]:
     """Return a block reason, or None to allow the stop."""
     if antigravity:
         reason = payload.get("terminationReason") or "model_stop"
@@ -208,6 +274,8 @@ def decide(payload: dict, antigravity: bool, root: Path,
     if not state:
         return None
     slug = str(state["slug"])
+    if other_checkout(payload, state, root):
+        return None  # main checkout vs linked worktree: a different session
     session = session_of(payload)
     owner = state.get("session_id")
     if owner and session and owner != session:
@@ -216,8 +284,14 @@ def decide(payload: dict, antigravity: bool, root: Path,
         warn(f"ignoring stale /apply marker for {slug} (older than {STALE_HOURS}h); cleared")
         clear_state(root)
         return None
+    if session and not owner:
+        if transcript_shows_start(payload, slug) is False:
+            return None  # this session never ran `start`: not the /apply session
+        state["session_id"] = session  # first stop claims the run, whatever the outcome
+        save_state(root, state)
     started = started_at(state)
-    if not documents_exist(root, slug, started.timestamp() if started else None):
+    run_start = started.timestamp() if started else None
+    if not documents_exist(root, slug, run_start):
         return None
     blocks = int(state.get("blocks") or 0)
     if blocks >= MAX_BLOCKS:
@@ -229,15 +303,14 @@ def decide(payload: dict, antigravity: bool, root: Path,
         warn(f"stop_hook_active: not blocking again for {slug}; the gate may still be failing")
         return None
 
-    result = gate(root, slug)
+    # The gate ignores PDFs older than this run (same slack as documents_exist).
+    result = gate(root, slug, run_start - MTIME_SLACK_SECONDS if run_start is not None else None)
     if result.returncode == 0:
         clear_state(root)
         return None
     if result.returncode == 2:
         return None  # mechanical checks passed; human review pending - the agent asks the user
     state["blocks"] = blocks + 1
-    if session and not owner:
-        state["session_id"] = session
     save_state(root, state)
     return block_reason(slug, (result.stdout or "") + (result.stderr or ""), blocks + 1)
 

@@ -58,6 +58,13 @@ per-file diff commands.
 
 ### Fixed
 
+- **`/apply` Stop-hook gate no longer fails open on session races or redrafts (#4).**
+  `tools/apply_state.py start` records the Claude Code session id
+  (`CLAUDE_CODE_SESSION_ID`) and its cwd; otherwise the first stop whose transcript
+  shows the `start` command claims the run, whatever the outcome. Stops from another
+  checkout (main vs `.claude/worktrees/*`) are ignored. `tools/gate_application.py`
+  gains `--since <epoch>`, which the hook passes so a redraft's previous PDFs are
+  never gated as this run's.
 - **`migrate_personal_overlay.py` remembers resolved merges** (#5). A file whose
   `.incoming.personal` the user merged and deleted was re-flagged "manual merge needed" on
   every run, and `--apply` recreated the incoming copy. Resolution is now recorded in gitignored

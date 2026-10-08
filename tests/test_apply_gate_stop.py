@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 HOOK = ROOT / ".claude" / "hooks" / "apply_gate_stop.py"
@@ -50,10 +51,11 @@ FAILING_OUTPUT = (
 
 class FakeGate:
     def __init__(self, returncode: int, stdout: str = FAILING_OUTPUT):
-        self.returncode, self.stdout, self.calls = returncode, stdout, []
+        self.returncode, self.stdout, self.calls, self.since = returncode, stdout, [], []
 
-    def __call__(self, root, slug):
+    def __call__(self, root, slug, since=None):
         self.calls.append(slug)
+        self.since.append(since)
         return subprocess.CompletedProcess(["gate"], self.returncode, self.stdout, "")
 
 
@@ -61,6 +63,16 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        # The suite may itself run inside a Claude Code session: keep its id out of markers.
+        env = mock.patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop(apply_state.SESSION_ENV, None)
+
+    def transcript(self, text: str) -> str:
+        path = self.root / "transcript.jsonl"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
 
     def start(self, slug: str = SLUG, **extra) -> None:
         data = apply_state.start(slug, self.root)
@@ -93,6 +105,8 @@ class Base(unittest.TestCase):
         payload = dict(payload or CLAUDE_PAYLOAD)
         if not antigravity and payload.get("cwd") == CLAUDE_PAYLOAD["cwd"]:
             payload["cwd"] = str(self.root)  # the stop happens inside this repo
+        if payload.get("transcript_path") == CLAUDE_PAYLOAD["transcript_path"]:
+            payload["transcript_path"] = str(self.root / "absent.jsonl")  # unreadable
         return hook.decide(payload, antigravity, self.root, gate), gate
 
 
@@ -285,6 +299,127 @@ class DecideTests(Base):
         reason, _ = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-a"))
         self.assertIsNotNone(reason)
 
+    # --- issue #4: session ownership from the start -------------------------------
+
+    def test_session_recorded_at_start_ignores_other_sessions_first_stop(self):
+        self.start(session_id="sess-apply")
+        self.write_docs()
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-other"))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [], "another session never runs the gate")
+        self.assertEqual(self.state()["session_id"], "sess-apply")
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-apply"))
+        self.assertIsNotNone(reason)
+
+    def test_first_stop_claims_ownership_even_when_allowed(self):
+        self.start()  # no session id known at start (Antigravity / child session)
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-a"))
+        self.assertIsNone(reason, "still at fit evaluation: allow")
+        self.assertEqual(gate.calls, [])
+        self.assertEqual(self.state()["session_id"], "sess-a", "claimed on the allow path")
+        self.write_docs()
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-b"))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+
+    def test_antigravity_first_stop_claims_by_conversation_id(self):
+        self.start()
+        self.decide(dict(AGY_PAYLOAD, conversationId="conv-1"), antigravity=True)
+        self.assertEqual(self.state()["session_id"], "conv-1")
+        self.write_docs()
+        reason, _ = self.decide(dict(AGY_PAYLOAD, conversationId="conv-2"), antigravity=True)
+        self.assertIsNone(reason)
+
+    def test_racing_session_without_start_in_transcript_does_not_claim(self):
+        self.start()
+        self.write_docs()
+        other = self.transcript('{"type":"user","message":"unrelated work"}\n')
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-x", transcript_path=other))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        self.assertNotIn("session_id", self.state(), "the racing session must not take ownership")
+        mine = self.transcript(
+            '{"type":"assistant","input":{"command":"python3 tools/apply_state.py start '
+            + SLUG + '"}}\n')
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-a", transcript_path=mine))
+        self.assertIsNotNone(reason)
+        self.assertEqual(self.state()["session_id"], "sess-a")
+
+    def test_antigravity_transcript_path_field_is_checked(self):
+        self.start()
+        other = self.transcript("nothing here\n")
+        self.decide(dict(AGY_PAYLOAD, conversationId="conv-x", transcriptPath=other), antigravity=True)
+        self.assertNotIn("session_id", self.state())
+        # Antigravity logs run_command calls with the command line as an escaped JSON string.
+        mine = self.transcript(json.dumps({"tool_calls": [{"name": "run_command", "args": {
+            "CommandLine": json.dumps(f"python3 tools/apply_state.py start {SLUG}")}}]}) + "\n")
+        self.decide(dict(AGY_PAYLOAD, conversationId="conv-a", transcriptPath=mine), antigravity=True)
+        self.assertEqual(self.state()["session_id"], "conv-a")
+
+    def test_transcript_match_requires_exact_slug(self):
+        path = self.transcript('"command":"python3 tools/apply_state.py start ' + SLUG + '-v2"')
+        self.assertFalse(hook.transcript_shows_start({"transcript_path": path}, SLUG))
+        path = self.transcript('"command":"python3 tools/apply_state.py start \\"' + SLUG + '\\""')
+        self.assertTrue(hook.transcript_shows_start({"transcript_path": path}, SLUG))
+        self.assertIsNone(hook.transcript_shows_start({"transcript_path": str(self.root / "nope")}, SLUG))
+        self.assertIsNone(hook.transcript_shows_start({}, SLUG))
+
+    def test_worktree_stop_ignored_when_run_started_in_main_checkout(self):
+        self.start(cwd=str(self.root))
+        self.write_docs()
+        wt = self.root / ".claude" / "worktrees" / "agent-1"
+        wt.mkdir(parents=True)
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-wt", cwd=str(wt)))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        self.assertNotIn("session_id", self.state(), "a worktree session does not claim the run")
+        reason, _ = self.decide(dict(CLAUDE_PAYLOAD, session_id="sess-main", cwd=str(self.root / "cv")))
+        self.assertIsNotNone(reason)
+
+    def test_main_checkout_stop_ignored_when_run_started_in_worktree(self):
+        wt = self.root / ".claude" / "worktrees" / "agent-1"
+        (wt / "tools").mkdir(parents=True)
+        self.start(cwd=str(wt / "tools"))
+        self.write_docs()
+        reason, gate = self.decide(dict(CLAUDE_PAYLOAD, cwd=str(self.root)))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        reason, _ = self.decide(dict(CLAUDE_PAYLOAD, cwd=str(wt)))
+        self.assertIsNotNone(reason)
+
+    def test_checkout_of(self):
+        wt = self.root / ".claude" / "worktrees" / "x"
+        wt.mkdir(parents=True)
+        base = self.root.resolve()
+        self.assertEqual(hook.checkout_of(str(wt / "a"), self.root), base / ".claude" / "worktrees" / "x")
+        self.assertEqual(hook.checkout_of(str(self.root / ".claude"), self.root), base)
+        self.assertIsNone(hook.checkout_of(tempfile.gettempdir(), self.root))
+        self.assertIsNone(hook.checkout_of(None, self.root))
+
+    # --- issue #4: stale PDFs on redraft ------------------------------------------
+
+    def test_redraft_passes_run_start_to_gate(self):
+        self.start()
+        self.write_old_docs()
+        (self.root / "cv" / f"main_{SLUG}.tex").write_text("redrafted", encoding="utf-8")
+        reason, gate = self.decide()
+        self.assertIsNotNone(reason, "only stale PDFs: the gate (with --since) fails, so block")
+        started = hook.started_at(self.state()).timestamp()
+        self.assertAlmostEqual(gate.since[0], started - hook.MTIME_SLACK_SECONDS, places=3)
+
+    def test_only_stale_pdf_allows_and_keeps_marker(self):
+        self.start()
+        app = self.root / "documents" / "applications" / SLUG
+        app.mkdir(parents=True)
+        pdf = app / "Jane_Doe_CV.pdf"
+        pdf.write_bytes(b"%PDF")
+        old = hook.started_at(self.state()).timestamp() - 600
+        os.utime(pdf, (old, old))
+        reason, gate = self.decide(gate=FakeGate(0, "GATE VERDICT: [PASSED]"))
+        self.assertIsNone(reason)
+        self.assertEqual(gate.calls, [])
+        self.assertIsNotNone(self.state())
+
     def test_save_state_is_atomic_and_leaves_no_temp_files(self):
         hook.save_state(self.root, {"slug": SLUG, "started_at": apply_state.now_iso(), "blocks": 2})
         state_dir = self.root / ".agents" / "state"
@@ -304,6 +439,7 @@ class EndToEndTests(Base):
         (self.root / "tools").mkdir()
         (self.root / "tools" / "gate_application.py").write_text(
             "import os, sys\nprint('  - CV must be exactly 2 pages (found 3)')\n"
+            "print('  - argv: ' + ' '.join(sys.argv[1:]))\n"
             "print('GATE VERDICT: [FAILED]')\nsys.exit(int(os.environ.get('FAKE_GATE_RC', '1')))\n",
             encoding="utf-8",
         )
@@ -326,6 +462,7 @@ class EndToEndTests(Base):
         out, _ = self.run_hook(CLAUDE_PAYLOAD)
         self.assertEqual(out["decision"], "block")
         self.assertIn("CV must be exactly 2 pages", out["reason"])
+        self.assertIn(f"argv: {SLUG} --since ", out["reason"], "hook passes the run start to the gate")
 
     def test_antigravity_continue_format(self):
         self.start()
@@ -382,6 +519,16 @@ class ApplyStateCliTests(Base):
         self.assertEqual(self.cli("done", SLUG), 0)
         self.assertIsNone(self.state())
         self.assertEqual(self.cli("done", SLUG), 0, "done without a marker is harmless")
+
+    def test_start_records_session_and_cwd_from_env(self):
+        os.environ[apply_state.SESSION_ENV] = "sess-env"
+        self.cli("start", SLUG)
+        self.assertEqual(self.state()["session_id"], "sess-env")
+        self.assertEqual(self.state()["cwd"], os.getcwd())
+
+    def test_start_without_session_env(self):
+        self.cli("start", SLUG)
+        self.assertNotIn("session_id", self.state())
 
     def test_start_resets_block_counter(self):
         self.start(blocks=3)
