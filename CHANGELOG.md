@@ -22,6 +22,13 @@ per-file diff commands.
   sends it back while the gate fails (capped at 3 blocks per run, `stop_hook_active`-aware,
   fail-open). Registered in `.claude/settings.json` and `.agents/hooks.json`, allowlisted in
   `tools/security_guards.py`. Pinned by `tests/test_apply_gate_stop.py`.
+- **`/linkedin-apply` command.** Searches LinkedIn with the `linkedin-search` CLI, triages
+  postings with the `04-job-evaluation.md` framework, hands the pick to `/apply` (CV, cover
+  letter, gate), then assists the LinkedIn Easy Apply form one screen at a time with answers
+  traced to the candidate profile; unknown answers go back to the user, and the user always
+  clicks Submit. The outcome is recorded through `/outcome`. An optional LinkedIn MCP server
+  (account status only) is documented in SETUP.md; machine-local Antigravity plugin
+  registration (`.agents/plugins/`, `.agents/plugins.json`) is gitignored.
 
 ### Changed
 
