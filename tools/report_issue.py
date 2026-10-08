@@ -107,6 +107,7 @@ SKILL_MD = ROOT_DIR / ".claude" / "skills" / "job-application-assistant" / "SKIL
 
 ENV_REPO = "JOBSEARCH_ISSUES_REPO"
 ENV_RUNTIME = "JOBSEARCH_RUNTIME"
+ANTIGRAVITY_ENV_MARKERS = ("ANTIGRAVITY_AGENT", "ANTIGRAVITY_CONVERSATION_ID", "ANTIGRAVITY_TRAJECTORY_ID")
 
 # Owners whose trackers this tool must never write to, regardless of remotes.
 UPSTREAM_DENYLIST = {"madslorentzen/ai-job-search"}
@@ -647,6 +648,11 @@ def detect_runtime(environ: Optional[Dict[str, str]] = None) -> str:
         return override
     if environ.get("CLAUDECODE") or environ.get("CLAUDE_CODE_ENTRYPOINT"):
         return "claude-code"
+    # Antigravity injects these into every agent terminal it spawns (observed in
+    # its persistent-term.env). Generic ANTIGRAVITY_LS_ADDRESS/CSRF are left out
+    # because users may export them by hand for plugin scripts.
+    if any(environ.get(k) for k in ANTIGRAVITY_ENV_MARKERS):
+        return "antigravity"
     return "unknown"
 
 

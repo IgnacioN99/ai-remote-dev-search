@@ -1,5 +1,5 @@
 ---
-framework_version: 1.2.0
+framework_version: 1.3.0
 ---
 
 # Agent Guidelines: AI Job Search
@@ -16,6 +16,7 @@ When the user types `/X` (or asks for X's workflow in words), **load skill `X` f
 | `/scrape` | `.agents/skills/scrape/SKILL.md` | Find new jobs across all portal CLIs |
 | `/rank` | `.agents/skills/rank/SKILL.md` | Score scraped jobs into a shortlist |
 | `/apply` | `.agents/skills/apply/SKILL.md` | Evaluate fit, tailor CV + cover letter, gate, track |
+| `/linkedin-apply` | `.agents/skills/linkedin-apply/SKILL.md` | LinkedIn search, triage, `/apply`, assisted Easy Apply (user submits) |
 | `/interview` | `.agents/skills/interview/SKILL.md` | Interview prep pack / mock interview |
 | `/outcome` | `.agents/skills/outcome/SKILL.md` | Record application results, follow-ups |
 | `/upskill` | `.agents/skills/upskill/SKILL.md` | Skill-gap analysis and learning plan |

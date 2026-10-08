@@ -683,7 +683,8 @@ class RegistrationTests(unittest.TestCase):
 
     def test_operator_commands_end_with_drift_check(self):
         for rel in [".claude/commands/rank.md", ".claude/commands/apply.md", ".claude/skills/job-scraper/SKILL.md",
-                    ".claude/commands/interview.md", ".claude/commands/outcome.md"]:
+                    ".claude/commands/interview.md", ".claude/commands/outcome.md",
+                    ".claude/commands/linkedin-apply.md"]:
             with self.subTest(path=rel):
                 self.assertIn("python3 tools/check_framework_immutable.py --report",
                               (ROOT / rel).read_text(encoding="utf-8"))

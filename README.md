@@ -132,6 +132,7 @@ Once your profile is set up, these commands drive your day-to-day workflow:
 | `/scrape` | Multi-Portal Discovery | Concurrently queries job boards, filters by recency (last 14 days), and runs language gates. |
 | `/rank` | Batch Fit Triage | Batch-scores scraped jobs across the 5 evaluation dimensions, producing a prioritized shortlist. |
 | `/apply <url\|text>` | Autonomous Application | Executes the full drafter-reviewer pipeline, compiles PDFs, and runs ATS quality gates. |
+| `/linkedin-apply` | LinkedIn Easy Apply Assistant | Searches LinkedIn, triages fit, hands the pick to `/apply`, then helps fill Easy Apply from profile facts only; you review and click Submit. |
 | `/interview <company_role>`| Interview Preparation | Generates stage-specific prep packs, company culture audits, STAR narratives, and mock questions. |
 | `/outcome` | Status & State Updates | Records application results (`applied`, `interview`, `offer`, `rejected`), updates tracker, and archives materials. |
 | `/gmail-sync` | Automated Inbox Sync | Connects via Gmail to detect interview invitations, assessments, and rejections automatically. |
@@ -254,6 +255,7 @@ ai-remote-dev-search/
 │   │   ├── scrape.md                  # /scrape discovery orchestration
 │   │   ├── rank.md                    # /rank batch triage
 │   │   ├── apply.md                   # /apply drafter-reviewer pipeline
+│   │   ├── linkedin-apply.md          # /linkedin-apply LinkedIn search + Easy Apply assist
 │   │   ├── interview.md               # /interview prep pack generation
 │   │   ├── outcome.md                 # /outcome result tracking
 │   │   ├── gmail-sync.md              # /gmail-sync inbox tracking

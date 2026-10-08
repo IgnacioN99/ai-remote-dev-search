@@ -1,7 +1,11 @@
 import {
   SEARCH_API_URL,
   POST_BASE_URL,
+  ANCHOR_ENV_VAR,
+  ApiError,
   apiFetch,
+  isShardError,
+  resolveAnchorId,
   writeError,
   formatCompensation,
   formatLocation,
@@ -18,8 +22,13 @@ export interface SearchOpts {
   format: "json" | "table" | "plain"
 }
 
-export function buildSearchPayload(opts: SearchOpts): any {
+export function buildSearchPayload(opts: SearchOpts, anchorId: string = resolveAnchorId()): any {
   const andClauses: any[] = [
+    {
+      similarto: {
+        items: [{ refId: anchorId, weight: 0 }],
+      },
+    },
     {
       "skill/role": {
         text: opts.query,
@@ -32,6 +41,10 @@ export function buildSearchPayload(opts: SearchOpts): any {
       },
     },
   ]
+
+  if (opts.remote) {
+    andClauses.push({ remote: { term: true } })
+  }
 
   if (opts.location && opts.location.toLowerCase() !== "remote") {
     andClauses.push({
@@ -70,22 +83,66 @@ function renderTable(cards: TorreJobCard[]): string {
   return [header, "-".repeat(header.length), ...rows].join("\n")
 }
 
+/** Build the search URL. Torre ignores `offset`; paging uses the `after` cursor. */
+export function buildSearchUrl(limit: number, after?: string | null): string {
+  const params = new URLSearchParams({ size: String(limit), lang: "en" })
+  if (after) params.set("after", after)
+  return `${SEARCH_API_URL}/?${params.toString()}`
+}
+
+/** Map a failed search request to a clear, actionable CLI error. */
+export function describeSearchError(err: unknown, anchorId: string): { error: string; code: string } {
+  if (err instanceof ApiError) {
+    const msg = err.apiMessage || ""
+    if (isShardError(msg) || /similarto/i.test(msg)) {
+      return {
+        error:
+          `Torre rejected the search anchor opportunity '${anchorId}' (${err.status}: ${msg || "no message"}). ` +
+          `Set ${ANCHOR_ENV_VAR} to the ID of any live posting (e.g. from https://torre.ai/post/<id>) and retry.`,
+        code: "ANCHOR_UNAVAILABLE",
+      }
+    }
+    if (err.status === 400 || err.status === 401 || err.status === 403) {
+      return {
+        error:
+          `Torre search API rejected the request (${err.status}: ${msg || "no message"}). ` +
+          "The public API contract has likely changed again; see .agents/skills/torre-search/url-reference.md. " +
+          "Until fixed, set `enabled: false` in .agents/skills/torre-search/SKILL.md so /scrape skips Torre.",
+        code: err.status === 400 ? "API_REJECTED" : "AUTH_REQUIRED",
+      }
+    }
+  }
+  const e = err as any
+  return { error: (e && e.message) || String(err), code: "FETCH_FAILED" }
+}
+
 export async function runSearch(opts: SearchOpts): Promise<number> {
+  const anchorId = resolveAnchorId()
   try {
     const limit = Math.max(1, Math.min(opts.limit, 50))
-    const offset = Math.max(0, (opts.page - 1) * limit)
-    const url = `${SEARCH_API_URL}/?size=${limit}&offset=${offset}`
-    const payload = buildSearchPayload(opts)
+    const page = Math.max(1, opts.page)
+    const payload = buildSearchPayload(opts, anchorId)
 
-    const response = await apiFetch<any>(url, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-    })
-
-    if (!response || !Array.isArray(response.results)) {
-      writeError("Invalid response from Torre search API", "INVALID_RESPONSE")
-      return 1
+    let after: string | null = null
+    let response: any = null
+    for (let p = 1; p <= page; p++) {
+      response = await apiFetch<any>(buildSearchUrl(limit, after), {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!response || !Array.isArray(response.results)) {
+        writeError("Invalid response from Torre search API", "INVALID_RESPONSE")
+        return 1
+      }
+      if (p < page) {
+        after = response.pagination?.next || null
+        if (!after) {
+          // Requested page lies past the last one.
+          response = { ...response, results: [], pagination: { next: null } }
+          break
+        }
+      }
     }
 
     const cards: TorreJobCard[] = response.results.map((r: any) => {
@@ -105,7 +162,7 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
       }
     })
 
-    // Filter remote client-side if explicitly requested
+    // Server-side `remote` clause already applied; keep a client-side guard.
     const filtered = opts.remote ? cards.filter((c) => c.remote) : cards
 
     if (opts.format === "json") {
@@ -114,7 +171,9 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
           {
             meta: {
               count: filtered.length,
-              page: opts.page,
+              page,
+              total: typeof response.total === "number" ? response.total : null,
+              next: response.pagination?.next || null,
             },
             results: filtered,
           },
@@ -138,8 +197,9 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
       }
     }
     return 0
-  } catch (err: any) {
-    writeError(err.message || String(err), "FETCH_FAILED")
+  } catch (err: unknown) {
+    const { error, code } = describeSearchError(err, anchorId)
+    writeError(error, code)
     return 1
   }
 }

@@ -361,6 +361,21 @@ Never edit the generated `SKILL.md` copies by hand - the next sync overwrites th
 
 **Quick check.** Open the repo in Antigravity, type `/` and confirm `/apply`, `/rank`, `/setup`, `/scrape` appear in the slash menu; run `/rank` and confirm the agent says it is following `.agents/skills/rank/SKILL.md` rather than starting a generic flow.
 
+### LinkedIn plugin (optional)
+
+`/linkedin-apply` needs only the bundled `linkedin-search` CLI (section 3). A separately installed LinkedIn plugin can add a `linkedin` MCP server for account status and a browser-side Easy Apply helper. Neither is required, and the MCP server has no job-search or apply tools: `/linkedin-apply` uses at most its account-status tool and never its posting tools. If you use an Easy Apply helper, run it in its assisted (pause-before-submit) mode; `/linkedin-apply` never submits for you.
+
+Install the plugin **outside the repo** so its credentials and absolute paths never reach your fork:
+
+- **Antigravity:** put the plugin folder under the global customization root, `~/.gemini/config/plugins/<plugin>/`. Plugins there are discovered and enabled automatically (the folder needs its `plugin.json` manifest), including their `mcp_config.json`, and they load in **every** workspace; no project file is needed. If you register it per project instead (`.agents/plugins/` or `.agents/plugins.json`), that registration is machine-local and gitignored.
+- **Claude Code:** register the MCP server at user scope rather than in the tracked `.mcp.json`:
+
+  ```bash
+  claude mcp add --scope user linkedin -- <path-to-plugin>/scripts/linkedin-mcp-server
+  ```
+
+  If the server needs a specific `PATH` (the plugin's own `mcp_config.json` shows it), add `-e PATH=<value>` before the `--`. Check with `claude mcp list`.
+
 ## Troubleshooting
 
 ### "salary_data.json not found"
