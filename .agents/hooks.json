@@ -14,6 +14,21 @@
       }
     ]
   },
+  "operator-mode-shell-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ../.claude/hooks/guard_framework.py --antigravity",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  },
   "apply-quality-gate": {
     "enabled": true,
     "Stop": [
@@ -21,6 +36,16 @@
         "type": "command",
         "command": "python3 ../.claude/hooks/apply_gate_stop.py --antigravity",
         "timeout": 120
+      }
+    ]
+  },
+  "framework-drift-report": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python3 ../tools/check_framework_immutable.py --hook",
+        "timeout": 60
       }
     ]
   }

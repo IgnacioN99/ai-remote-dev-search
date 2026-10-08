@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Reject commits of framework files made from the MAIN checkout.
+"""Reject commits of framework files made from the MAIN checkout, and of candidate PII anywhere.
 
 Activate once per clone:  git config core.hooksPath .githooks   (see SETUP.md)
 
-Framework development belongs in a linked worktree (git-dir != git-common-dir), where this
-hook allows everything. In the main checkout a commit may only touch personalization paths
-listed in tools/personalization_paths.json (portal enabled: toggles, new portals and
-templates); profile data lives in gitignored *.personal files and is never committed. Override deliberately with ALLOW_FRAMEWORK_COMMIT=1, e.g. when
-merging reviewed branches into master. Stdlib only; fails open with a warning on internal errors.
+1. PII (main checkout AND linked worktrees): every staged file's staged content is scanned
+   for the candidate's identity terms (name, email, phone, handles) from the gitignored
+   profile via tools/pii_scan.py. A hit blocks the commit, printing counts and paths only.
+   Override deliberately with ALLOW_PII_COMMIT=1 (e.g. a false positive on a common word).
+2. Framework files: development belongs in a linked worktree (git-dir != git-common-dir),
+   where this check allows everything. In the main checkout a commit may only touch
+   personalization paths listed in tools/personalization_paths.json (portal enabled: toggles,
+   new portals and templates); profile data lives in gitignored *.personal files and is never
+   committed. Override deliberately with ALLOW_FRAMEWORK_COMMIT=1, e.g. when merging reviewed
+   branches into master.
+Stdlib only; fails open with a warning on internal errors.
 """
 
 import os
@@ -16,14 +22,62 @@ import sys
 from pathlib import Path
 
 
-def main() -> int:
-    if os.environ.get("ALLOW_FRAMEWORK_COMMIT") == "1":
+def staged_paths(root: Path):
+    r = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRT"],
+        capture_output=True, text=True, cwd=str(root),
+    )
+    if r.returncode != 0:
+        return None
+    return [p for p in r.stdout.split("\0") if p]
+
+
+def pii_check(root: Path, paths) -> int:
+    if os.environ.get("ALLOW_PII_COMMIT") == "1":
         return 0
+    try:
+        import pii_scan
+
+        scanner = pii_scan.PiiScanner.from_repo(root, include_warn=False)  # block tier only: fast
+    except Exception as exc:  # ImportError, unreadable profile, ...
+        print(f"pre-commit: PII scan unavailable ({exc!r}); allowing commit", file=sys.stderr)
+        return 0
+    if scanner.empty:
+        return 0
+    hits = []
+    for rel in paths:
+        blob = subprocess.run(["git", "cat-file", "-p", f":{rel}"], capture_output=True, cwd=str(root))
+        if blob.returncode != 0:  # deleted in the index, or a gitlink
+            continue
+        block, warn = scanner.scan_bytes(blob.stdout)
+        if block:
+            hits.append((rel, block, warn))
+    if not hits:
+        return 0
+    print("pre-commit: candidate PII (name/contact/handle) staged - values not shown:", file=sys.stderr)
+    print("\n".join(pii_scan.format_hits(hits)), file=sys.stderr)
+    print(
+        "Remove it (personal data belongs in gitignored candidate_profile.json / *.personal files). "
+        "If this is a false positive: ALLOW_PII_COMMIT=1 git commit ...",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def main() -> int:
     top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
     if top.returncode != 0:
         return 0
     root = Path(top.stdout.strip())
     sys.path.insert(0, str(root / "tools"))
+    staged = staged_paths(root)
+    if staged is None:
+        print("pre-commit: could not list staged files; allowing commit", file=sys.stderr)
+        return 0
+    if pii_check(root, staged):
+        return 1
+    if os.environ.get("ALLOW_FRAMEWORK_COMMIT") == "1":
+        return 0
     try:
         import framework_paths as fp
     except ImportError as exc:
@@ -32,15 +86,8 @@ def main() -> int:
     info = fp.repo_info(root)
     if info is None or info.is_linked_worktree:
         return 0
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRT"],
-        capture_output=True, text=True, cwd=str(root),
-    )
-    if staged.returncode != 0:
-        print("pre-commit: could not list staged files; allowing commit", file=sys.stderr)
-        return 0
     entries = fp.load_personalization(root)
-    blocked = [p for p in staged.stdout.split("\0") if p and not fp.matches_personalization(entries, p)]
+    blocked = [p for p in staged if not fp.matches_personalization(entries, p)]
     if not blocked:
         return 0
     print("pre-commit: framework files staged in the MAIN checkout:", file=sys.stderr)

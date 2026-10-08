@@ -3,6 +3,8 @@
 
     python3 tools/check_framework_immutable.py            # print drift, exit 1 if any
     python3 tools/check_framework_immutable.py --report   # ...and file a 'drift' issue (paths only)
+    python3 tools/check_framework_immutable.py --hook     # Antigravity Stop hook: report on stderr,
+                                                          # print {} and always exit 0
 
 Edit-time hooks (.claude/hooks/guard_framework.py) do not see shell writes, and Antigravity's
 hooks are best-effort, so operator commands (/scrape, /rank, /apply) run this as their final
@@ -10,6 +12,11 @@ step. Drift = `git status` entries on framework paths (tracked files, or new non
 under tools/, .claude/, .agents/, tests/, .github/, .githooks/, templates/, AGENTS.md, CLAUDE.md)
 that tools/personalization_paths.json does not exempt via 'drift_exempt' (profile/config docs, enabled:
 toggles, brand-new portal/template dirs). Changes to existing portal/template code are drift.
+
+PII scan (tools/pii_scan.py): every new/modified file under a framework dir (drift or not,
+main checkout or worktree) is scanned for candidate identity terms from the gitignored profile;
+hits print a loud WARNING with counts and paths only. It does not change the exit code;
+.githooks/pre-commit is what blocks such a commit.
 
 Exit 0: clean, or running in a linked worktree (framework work belongs there).
 Exit 1: drift found. Exit 2: not a git repository / git failed.
@@ -20,6 +27,8 @@ Stdlib only.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -88,12 +97,48 @@ def report(drift: list[tuple[str, str]], root: Path) -> int:
     return r.returncode
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="List framework drift in the main checkout.")
-    ap.add_argument("--report", action="store_true", help="file a 'drift' issue via tools/report_issue.py")
-    ap.add_argument("--repo", default=None, help="repository path (default: this script's repo)")
-    args = ap.parse_args(argv)
+def changed_framework_files(info: fp.RepoInfo) -> list[str]:
+    """Existing new/modified files under framework paths (tracked or not), for the PII scan."""
+    out = []
+    for xy, rel in porcelain_entries(info):
+        if "D" in xy:
+            continue
+        if xy == "??" and not fp.in_framework_dir(rel):
+            continue
+        out.append(rel)
+    return out
 
+
+def pii_warning(info: fp.RepoInfo) -> int:
+    """Print a loud warning for identity terms in changed framework files. Returns the number
+    of files with identity (block-tier) hits. Never raises."""
+    try:
+        import pii_scan
+
+        scanner = pii_scan.PiiScanner.from_repo(info.toplevel)
+        if scanner.empty:
+            return 0
+        hits = scanner.scan_files(info.toplevel, changed_framework_files(info))
+    except Exception as exc:  # the drift check must not fail on the PII pass
+        print(f"check_framework_immutable: PII scan skipped ({exc!r})", file=sys.stderr)
+        return 0
+    loud = [h for h in hits if h[1]]
+    if loud:
+        print("!" * 72)
+        print(f"WARNING: candidate PII (name/contact/handle) in {len(loud)} changed framework file(s).")
+        print("Values are not shown. Remove them before any commit; personal data belongs in the")
+        print("gitignored candidate_profile.json / *.personal overlays, never in framework files.")
+        print("\n".join(pii_scan.format_hits(loud)))
+        print("!" * 72)
+    soft = [h for h in hits if not h[1]]
+    if soft:
+        print(f"note: {len(soft)} changed framework file(s) mention other profile terms "
+              "(location, employers, tracker companies) - review before committing:")
+        print("\n".join(pii_scan.format_hits(soft)))
+    return len(loud)
+
+
+def run(args: argparse.Namespace) -> int:
     start = Path(args.repo) if args.repo else Path(__file__).resolve().parent
     info = fp.repo_info(start)
     if info is None:
@@ -101,12 +146,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if info.is_linked_worktree:
         print("check_framework_immutable: linked worktree - framework edits are allowed here (OK)")
+        pii_warning(info)
         return 0
     try:
         drift = find_drift(info)
     except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
         print(f"check_framework_immutable: {exc}", file=sys.stderr)
         return 2
+    pii_warning(info)
     if not drift:
         print(f"check_framework_immutable: OK (main checkout, mode: {fp.read_mode(info.toplevel)})")
         return 0
@@ -122,6 +169,29 @@ def main(argv: list[str] | None = None) -> int:
         rc = report(drift, info.toplevel)
         print(f"report_issue.py exit code: {rc} (0 filed/queued, 2 refused, 1 error)")
     return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="List framework drift in the main checkout.")
+    ap.add_argument("--report", action="store_true", help="file a 'drift' issue via tools/report_issue.py")
+    ap.add_argument("--repo", default=None, help="repository path (default: this script's repo)")
+    ap.add_argument("--hook", action="store_true",
+                    help="Antigravity Stop hook: report on stderr, print {} on stdout, always exit 0")
+    args = ap.parse_args(argv)
+    if not args.hook:
+        return run(args)
+    # Report-only and non-blocking: never files an issue, never keeps the agent running.
+    args.report = False
+    try:
+        with contextlib.redirect_stdout(sys.stderr):
+            rc = run(args)
+        if rc == 1:
+            print("check_framework_immutable: framework drift at session end (see above); run "
+                  "python3 tools/check_framework_immutable.py for details.", file=sys.stderr)
+    except Exception as exc:  # a Stop hook must never break the session
+        print(f"check_framework_immutable: hook error {exc!r}", file=sys.stderr)
+    print(json.dumps({}))
+    return 0
 
 
 if __name__ == "__main__":
