@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -101,7 +101,7 @@ class MigrationTests(unittest.TestCase):
         self.root = Path(os.path.realpath(self._tmp.name))
         self.env = git_env()
         self.git("init", "-q", "-b", "master")
-        self.write(".gitignore", "*.personal\ndocuments/memory/**\n")
+        self.write(".gitignore", "*.personal\ndocuments/memory/**\n.agents/state/\n")
         self.write(EVAL, "---\nframework_version: 1.0.0\n---\nScoring\nStrong: Fortran, COBOL\n")
         self.write(BEHAV, "Overview: steady\n")
         self.write(QUERIES, "Queries\nsite:example.org fortran\n")
@@ -212,6 +212,73 @@ class MigrationTests(unittest.TestCase):
         self.assertIn("Nothing to write", out)
         self.assertEqual(incoming.stat().st_mtime_ns, older, "incoming must not be rewritten")
         self.assertEqual(sorted((self.root / "documents" / "memory").glob("backup-*")), backups)
+
+    def _state(self):
+        return self.root / mig.STATE_REL
+
+    def test_deleted_incoming_after_apply_is_resolved_and_never_recreated(self):
+        self.write(QUERIES + ".personal", "Queries\nsite:example.net cobol\n")
+        self.run_mig("--apply", files=(QUERIES,))
+        incoming = self.root / (QUERIES + ".incoming.personal")
+        self.assertTrue(incoming.is_file())
+        self.assertTrue(self._state().is_file())
+        incoming.unlink()  # user merged what they wanted (nothing) and deleted it
+        out = self.run_mig(files=(QUERIES,))
+        self.assertIn("[resolved] " + QUERIES, out)
+        self.assertNotIn("manual merge needed", out)
+        out = self.run_mig("--apply", files=(QUERIES,))
+        self.assertIn("Nothing to write", out)
+        self.assertFalse(incoming.exists())
+        self.assertIn("[resolved] " + QUERIES, self.run_mig(files=(QUERIES,)))
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_dry_run_does_not_write_state(self):
+        self.write(QUERIES + ".personal", "Queries\nsite:example.net cobol\n")
+        out = self.run_mig(files=(QUERIES,))
+        self.assertIn("--resolved-all", out)
+        self.assertFalse(self._state().exists())
+
+    def test_resolved_all_without_state_marks_hand_merged_files(self):
+        # Incoming copies written by an older script version (no state), merged and
+        # deleted by hand: the one-time --resolved-all makes the migration a no-op.
+        self.write(QUERIES + ".personal", "Queries\nsite:example.net cobol\n")
+        self.assertIn("[incoming] " + QUERIES, self.run_mig(files=(QUERIES,)))
+        out = self.run_mig("--resolved-all", files=(QUERIES, BEHAV))
+        self.assertIn("marked resolved", out)
+        self.assertFalse((self.root / "documents").exists(), "no backups for --resolved-all")
+        out = self.run_mig("--apply", files=(QUERIES,))
+        self.assertIn("[resolved] " + QUERIES, out)
+        self.assertIn("Nothing to write", out)
+        self.assertFalse((self.root / (QUERIES + ".incoming.personal")).exists())
+
+    def test_resolved_all_skips_file_with_incoming_still_present(self):
+        self.write(QUERIES + ".personal", "Queries\nsite:example.net cobol\n")
+        self.run_mig("--apply", files=(QUERIES,))
+        out = self.run_mig("--resolved-all", files=(QUERIES,))
+        self.assertIn("still exists", out)
+        self.assertNotIn("[resolved]", out)
+        out = self.run_mig("--resolved", QUERIES, files=(QUERIES,))
+        self.assertIn("[resolved] " + QUERIES, out)
+
+    def test_resolved_rejects_unknown_file(self):
+        err = io.StringIO()
+        with redirect_stdout(io.StringIO()), redirect_stderr(err):
+            rc = mig.main(["--root", str(self.root), "--files", QUERIES, "--resolved", "nope.md"])
+        self.assertEqual(rc, 2)
+        self.assertIn("not a migrated file", err.getvalue())
+
+    def test_changed_source_content_reopens_resolved_file(self):
+        self.write(MASTER_CV, "\\name{[First]}{[Last]}\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "master cv template")
+        self.write(MASTER_CV, "\\name{Jane}{Doe}\n")
+        self.write(MASTER_CV + ".personal", "\\name{Jane}{Public}\n")
+        self.run_mig("--resolved", MASTER_CV, files=(MASTER_CV,))
+        self.assertIn("[resolved] " + MASTER_CV, self.run_mig(files=(MASTER_CV,)))
+        self.write(MASTER_CV, "\\name{Jane}{Roe}\n")  # source content changed
+        out = self.run_mig("--apply", files=(MASTER_CV,))
+        self.assertIn("[incoming] " + MASTER_CV, out)
+        self.assertTrue((self.root / (MASTER_CV + ".incoming.personal")).is_file())
 
     def test_copy_stamped_by_earlier_migration_needs_no_merge(self):
         # The earlier migration stamped the template's version onto the copy; the
