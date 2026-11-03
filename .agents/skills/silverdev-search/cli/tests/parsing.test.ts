@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   parseSearchPage,
   parseDetailPage,
+  needsDetail,
   scoreQuery,
   withinDays,
   paginate,
