@@ -195,3 +195,17 @@ describe("search-time helpers", () => {
     expect(paginate(jobs, 0)).toHaveLength(20); // coerced to page 1
   });
 });
+
+describe("parseSearchPage (ItemList of url/name only)", () => {
+  const html =
+    '<script type="application/ld+json">{"@type":"ItemList","itemListElement":[{"@type":"ListItem","position":1,"url":"https://silver.dev/jobs/acme-backend","name":"Acme - Backend"}]}</script>' +
+    '<article><a href="/jobs/acme-backend"><div><h2>Acme - Backend</h2><p>$60K – $72K • Offers Equity</p></div></a></article>'
+  test("returns stubs from cards with salary", () => {
+    const jobs = parseSearchPage(html)
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].id).toBe("acme-backend")
+    expect(jobs[0].company).toBe("Acme")
+    expect(jobs[0].salary).toBe("$60K – $72K")
+    expect(needsDetail(jobs[0])).toBe(true)
+  })
+})

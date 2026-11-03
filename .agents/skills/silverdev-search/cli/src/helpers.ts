@@ -9,6 +9,8 @@
 // escaped/decoded, and far less fragile than the Tailwind class soup in the HTML.
 // The only thing JSON-LD lacks is the per-listing slug, which we recover from
 // the HTML cards (they render in the same order as the ItemList positions).
+// NOTE (2026-11): /jobs now embeds only an ItemList of {url,name}; the full
+// JobPosting data lives on /jobs/<slug>, so search enriches stubs from there.
 
 export const SEARCH_URL = "https://silver.dev/jobs"
 export const DETAIL_URL = "https://silver.dev/jobs"
@@ -226,37 +228,89 @@ function slugFromUrl(url: string): string {
 export function parseSearchPage(html: string): SilverJob[] {
   const blocks = extractJsonLd(html)
   const list = blocks.find((b) => b["@type"] === "ItemList")
-  if (!list || !Array.isArray(list.itemListElement)) return []
+  const entries = list && Array.isArray(list.itemListElement) ? list.itemListElement : []
 
-  // (slug, title) pairs from the HTML cards, in render order.
-  const cards = [...html.matchAll(/<article><a href="\/jobs\/([^"]+)">[\s\S]*?<h2>([\s\S]*?)<\/h2>/gi)].map((m) => ({
-    slug: m[1],
-    title: cleanTitle(decodeHtmlEntities(m[2])),
-  }))
+  // (slug, title, card text) from the HTML cards, in render order.
+  const cards = [...html.matchAll(/<article><a href="\/jobs\/([^"]+)">([\s\S]*?)<\/article>/gi)].map((m) => {
+    const title = m[2].match(/<h2>([\s\S]*?)<\/h2>/i)
+    const blurb = m[2].match(/<p>([\s\S]*?)<\/p>/i)
+    return {
+      slug: m[1],
+      title: cleanTitle(decodeHtmlEntities(title ? title[1].replace(/<[^>]+>/g, "") : "")),
+      blurb: blurb ? cleanTitle(decodeHtmlEntities(blurb[1].replace(/<[^>]+>/g, ""))) : "",
+    }
+  })
 
   const jobs: SilverJob[] = []
-  for (let i = 0; i < list.itemListElement.length; i++) {
-    const entry = list.itemListElement[i]
+  const seen = new Set<string>()
+  const push = (job: SilverJob) => {
+    if (!job.id || seen.has(job.id)) return
+    seen.add(job.id)
+    jobs.push(job)
+  }
+
+  // Legacy layout: ItemList entries embed full JobPosting objects.
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]
     const item = isObj(entry) && isObj(entry.item) ? entry.item : undefined
     if (!item) continue
     const title = cleanTitle(item.title)
     if (!title) continue
-
-    // Match by normalized title; fall back to same-position card.
     const norm = normalize(title)
     let card = cards.find((c) => normalize(c.title) === norm)
     if (!card && i < cards.length) card = cards[i]
     if (!card) continue
-    const slug = card.slug || slugFromUrl(card.title)
+    push({ id: card.slug, title, ...postingFields(item), url: `${DETAIL_URL}/${card.slug}` } as SilverJob)
+  }
 
-    jobs.push({
-      id: slug,
-      title,
-      ...postingFields(item),
-      url: `${DETAIL_URL}/${slug}`,
-    } as SilverJob)
+  // Current layout: ItemList only carries {url, name}; the cards carry a
+  // title + salary blurb. Emit stubs; runSearch() enriches them from the
+  // /jobs/<slug> detail pages (see applyDetail).
+  const stub = (slug: string, title: string, blurb: string): SilverJob => ({
+    id: slug,
+    title,
+    company: companyFromTitle(title),
+    location: null,
+    date: null,
+    epoch: null,
+    url: `${DETAIL_URL}/${slug}`,
+    salary: blurb.match(/\$[\d.,]+K?\s*[–-]\s*\$[\d.,]+K?|\$[\d.,]+K?\+?/i)?.[0] ?? null,
+    salaryMin: null,
+    salaryMax: null,
+    salaryCurrency: null,
+    employmentType: null,
+    industry: null,
+    occupationalCategory: null,
+    applyUrl: null,
+    description: null,
+  })
+  for (const c of cards) push(stub(c.slug, c.title, c.blurb))
+  for (const entry of entries) {
+    if (!isObj(entry) || isObj(entry.item)) continue
+    const url = str(entry.url)
+    const title = cleanTitle(entry.name)
+    if (url && title) push(stub(slugFromUrl(url), title, ""))
   }
   return jobs
+}
+
+/** True when a search-page job still lacks the detail-page fields. */
+export function needsDetail(job: SilverJob): boolean {
+  return job.description === null && job.epoch === null
+}
+
+/** Merge a parsed detail page into a stub job (keeps id/url/title/company). */
+export function applyDetail(job: SilverJob, detail: JobDetail | null): SilverJob {
+  if (!detail) return job
+  return {
+    ...job,
+    ...detail,
+    id: job.id,
+    url: job.url,
+    title: job.title,
+    company: job.company ?? detail.company,
+    salary: detail.salary ?? job.salary,
+  }
 }
 
 /** Parse a /jobs/<slug> detail page: a single JobPosting JSON-LD object. */
