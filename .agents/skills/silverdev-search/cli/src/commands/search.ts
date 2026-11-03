@@ -1,7 +1,11 @@
 import {
   SEARCH_URL,
+  DETAIL_URL,
   htmlFetch,
   parseSearchPage,
+  parseDetailPage,
+  needsDetail,
+  applyDetail,
   matchesQuery,
   scoreQuery,
   withinDays,
@@ -58,6 +62,25 @@ export async function runSearch(opts: SearchOpts): Promise<number> {
   try {
     const html = await htmlFetch(SEARCH_URL)
     let jobs = parseSearchPage(html)
+
+    // The list page no longer carries descriptions/dates. Only when a query or
+    // age filter needs them, fetch detail pages (small pool, polite).
+    if (opts.query || opts.jobage) {
+      const pending = jobs.filter(needsDetail)
+      let next = 0
+      const worker = async () => {
+        while (next < pending.length) {
+          const job = pending[next++]
+          try {
+            const detail = parseDetailPage(await htmlFetch(`${DETAIL_URL}/${job.id}`), job.id)
+            Object.assign(job, applyDetail(job, detail))
+          } catch {
+            // leave the stub; it stays searchable by title/company
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(5, pending.length) }, worker))
+    }
 
     if (opts.query) {
       const query = opts.query

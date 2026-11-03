@@ -38,6 +38,8 @@ Run it on your own responsibility. robots.txt is permissive
 - See USD salary ranges (e.g. `$120K–$180K`) without opening each posting
 - Get the full description and Ashby apply link of a specific listing
 
+> **Note:** `/jobs` now lists only titles/salary; with `--query` or `--jobage` the CLI fetches each `/jobs/<slug>` page (5 in parallel, ~40 requests) to get descriptions and dates. Without filters it makes a single request.
+
 ## Commands
 
 ### Search job listings
